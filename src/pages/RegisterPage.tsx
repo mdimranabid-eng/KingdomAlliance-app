@@ -151,7 +151,7 @@ export default function RegisterPage() {
 
   const compressAndUpload = async (file: File, path: string) => {
     const options = {
-      maxSizeMB: 1,
+      maxSizeMB: 0.5,
       maxWidthOrHeight: 1200,
       useWebWorker: true,
       fileType: 'image/jpeg'
@@ -163,7 +163,23 @@ export default function RegisterPage() {
       const compressedFile = await imageCompression(file, options);
       console.log(`Compressed to ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
       
-      // Upload to Firebase Storage
+      // Try Cloudinary first if configured
+      if (settings.cloudinaryCloudName && settings.cloudinaryUploadPreset) {
+        try {
+          console.log("Attempting Cloudinary upload...");
+          const url = await uploadToCloudinary(
+            compressedFile, 
+            settings.cloudinaryCloudName, 
+            settings.cloudinaryUploadPreset
+          );
+          console.log("Cloudinary upload successful:", url);
+          return url;
+        } catch (cloudinaryError) {
+          console.warn("Cloudinary upload failed, falling back to Firebase:", cloudinaryError);
+        }
+      }
+
+      // Fallback to Firebase Storage
       try {
         console.log("Attempting Firebase Storage upload to:", path);
         const storageRef = ref(storage, path);
@@ -978,7 +994,7 @@ export default function RegisterPage() {
                               disabled={uploading}
                             />
                           </label>
-                          <p className="text-[10px] text-on-surface-variant mt-1">Please upload .Jpg files only and not more than 1 MB file size.</p>
+                          <p className="text-[10px] text-on-surface-variant mt-1">Please upload .Jpg files only and not more than 500 KB file size.</p>
                         </div>
                       </div>
                       
@@ -1048,7 +1064,7 @@ export default function RegisterPage() {
                           </label>
                         )}
                       </div>
-                      <p className="text-[10px] text-on-surface-variant mt-3 text-center">Please upload .Jpg files only and not more than 1 MB file size.</p>
+                      <p className="text-[10px] text-on-surface-variant mt-3 text-center">Please upload .Jpg files only and not more than 500 KB file size.</p>
                     </div>
                   </div>
                 )}

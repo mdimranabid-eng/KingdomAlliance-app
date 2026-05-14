@@ -42,6 +42,12 @@ export const CONFIG = {
   minAge: 18,
   maxAge: 70,
   defaultCountryCode: "+966",
+
+  // --- CLOUDINARY CONFIGURATION ---
+  // To enable Cloudinary, provide your Cloud Name and an 'Unsigned' Upload Preset.
+  // You can create a preset in Cloudinary Settings -> Upload -> Upload Presets.
+  cloudinaryCloudName: "dvmx7w1a8", 
+  cloudinaryUploadPreset: "kingdom_preset", // Created as "Unsigned" in Cloudinary settings
 };
 
 export default CONFIG;

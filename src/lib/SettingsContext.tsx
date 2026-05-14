@@ -37,8 +37,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     enableNotifications: DEFAULT_CONFIG.features.enableNotifications,
     requireAdminApproval: DEFAULT_CONFIG.features.requireAdminApproval,
     minAge: DEFAULT_CONFIG.minAge,
-    cloudinaryCloudName: '',
-    cloudinaryUploadPreset: '',
+    cloudinaryCloudName: DEFAULT_CONFIG.cloudinaryCloudName || '',
+    cloudinaryUploadPreset: DEFAULT_CONFIG.cloudinaryUploadPreset || '',
   });
   const [loading, setLoading] = useState(true);
 
