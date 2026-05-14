@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: "Playfair Display", serif;
+  --font-inter: "Inter", sans-serif;
+
+  --color-primary: #735c00;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #d4af37;
+  --color-on-primary-container: #554300;
+  
+  --color-secondary: #4b53bc;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #8991fe;
+  --color-on-secondary-container: #1b218f;
+
+  --color-surface: #fcf9f4;
+  --color-on-surface: #1c1c19;
+  --color-on-surface-variant: #4d4635;
+  --color-surface-container: #f0ede9;
+  --color-surface-container-low: #f6f3ee;
+  --color-surface-container-high: #ebe8e3;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-variant: #e5e2dd;
+  
+  --color-outline: #7f7663;
+  --color-outline-variant: #d0c5af;
+  
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  .font-headline {
+    font-family: var(--font-headline);
+  }
+  
+  .font-inter {
+    font-family: var(--font-inter);
+  }
+}

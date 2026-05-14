@@ -1,0 +1,135 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about a member of the matrimonial platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "profileType": { "type": "string", "enum": ["bride", "groom"] },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "age": { "type": "integer" },
+        "denomination": { "type": "string" },
+        "church": { "type": "string" },
+        "education": { "type": "string" },
+        "profession": { "type": "string" },
+        "height": { "type": "integer", "description": "Height in cm" },
+        "location": { "type": "string" },
+        "educationLevel": { "type": "string", "enum": ["School", "Bachelor", "Master", "Doctorate"] },
+        "maritalStatus": { "type": "string", "enum": ["Never Married", "Divorced", "Widowed", "Awaiting Divorce"] },
+        "lifestyle": {
+          "type": "object",
+          "properties": {
+            "smoking": { "type": "string", "enum": ["No", "Occasionally", "Yes"] },
+            "drinking": { "type": "string", "enum": ["No", "Occasionally", "Yes"] }
+          }
+        },
+        "mobileNumber": { "type": "string", "description": "Verified mobile number" },
+        "emailVerified": { "type": "boolean", "description": "Mirror of Auth email verification status" },
+        "aboutMe": { "type": "string" },
+        "familyDetails": { "type": "string" },
+        "partnerPreferences": {
+          "type": "object",
+          "properties": {
+            "ageMin": { "type": "integer" },
+            "ageMax": { "type": "integer" },
+            "denominations": { "type": "array", "items": { "type": "string" } },
+            "locations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "photoUrl": { "type": "string", "description": "Currently approved main photo" },
+        "pendingPhotoUrl": { "type": "string", "description": "Main photo awaiting approval" },
+        "photoStatus": { "type": "string", "enum": ["idle", "pending", "approved", "rejected"] },
+        "photoPrivacy": { "type": "string", "enum": ["public", "accepted_only"] },
+        "photoRejectionReason": { "type": "string" },
+        "gallery": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "url": { "type": "string" },
+              "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+              "rejectionReason": { "type": "string" }
+            }
+          }
+        },
+        "isApproved": { "type": "boolean" },
+        "photoApproved": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "suspended", "blocked"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "name", "profileType"]
+    },
+    "Interest": {
+      "title": "Interest",
+      "description": "Expressing interest in another user.",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "toId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromId", "toId", "status", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "In-platform chat message.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "senderId", "text", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Users with administrative privileges.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Shortlist": {
+      "title": "Shortlist",
+      "description": "A user's saved profiles.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "targetId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Profile of a user."
+    },
+    "/interests/{interestId}": {
+      "schema": "Interest",
+      "description": "Interests between users."
+    },
+    "/shortlists/{shortlistId}": {
+      "schema": "Shortlist",
+      "description": "User shortlists."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a chat."
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Administrative users."
+    }
+  }
+}
