@@ -9,7 +9,7 @@ import { auth } from '../lib/firebase';
 import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, ArrowRight, ArrowLeft, CheckCircle2, Upload, Camera, Scale, MapPin, Church, GraduationCap, Briefcase, Ruler, ShieldCheck, X, Plus, Mail, Phone, Loader2, Lock, Eye, EyeOff, Globe, MapPinHouse } from 'lucide-react';
-import { cn, handleFirestoreError, OperationType, formatAuthError } from '../lib/utils';
+import { cn, formatAuthError } from '../lib/utils';
 import { useSettings } from '../lib/SettingsContext';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { HEIGHT_FT, WORLD_COUNTRIES, getCitiesForCountry, AGE_OPTIONS } from '../lib/locationData';
@@ -151,7 +151,7 @@ export default function RegisterPage() {
 
   const compressAndUpload = async (file: File, path: string) => {
     const options = {
-      maxSizeMB: 0.5,
+      maxSizeMB: 3,
       maxWidthOrHeight: 1200,
       useWebWorker: true,
       fileType: 'image/jpeg'
@@ -169,8 +169,8 @@ export default function RegisterPage() {
           console.log("Attempting Cloudinary upload...");
           const url = await uploadToCloudinary(
             compressedFile, 
-            settings.cloudinaryCloudName, 
-            settings.cloudinaryUploadPreset
+            import.meta.env.VITE_CLOUDINARY_CLOUD_NAME, 
+            import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
           );
           console.log("Cloudinary upload successful:", url);
           return url;
@@ -218,8 +218,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (file.size > 1024 * 1024) {
-      alert("File size must not exceed 1 MB.");
+    if (file.size > 3 * 1024 * 1024) {
+      alert("File size must not exceed 3 MB.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -264,8 +264,8 @@ export default function RegisterPage() {
           console.warn(`Skipping ${file.name}: Only .Jpg files allowed.`);
           continue;
         }
-        if (file.size > 1024 * 1024) {
-          console.warn(`Skipping ${file.name}: Size exceeds 1 MB.`);
+        if (file.size > 3 * 1024 * 1024) {
+          console.warn(`Skipping ${file.name}: Size exceeds 3 MB.`);
           continue;
         }
         
@@ -377,7 +377,7 @@ export default function RegisterPage() {
     if (currentStep < STEPS.length) {
       setCurrentStep(prev => prev + 1);
     } else {
-      handleSubmit();
+      await handleSubmit();
     }
   };
 
@@ -390,6 +390,7 @@ export default function RegisterPage() {
   const handleSubmit = async () => {
     if (!user) return;
     setLoading(true);
+    setErrorMsg("");
     try {
         const profileData = {
         name: formData.name,
@@ -400,7 +401,7 @@ export default function RegisterPage() {
         profileFor: formData.profileFor,
         gender: formData.gender,
         dob: formData.dob,
-        age: parseInt(formData.age),
+        age: parseInt(formData.age) || 0,
         citizenship: formData.citizenship,
         countryLiving: formData.countryLiving,
         cityLiving: formData.cityLiving,
@@ -464,8 +465,9 @@ export default function RegisterPage() {
       await setDoc(doc(db, 'users', user.uid), profileData);
       
       setSubmissionSuccess(true);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+    } catch (error: any) {
+      console.error("Registration submission error:", error);
+      setErrorMsg(error.message || "An error occurred while saving your profile. Please try again.");
     } finally {
       setLoading(false);
     }

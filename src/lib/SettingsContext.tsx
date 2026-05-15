@@ -49,7 +49,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const data = docSnap.data();
         setSettings(prev => ({
           ...prev,
-          ...data
+          ...data,
+          // Explicitly preserve Cloudinary settings if Firestore doesn't have them
+          cloudinaryCloudName: data.cloudinaryCloudName || prev.cloudinaryCloudName,
+          cloudinaryUploadPreset: data.cloudinaryUploadPreset || prev.cloudinaryUploadPreset,
         }));
         
         // Apply theme colors to CSS variables dynamically

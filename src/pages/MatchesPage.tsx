@@ -44,7 +44,9 @@ export default function MatchesPage() {
     maxHeight: 250,
     maritalStatus: 'All',
     verifiedOnly: false,
-    recentlyActive: false
+    recentlyActive: false,
+    profileId: '',
+    searchTerm: ''
   });
 
   const fetchShortlists = async () => {
@@ -86,6 +88,15 @@ export default function MatchesPage() {
         const heightMatch = u.height >= filters.minHeight && u.height <= filters.maxHeight;
         const verifyMatch = !filters.verifiedOnly || u.emailVerified;
         
+        // Search Term (Name or Profession)
+        const nameMatch = !filters.searchTerm || u.name?.toLowerCase().includes(filters.searchTerm.toLowerCase());
+        
+        // Profile ID Match (Check UID or custom profileId if exists)
+        const idMatch = !filters.profileId || 
+                        u.id?.toLowerCase().includes(filters.profileId.toLowerCase()) || 
+                        u.uid?.toLowerCase().includes(filters.profileId.toLowerCase()) ||
+                        (u.profileId && u.profileId.toLowerCase().includes(filters.profileId.toLowerCase()));
+
         // Recently active (last 7 days)
         let activeMatch = true;
         if (filters.recentlyActive && u.updatedAt) {
@@ -94,8 +105,9 @@ export default function MatchesPage() {
           activeMatch = u.updatedAt.toDate() >= sevenDaysAgo;
         }
 
-        return ageMatch && denomMatch && locMatch && eduMatch && martMatch && profMatch && heightMatch && verifyMatch && activeMatch;
+        return ageMatch && denomMatch && locMatch && eduMatch && martMatch && profMatch && heightMatch && verifyMatch && activeMatch && nameMatch && idMatch;
       });
+
 
       // Calculate scores and sort
       const scoredDocs = docs.map(u => ({
@@ -154,15 +166,25 @@ export default function MatchesPage() {
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+            <input 
+              type="text" 
+              value={filters.searchTerm}
+              onChange={(e) => setFilters({...filters, searchTerm: e.target.value})}
+              placeholder="Search by name..."
+              className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm"
+            />
+          </div>
           <button 
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
-              "flex items-center gap-2 px-6 py-3 rounded-2xl border border-outline-variant transition-all font-label-lg",
-              showFilters ? "bg-primary text-on-primary border-primary" : "bg-surface-container-low text-on-surface hover:bg-surface-variant"
+              "flex items-center gap-2 px-6 py-3 rounded-2xl border border-outline-variant transition-all font-label-lg whitespace-nowrap",
+              showFilters ? "bg-primary text-on-primary border-primary shadow-lg shadow-primary/20" : "bg-surface-container-low text-on-surface hover:bg-surface-variant"
             )}
           >
             <SlidersHorizontal className="w-5 h-5" />
-            Filters {showFilters ? 'Hide' : 'Show'}
+            {showFilters ? 'Hide' : 'Show'} Filters
           </button>
         </div>
       </div>
@@ -243,6 +265,18 @@ export default function MatchesPage() {
                       className="w-full pl-10 pr-4 py-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none" 
                     />
                   </div>
+                </div>
+
+                {/* Profile ID Filter */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Profile ID</label>
+                  <input 
+                    type="text" 
+                    value={filters.profileId}
+                    onChange={(e) => setFilters({...filters, profileId: e.target.value})}
+                    placeholder="e.g. AB1234"
+                    className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none" 
+                  />
                 </div>
               </div>
 
@@ -338,7 +372,9 @@ export default function MatchesPage() {
               maxHeight: 250,
               maritalStatus: 'All',
               verifiedOnly: false,
-              recentlyActive: false
+              recentlyActive: false,
+              profileId: '',
+              searchTerm: ''
             })}
             className="text-primary font-bold hover:underline"
           >
@@ -373,13 +409,28 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
     
     setSending(true);
     try {
+      // Add interest document
       await addDoc(collection(db, 'interests'), {
         fromId: currentUser.uid,
         toId: user.id,
         status: 'pending',
         createdAt: serverTimestamp()
       });
+
+      // Add notification document
+      await addDoc(collection(db, 'notifications'), {
+        userId: user.id,
+        fromId: currentUser.uid,
+        type: 'interest',
+        title: 'New Interest Expressed',
+        message: `${currentUser.displayName || 'A member'} has expressed interest in your profile.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
       setInterestSent(true);
+      // Success pop message (alert for now, could be a toast)
+      alert(`Interest successfully sent to ${user.name}! They will be notified via email.`);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'interests');
     } finally {

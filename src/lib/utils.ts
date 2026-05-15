@@ -55,6 +55,17 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 export function formatAuthError(err: any): string {
   const code = err?.code || '';
+  
+  if (code === 'auth/email-already-in-use') {
+    return "This email is already registered. Please sign in instead.";
+  }
+  if (code === 'auth/weak-password') {
+    return "Password is too weak. Please use at least 6 characters with numbers/symbols.";
+  }
+  if (code === 'auth/network-request-failed') {
+    return "Network error. Please check your internet connection.";
+  }
+
   // List of codes that should return "Invalid Credential" for security obfuscation
   const securityCodes = [
     'auth/invalid-credential',

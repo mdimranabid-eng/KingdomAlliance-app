@@ -31,12 +31,19 @@ export default function InterestsPage() {
     try {
       const q = query(
         collection(db, 'interests'), 
-        where(tab === 'received' ? 'toId' : 'fromId', '==', authUser.uid),
-        orderBy('createdAt', 'desc')
+        where(tab === 'received' ? 'toId' : 'fromId', '==', authUser.uid)
       );
       
       const snap = await getDocs(q);
-      const interestDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      let interestDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Sort in-memory to resolve "missing index" error immediately
+      // We still recommend creating the index for better performance with large datasets
+      interestDocs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
       
       // Fetch user profiles
       const enrichedInterests = await Promise.all(interestDocs.map(async (interest: any) => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, where, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2 } from 'lucide-react';
+import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import { seedTestData } from '../../lib/seeder';
@@ -18,6 +18,9 @@ interface UserProfile {
   mobileNumber?: string;
   createdAt: any;
   photoUrl?: string;
+  photoStatus?: 'pending' | 'approved' | 'rejected' | 'none';
+  pendingPhotoUrl?: string;
+  gallery?: any[];
 }
 
 export default function AdminUserManagement() {
@@ -160,19 +163,20 @@ export default function AdminUserManagement() {
                 <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">User Details</th>
                 <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Type</th>
                 <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Photos</th>
                 <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/30">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-on-surface-variant">
+                  <td colSpan={5} className="px-6 py-12 text-center text-on-surface-variant">
                     No users found matching your criteria.
                   </td>
                 </tr>
@@ -211,6 +215,24 @@ export default function AdminUserManagement() {
                         <div className="w-1 h-1 rounded-full bg-current" />
                         {user.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {user.photoStatus === 'pending' || (user.gallery && user.gallery.some((p: any) => p.status === 'pending')) ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-primary/10 text-primary rounded-full flex items-center gap-1 w-fit animate-pulse">
+                          <Clock className="w-3 h-3" />
+                          Pending
+                        </span>
+                      ) : user.photoStatus === 'rejected' ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-error/10 text-error rounded-full flex items-center gap-1 w-fit">
+                          <XCircle className="w-3 h-3" />
+                          Rejected
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-1 w-fit">
+                          <CheckCircle className="w-3 h-3" />
+                          Approved
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">

@@ -74,7 +74,9 @@ service cloud.firestore {
     function isValidMessage(data) {
       return data.senderId == request.auth.uid &&
              data.text is string && data.text.size() <= 5000 &&
-             data.createdAt == request.time;
+             data.createdAt == request.time &&
+             (data.get('read', false) is bool) &&
+             (data.get('receiverId', '') is string);
     }
 
     function isValidShortlist(data) {
@@ -84,6 +86,13 @@ service cloud.firestore {
     }
 
     // --- Collection Rules ---
+
+    // Collection Group for unread counts
+    match /{path=**}/messages/{messageId} {
+      allow read: if isSignedIn() && (resource.data.receiverId == request.auth.uid || resource.data.senderId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (resource.data.receiverId == request.auth.uid || isAdmin()) && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
 
     match /users/{userId} {
       allow get: if isValidId(userId) && isSignedIn() && (

@@ -12,7 +12,8 @@ import {
   getDoc, 
   getDocs,
   limit,
-  setDoc
+  setDoc,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -101,7 +102,8 @@ export default function MessagesPage() {
     );
 
     const unsubscribe = onSnapshot(msgsQuery, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      
       setMessages(msgs);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, `chats/${chatId}/messages`);
@@ -114,6 +116,20 @@ export default function MessagesPage() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Mark messages as read when viewing a chat
+  useEffect(() => {
+    if (!activeChatUserId || !currentUser || messages.length === 0) return;
+
+    const unreadMessages = messages.filter(m => m.receiverId === currentUser.uid && m.read === false);
+    
+    if (unreadMessages.length > 0) {
+      const chatId = [currentUser.uid, activeChatUserId].sort().join('_');
+      unreadMessages.forEach(msg => {
+        updateDoc(doc(db, `chats/${chatId}/messages`, msg.id), { read: true });
+      });
+    }
+  }, [messages, activeChatUserId, currentUser]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !currentUser || !activeChatUserId) return;
@@ -122,8 +138,10 @@ export default function MessagesPage() {
     const msgData = {
       text: newMessage,
       senderId: currentUser.uid,
+      receiverId: activeChatUserId,
       createdAt: serverTimestamp(),
-      chatId
+      chatId,
+      read: false
     };
 
     setNewMessage('');

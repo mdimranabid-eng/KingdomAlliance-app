@@ -8,6 +8,7 @@ import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
 interface PendingUser {
   id: string;
   name: string;
+  email: string;
   photoUrl?: string;
   pendingPhotoUrl?: string;
   photoStatus?: 'pending' | 'approved' | 'rejected' | 'idle';
@@ -70,6 +71,13 @@ export default function AdminPhotos() {
     }
   };
 
+  const sendModerationEmail = (email: string, subject: string, message: string) => {
+    // In a real production app, this would call a cloud function or email API (SendGrid, etc.)
+    console.log(`[EMAIL SYSTEM] Sending to: ${email}`);
+    console.log(`[EMAIL SYSTEM] Subject: ${subject}`);
+    console.log(`[EMAIL SYSTEM] Message: ${message}`);
+  };
+
   const handleApproveMain = async (userId: string, pendingUrl: string) => {
     setProcessing(userId + '_main');
     try {
@@ -83,12 +91,26 @@ export default function AdminPhotos() {
       
       await addNotification(
         userId, 
-        "Profile Photo Approved", 
-        "Great news! Your new profile photo has been approved and is now visible to the community.",
+        "Photo Approved", 
+        "Great news! Your profile photo has been reviewed and approved by our team. It is now visible on your profile.",
         "success"
       );
 
-      setUsers(prev => prev.filter(u => u.id !== userId || (u.gallery && u.gallery.some(p => p.status === 'pending'))));
+      const user = users.find(u => u.id === userId);
+      if (user?.email) {
+        sendModerationEmail(
+          user.email,
+          "Kingdom Alliance - Profile Photo Approved",
+          `Dear ${user.name},\n\nGreat news! Your profile photo has been reviewed and approved by our moderation team. It is now visible to the community.\n\nThank you for helping us maintain a high-standard environment for our members.\n\nBlessings,\nThe Kingdom Alliance Team`
+        );
+      }
+
+      setUsers(prev => prev.map(u => {
+        if (u.id === userId) {
+          return { ...u, photoUrl: pendingUrl, pendingPhotoUrl: '', photoStatus: 'approved' as const };
+        }
+        return u;
+      }).filter(u => !!u.pendingPhotoUrl || (u.gallery && u.gallery.some(p => p.status === 'pending'))));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     } finally {
@@ -109,11 +131,25 @@ export default function AdminPhotos() {
       await addNotification(
         userId, 
         "Photo Moderation Update", 
-        `Your profile photo was not approved. Reason: ${reason}. Please upload a clear, professional photo.`,
+        "Your profile photo update could not be approved due to visibility, clarity, or community guidelines reasons. Please upload a clear, professional photo.",
         "warning"
       );
 
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, photoStatus: 'rejected' } : u));
+      const user = users.find(u => u.id === userId);
+      if (user?.email) {
+        sendModerationEmail(
+          user.email,
+          "Kingdom Alliance - Photo Moderation Update",
+          `Dear ${user.name},\n\nWe have reviewed your profile photo update. Unfortunately, we cannot approve it at this time because it does not meet our visibility or clarity standards as outlined in our Community Guidelines.\n\nTo ensure the best experience for all members, please upload a clear, professional photo that meets these standards.\n\nThank you for your understanding.\n\nBlessings,\nThe Kingdom Alliance Team`
+        );
+      }
+
+      setUsers(prev => prev.map(u => {
+        if (u.id === userId) {
+          return { ...u, pendingPhotoUrl: '', photoStatus: 'rejected' as const };
+        }
+        return u;
+      }).filter(u => !!u.pendingPhotoUrl || (u.gallery && u.gallery.some(p => p.status === 'pending'))));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     } finally {
@@ -139,7 +175,12 @@ export default function AdminPhotos() {
         "error"
       );
 
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, photoStatus: 'idle', photoUrl: '', pendingPhotoUrl: '' } : u));
+      setUsers(prev => prev.map(u => {
+        if (u.id === userId) {
+          return { ...u, photoStatus: 'idle' as const, photoUrl: '', pendingPhotoUrl: '' };
+        }
+        return u;
+      }).filter(u => !!u.pendingPhotoUrl || (u.gallery && u.gallery.some(p => p.status === 'pending'))));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     } finally {
@@ -162,7 +203,12 @@ export default function AdminPhotos() {
         updatedAt: serverTimestamp()
       });
       
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, gallery: newGallery } : u));
+      setUsers(prev => prev.map(u => {
+        if (u.id === userId) {
+          return { ...u, gallery: newGallery };
+        }
+        return u;
+      }).filter(u => !!u.pendingPhotoUrl || (u.gallery && u.gallery.some(p => p.status === 'pending'))));
       
       await addNotification(
         userId, 
@@ -170,6 +216,14 @@ export default function AdminPhotos() {
         "One of your gallery photos has been approved and added to your profile.",
         "success"
       );
+
+      if (user.email) {
+        sendModerationEmail(
+          user.email,
+          "Kingdom Alliance - Gallery Photo Approved",
+          `Dear ${user.name},\n\nYour gallery photo has been approved and is now visible on your profile.\n\nThank you for being a part of Kingdom Alliance.\n\nBlessings,\nThe Kingdom Alliance Team`
+        );
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     } finally {
@@ -194,12 +248,25 @@ export default function AdminPhotos() {
       
       await addNotification(
         userId, 
-        "Gallery Photo Rejected", 
-        `A photo in your gallery was rejected. Reason: ${reason}.`,
+        "Gallery Photo Moderation Update", 
+        "A photo in your gallery could not be approved due to visibility or community guidelines. Please upload a different photo.",
         "warning"
       );
 
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, gallery: newGallery } : u));
+      if (user.email) {
+        sendModerationEmail(
+          user.email,
+          "Kingdom Alliance - Gallery Photo Update",
+          `Dear ${user.name},\n\nWe have reviewed the photo you added to your gallery. Unfortunately, we cannot approve it at this time because it does not meet our visibility or clarity standards as outlined in our Community Guidelines.\n\nPlease upload a different photo that meets these standards.\n\nThank you for your understanding.\n\nBlessings,\nThe Kingdom Alliance Team`
+        );
+      }
+
+      setUsers(prev => prev.map(u => {
+        if (u.id === userId) {
+          return { ...u, gallery: newGallery };
+        }
+        return u;
+      }).filter(u => !!u.pendingPhotoUrl || (u.gallery && u.gallery.some(p => p.status === 'pending'))));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     } finally {
@@ -228,7 +295,33 @@ export default function AdminPhotos() {
         "error"
       );
 
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, gallery: newGallery } : u));
+      setUsers(prev => prev.map(u => {
+        if (u.id === userId) {
+          return { ...u, gallery: newGallery };
+        }
+        return u;
+      }).filter(u => !!u.pendingPhotoUrl || (u.gallery && u.gallery.some(p => p.status === 'pending'))));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleCompleteReview = async (userId: string) => {
+    setProcessing(userId + '_complete');
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        photoStatus: 'approved',
+        updatedAt: serverTimestamp()
+      });
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      await addNotification(
+        userId, 
+        "Profile Review Complete", 
+        "An admin has completed the review of your latest photo updates.",
+        "success"
+      );
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     } finally {
@@ -289,11 +382,23 @@ export default function AdminPhotos() {
                     <p className="text-xs text-on-surface-variant">User ID: {user.id}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                   <span className="text-[10px] font-bold uppercase tracking-widest bg-secondary/10 text-secondary px-3 py-1 rounded-full">
-                     Moderation Required
-                   </span>
-                </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">
+                      Overall Status
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => handleCompleteReview(user.id)}
+                        disabled={!!processing}
+                        className="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-full hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Mark All Complete
+                      </button>
+                      <span className="text-[10px] font-bold uppercase tracking-widest bg-gold/10 text-gold px-3 py-1 border border-gold/20 rounded-full flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" /> Moderation Pending
+                      </span>
+                    </div>
+                  </div>
               </div>
 
               <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -323,21 +428,23 @@ export default function AdminPhotos() {
                         <CheckCircle className="w-5 h-5" /> Approve
                       </button>
                         <button 
-                          onClick={() => {
-                            const reason = prompt("Enter rejection reason:", "Low quality image");
-                            if (reason) handleRejectMain(user.id, reason);
-                          }}
+                          onClick={() => handleRejectMain(user.id, "Visibility, Clarity, and Community Guidelines")}
                           disabled={!!processing}
                           className="flex-1 flex items-center justify-center gap-2 py-3 border border-outline-variant text-on-surface-variant hover:bg-surface-variant rounded-xl font-bold transition-all disabled:opacity-50"
                         >
                           <XCircle className="w-5 h-5 text-gold" /> Reject
                         </button>
                         <button 
-                          onClick={() => handleDeleteMain(user.id)}
+                          onClick={() => {
+                            if (confirm("Permanently delete this photo from the database?")) {
+                              handleDeleteMain(user.id);
+                            }
+                          }}
                           disabled={!!processing}
-                          className="px-6 py-3 border border-error text-error hover:bg-error/5 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-2"
+                          className="px-4 py-3 text-error hover:bg-error/5 rounded-xl transition-all disabled:opacity-50"
+                          title="Delete Permanently"
                         >
-                          <Trash2 className="w-5 h-5" /> Delete
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
@@ -349,7 +456,7 @@ export default function AdminPhotos() {
                     <ImageIcon className="w-4 h-4" /> Gallery Items
                   </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {user.gallery.map((photo) => (
+                    {user.gallery.filter(p => p.status === 'pending').map((photo) => (
                       <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden border border-outline-variant group">
                         <img src={photo.url} alt="Gallery item" className="w-full h-full object-cover" />
                         {photo.status === 'pending' ? (
@@ -361,18 +468,19 @@ export default function AdminPhotos() {
                               <Check className="w-4 h-4" />
                             </button>
                             <button 
-                              onClick={() => {
-                                const reason = prompt("Enter rejection reason:", "Inappropriate content");
-                                if (reason) handleRejectGallery(user.id, photo.id, reason);
-                              }}
-                              className="w-8 h-8 rounded-full bg-gold text-white flex items-center justify-center"
+                              onClick={() => handleRejectGallery(user.id, photo.id, "Visibility, Clarity, and Community Guidelines")}
+                              className="w-8 h-8 rounded-full bg-gold text-white flex items-center justify-center shadow-lg"
                               title="Reject"
                             >
                               <X className="w-4 h-4" />
                             </button>
                             <button 
-                              onClick={() => handleDeleteGallery(user.id, photo.id)}
-                              className="w-8 h-8 rounded-full bg-error text-white flex items-center justify-center"
+                              onClick={() => {
+                                if (confirm("Delete this gallery photo?")) {
+                                  handleDeleteGallery(user.id, photo.id);
+                                }
+                              }}
+                              className="w-8 h-8 rounded-full bg-error text-white flex items-center justify-center shadow-lg"
                               title="Delete Permanently"
                             >
                               <Trash2 className="w-4 h-4" />

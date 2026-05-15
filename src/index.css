@@ -6,30 +6,30 @@
   --font-headline: "Playfair Display", serif;
   --font-inter: "Inter", sans-serif;
 
-  --color-primary: #735c00;
+  --color-primary: #1a2e4a;
   --color-on-primary: #ffffff;
-  --color-primary-container: #d4af37;
-  --color-on-primary-container: #554300;
-  
-  --color-secondary: #4b53bc;
-  --color-on-secondary: #ffffff;
-  --color-secondary-container: #8991fe;
-  --color-on-secondary-container: #1b218f;
+  --color-primary-container: #2a4a7a;
+  --color-on-primary-container: #ffffff;
 
-  --color-surface: #fcf9f4;
-  --color-on-surface: #1c1c19;
-  --color-on-surface-variant: #4d4635;
-  --color-surface-container: #f0ede9;
-  --color-surface-container-low: #f6f3ee;
-  --color-surface-container-high: #ebe8e3;
+  --color-secondary: #C9A84C;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #dfc88a;
+  --color-on-secondary-container: #554300;
+
+  --color-surface: #FAFAFA;
+  --color-on-surface: #1a2e4a;
+  --color-on-surface-variant: #64748b;
+  --color-surface-container: #f1f5f9;
+  --color-surface-container-low: #f8fafc;
+  --color-surface-container-high: #e2e8f0;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-variant: #e5e2dd;
-  
-  --color-outline: #7f7663;
-  --color-outline-variant: #d0c5af;
-  
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
+  --color-surface-variant: #f1f5f9;
+
+  --color-outline: #94a3b8;
+  --color-outline-variant: #e2e8f0;
+
+  --color-error: #ef4444;
+  --color-error-container: #fee2e2;
 }
 
 @layer base {
@@ -43,8 +43,43 @@
   .font-headline {
     font-family: var(--font-headline);
   }
-  
+
   .font-inter {
     font-family: var(--font-inter);
+  }
+
+  .profile-banner-gradient {
+    background: linear-gradient(180deg, #FDF4E3 0%, rgba(253, 244, 227, 0) 100%);
+  }
+
+  .premium-shadow {
+    box-shadow: 0 10px 40px -10px rgba(26, 46, 74, 0.08);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  @keyframes shine {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(200%); }
+  }
+
+  @keyframes shine-slow {
+    0% { filter: brightness(1) contrast(1); }
+    50% { filter: brightness(1.15) contrast(1.05); }
+    100% { filter: brightness(1) contrast(1); }
+  }
+
+  .animate-shine {
+    animation: shine 2.5s infinite linear;
+  }
+
+  .animate-shine-slow {
+    animation: shine-slow 4s infinite ease-in-out;
   }
 }

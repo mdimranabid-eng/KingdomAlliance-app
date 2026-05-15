@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
+import { collection, collectionGroup, query, where, onSnapshot } from 'firebase/firestore';
 import { 
   Heart, 
   MessageSquare, 
@@ -29,11 +30,93 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = React.useState(0);
+  const [toast, setToast] = React.useState<{ title: string; message: string; type: 'message' | 'interest' } | null>(null);
+  const isInitialLoadMessages = React.useRef(true);
+  const isInitialLoadNotifications = React.useRef(true);
 
   const handleLogout = async () => {
     await signOut(auth);
     navigate('/');
   };
+
+  React.useEffect(() => {
+    if (!user) return;
+
+    // Listen for all unread messages where the current user is the receiver
+    const q = query(
+      collectionGroup(db, 'messages'),
+      where('receiverId', '==', user.uid),
+      where('read', '==', false)
+    );
+
+    const unsubscribeMessages = onSnapshot(q, (snapshot) => {
+      // Play sound for new messages if not initial load
+      const docChanges = snapshot.docChanges();
+      const hasNew = docChanges.some(change => change.type === 'added');
+      
+      if (hasNew && !isInitialLoadMessages.current && !snapshot.metadata.hasPendingWrites) {
+        const latestDoc = docChanges.find(change => change.type === 'added')?.doc;
+        if (latestDoc) {
+          const data = latestDoc.data();
+          setToast({
+            title: 'New Message',
+            message: data.text?.substring(0, 60) + (data.text?.length > 60 ? '...' : ''),
+            type: 'message'
+          });
+          setTimeout(() => setToast(null), 5000);
+        }
+
+        console.log("Global: New message received, playing sound...");
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+        audio.play().catch(e => console.warn('Global audio blocked:', e));
+      }
+      setUnreadCount(snapshot.size);
+      isInitialLoadMessages.current = false;
+    }, (error) => {
+      console.error("Unread count listener failed. This is likely due to a missing Firestore index. Check this link to create it:", error);
+    });
+
+    // Listen for unread interest notifications
+    const nq = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('read', '==', false)
+    );
+
+    const unsubscribeNotifications = onSnapshot(nq, (snapshot) => {
+      // Play sound for new interest notifications
+      const docChanges = snapshot.docChanges();
+      const hasNew = docChanges.some(change => change.type === 'added');
+      
+      if (hasNew && !isInitialLoadNotifications.current && !snapshot.metadata.hasPendingWrites) {
+        const latestDoc = docChanges.find(change => change.type === 'added')?.doc;
+        if (latestDoc) {
+          const data = latestDoc.data();
+          setToast({
+            title: data.title || 'New Interest',
+            message: data.message || 'Someone has expressed interest in your profile!',
+            type: 'interest'
+          });
+          setTimeout(() => setToast(null), 5000);
+        }
+
+        console.log("Global: New interest notification received, playing sound...");
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+        audio.play().catch(e => console.warn('Global audio blocked:', e));
+      }
+      setUnreadNotificationsCount(snapshot.size);
+      isInitialLoadNotifications.current = false;
+    }, (error) => {
+      console.error("Unread notifications listener failed:", error);
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeNotifications();
+    };
+  }, [user]);
 
   let navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -86,7 +169,22 @@ export default function Layout() {
                   isDisabled && "opacity-50 cursor-not-allowed"
                 )}
               >
-                <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
+                <div className="relative">
+                  <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
+                  {((item.label === 'Messages' && unreadCount > 0) || (item.label === 'Interests' && unreadNotificationsCount > 0)) && (
+                    <motion.span
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="absolute -top-1 -right-1 w-3 h-3 bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)]"
+                    >
+                      <motion.span 
+                        animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="absolute inset-0 bg-error rounded-full" 
+                      />
+                    </motion.span>
+                  )}
+                </div>
                 {item.label}
               </Link>
             );
@@ -188,7 +286,22 @@ export default function Layout() {
                         isDisabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
-                      <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
+                      <div className="relative">
+                        <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
+                        {((item.label === 'Messages' && unreadCount > 0) || (item.label === 'Interests' && unreadNotificationsCount > 0)) && (
+                          <motion.span
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="absolute -top-1 -right-1 w-3 h-3 bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)]"
+                          >
+                            <motion.span 
+                              animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+                              transition={{ repeat: Infinity, duration: 2 }}
+                              className="absolute inset-0 bg-error rounded-full" 
+                            />
+                          </motion.span>
+                        )}
+                      </div>
                       {item.label}
                     </Link>
                   );
@@ -206,6 +319,37 @@ export default function Layout() {
               </div>
             </motion.aside>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Global Notification Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="fixed bottom-6 right-4 z-[100] w-full max-w-sm px-4 md:px-0"
+          >
+            <div className="bg-surface border border-outline-variant p-4 rounded-2xl shadow-2xl backdrop-blur-xl bg-opacity-95 flex items-start gap-4">
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm",
+                toast.type === 'message' ? "bg-primary text-on-primary" : "bg-error text-on-error"
+              )}>
+                {toast.type === 'message' ? <MessageSquare className="w-5 h-5" /> : <Heart className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-semibold text-on-surface truncate">{toast.title}</h4>
+                <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{toast.message}</p>
+              </div>
+              <button 
+                onClick={() => setToast(null)}
+                className="text-on-surface-variant hover:text-on-surface transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
