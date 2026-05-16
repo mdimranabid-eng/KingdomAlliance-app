@@ -6,12 +6,14 @@ import { doc, getDoc } from 'firebase/firestore';
 import { Heart, Loader2, Mail, Lock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatAuthError } from '../lib/utils';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForgotModal, setShowForgotModal] = useState(false);
   const navigate = useNavigate();
 
   React.useEffect(() => {
@@ -108,6 +110,16 @@ export default function LoginPage() {
                 className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
               />
             </div>
+            
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                className="text-sm font-bold text-primary hover:underline"
+              >
+                Forgot Password?
+              </button>
+            </div>
             <button
               type="submit"
               disabled={loading}
@@ -133,6 +145,12 @@ export default function LoginPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal 
+        isOpen={showForgotModal} 
+        onClose={() => setShowForgotModal(false)} 
+      />
     </div>
   );
 }

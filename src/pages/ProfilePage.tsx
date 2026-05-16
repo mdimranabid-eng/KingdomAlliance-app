@@ -55,7 +55,7 @@ import { cn, handleFirestoreError, OperationType, calculateMatchScore } from '..
 
 export default function ProfilePage() {
   const { id } = useParams();
-  const { user: currentUser, profile: currentProfile } = useAuth();
+  const { user: currentUser, profile: currentProfile, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -444,7 +444,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {!isOwnProfile && (
+                  {!isOwnProfile && !isAdmin && (
                     <div className="flex items-center gap-4 w-full md:w-auto">
                       <button
                         onClick={handleSendInterest}
