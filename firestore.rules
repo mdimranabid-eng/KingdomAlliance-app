@@ -42,8 +42,8 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.uid is string && data.uid.size() <= 128 &&
              data.email is string && data.email.size() <= 256 &&
-             data.get('name', '') is string && data.get('name', '').size() <= 128 &&
-             data.get('profileType', 'bride') in ['bride', 'groom'] &&
+             (data.get('name', '') is string && data.get('name', '').size() <= 128) &&
+             (data.get('profileType', 'bride') in ['bride', 'groom']) &&
              (data.get('aboutMe', '') is string && data.get('aboutMe', '').size() <= 2000) &&
              (data.get('denomination', '') is string && data.get('denomination', '').size() <= 100) &&
              (data.get('church', '') is string && data.get('church', '').size() <= 200) &&
@@ -58,6 +58,8 @@ service cloud.firestore {
              (data.get('photoStatus', 'idle') in ['idle', 'pending', 'approved', 'rejected']) &&
              (data.get('photoPrivacy', 'public') in ['public', 'accepted_only']) &&
              (data.get('photoRejectionReason', '') is string && data.get('photoRejectionReason', '').size() <= 500) &&
+             (data.get('approvalStatus', 'incomplete') in ['incomplete', 'pending', 'approved', 'rejected']) &&
+             (data.get('onboardingComplete', false) is bool) &&
              (data.get('age', 0) is int && data.get('age', 0) >= 18 && data.get('age', 0) <= 100) &&
              (data.get('height', 0) is int && data.get('height', 0) >= 0 && data.get('height', 0) <= 300) &&
              (data.get('gender', '') in ['', 'male', 'female']) &&
@@ -108,7 +110,7 @@ service cloud.firestore {
       allow update: if isValidId(userId) && isSignedIn() && isValidUser(incoming()) && (
         // Owner Update
         (isOwner(userId) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobileNumber', 'emailVerified', 'photoUrl', 'pendingPhotoUrl', 'photoStatus', 'gallery', 'aboutMe', 'denomination', 'church', 'education', 'profession', 'height', 'location', 'familyDetails', 'partnerPreferences', 'gender', 'age', 'updatedAt']) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobileNumber', 'emailVerified', 'photoUrl', 'pendingPhotoUrl', 'photoStatus', 'gallery', 'aboutMe', 'denomination', 'church', 'education', 'profession', 'height', 'location', 'familyDetails', 'partnerPreferences', 'gender', 'age', 'approvalStatus', 'onboardingComplete', 'updatedAt']) &&
          incoming().uid == existing().uid &&
          incoming().email == existing().email &&
          incoming().createdAt == existing().createdAt &&
@@ -118,7 +120,7 @@ service cloud.firestore {
         ) ||
         // Admin Update
         (isAdmin() && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['isApproved', 'photoApproved', 'photoStatus', 'photoRejectionReason', 'photoUrl', 'pendingPhotoUrl', 'gallery', 'status', 'updatedAt']) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['isApproved', 'photoApproved', 'photoStatus', 'photoRejectionReason', 'photoUrl', 'pendingPhotoUrl', 'gallery', 'status', 'approvalStatus', 'updatedAt']) &&
          incoming().updatedAt == request.time
         )
       );
@@ -165,6 +167,12 @@ service cloud.firestore {
                       isValidMessage(incoming()) &&
                       incoming().chatId == chatId;
       }
+    }
+
+    match /photoModeration/{docId} {
+      allow read, list: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
 
     match /admins/{adminId} {

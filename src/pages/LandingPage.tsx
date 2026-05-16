@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Heart, Shield, Users, MessageCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Shield, Users, MessageCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useSettings } from '../lib/SettingsContext';
+import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 
 export default function LandingPage() {
   const { settings } = useSettings();
@@ -13,7 +14,7 @@ export default function LandingPage() {
       <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <Heart className="w-8 h-8 text-primary fill-primary" />
+            <KingdomCrossIcon size="md" />
             <span className="font-headline text-2xl text-primary font-bold tracking-tight">{settings.siteName}</span>
           </Link>
           <nav className="hidden md:flex items-center gap-8 font-label-lg">
@@ -155,7 +156,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-12 border-b border-outline-variant/30 pb-16 mb-12">
             <Link to="/" className="flex items-center gap-3">
-              <Heart className="w-10 h-10 text-primary fill-primary" />
+              <KingdomCrossIcon size="md" />
               <span className="font-headline text-3xl text-on-surface font-bold tracking-tight">{settings.siteName}</span>
             </Link>
             <nav className="flex flex-wrap justify-center gap-x-10 gap-y-6 text-lg font-light">

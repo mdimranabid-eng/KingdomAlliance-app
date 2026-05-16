@@ -5,6 +5,7 @@
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
+import { AuthGuard } from './components/AuthGuard';
 import Layout from './components/Layout';
 import LandingPage from './pages/LandingPage';
 import RegisterPage from './pages/RegisterPage';
@@ -15,6 +16,15 @@ import MessagesPage from './pages/MessagesPage';
 import ProfilePage from './pages/ProfilePage';
 import ShortlistsPage from './pages/ShortlistsPage';
 import InterestsPage from './pages/InterestsPage';
+import OnboardingPage from './pages/OnboardingPage';
+
+// Status Pages
+import PendingApprovalPage from './pages/status/PendingApprovalPage';
+import SuspendedPage from './pages/status/SuspendedPage';
+import BannedPage from './pages/status/BannedPage';
+import RejectedPage from './pages/status/RejectedPage';
+
+// Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminApprovals from './pages/admin/AdminApprovals';
 import AdminPhotos from './pages/admin/AdminPhotos';
@@ -22,24 +32,6 @@ import AdminUserManagement from './pages/admin/AdminUserManagement';
 import AdminAnnouncements from './pages/admin/AdminAnnouncements';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
-
-const PrivateRoute = ({ children, requireApproval = true }: { children: React.ReactNode, requireApproval?: boolean }) => {
-  const { user, profile, loading } = useAuth();
-
-  if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
-  if (!user) return <Navigate to="/login" />;
-
-  // Block suspended or blocked users from accessing private routes
-  if (profile && (profile.status === 'suspended' || profile.status === 'blocked')) {
-    return <Navigate to="/login?error=account_restricted" />;
-  }
-  
-  if (requireApproval && profile && !profile.isApproved) {
-    return <Navigate to="/dashboard" />; // Show dashboard which should handle pending state
-  }
-
-  return <>{children}</>;
-};
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, loading } = useAuth();
@@ -55,28 +47,40 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<LoginPage />} />
           
+          {/* Status Routes (Publicly accessible but usually redirected to) */}
+          <Route path="/pending-approval" element={<PendingApprovalPage />} />
+          <Route path="/suspended" element={<SuspendedPage />} />
+          <Route path="/banned" element={<BannedPage />} />
+          <Route path="/rejected" element={<RejectedPage />} />
+          
+          {/* Admin Login */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
           
-          <Route element={<Layout />}>
-            <Route path="/dashboard" element={<PrivateRoute requireApproval={false}><DashboardPage /></PrivateRoute>} />
-            <Route path="/matches" element={<PrivateRoute><MatchesPage /></PrivateRoute>} />
-            <Route path="/messages" element={<PrivateRoute><MessagesPage /></PrivateRoute>} />
-            <Route path="/messages/:id" element={<PrivateRoute><MessagesPage /></PrivateRoute>} />
-            <Route path="/shortlist" element={<PrivateRoute><ShortlistsPage /></PrivateRoute>} />
-            <Route path="/interests" element={<PrivateRoute><InterestsPage /></PrivateRoute>} />
-            <Route path="/profile/:id" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-            
-            {/* Admin Routes */}
-            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-            <Route path="/admin/approvals" element={<AdminRoute><AdminApprovals /></AdminRoute>} />
-            <Route path="/admin/photos" element={<AdminRoute><AdminPhotos /></AdminRoute>} />
-            <Route path="/admin/users" element={<AdminRoute><AdminUserManagement /></AdminRoute>} />
-            <Route path="/admin/announcements" element={<AdminRoute><AdminAnnouncements /></AdminRoute>} />
-            <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
+          {/* Protected Routes */}
+          <Route element={<AuthGuard><Layout /></AuthGuard>}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/matches" element={<MatchesPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/messages/:id" element={<MessagesPage />} />
+            <Route path="/shortlist" element={<ShortlistsPage />} />
+            <Route path="/interests" element={<InterestsPage />} />
+            <Route path="/profile/:id" element={<ProfilePage />} />
+          </Route>
+
+          {/* Protected Admin Routes */}
+          <Route element={<AdminRoute><Layout /></AdminRoute>}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/approvals" element={<AdminApprovals />} />
+            <Route path="/admin/photos" element={<AdminPhotos />} />
+            <Route path="/admin/users" element={<AdminUserManagement />} />
+            <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
         </Routes>
       </Router>

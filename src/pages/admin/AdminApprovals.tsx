@@ -1,215 +1,463 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  doc, 
+  updateDoc, 
+  serverTimestamp, 
+  onSnapshot,
+  Timestamp,
+  orderBy
+} from 'firebase/firestore';
+import { db, auth } from '../../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle, 
   XCircle, 
-  ExternalLink, 
-  Loader2, 
-  Search,
+  Eye, 
   Check,
   X,
-  AlertCircle,
-  Phone,
-  Ban
+  Clock,
+  MapPin,
+  User,
+  MoreVertical,
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
-import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
+import { cn, formatRelativeTime } from '../../lib/utils';
 
 export default function AdminApprovals() {
   const [users, setUsers] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    pending: 0,
+    approvedToday: 0,
+    rejectedToday: 0
+  });
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
-
-  const fetchPendingUsers = async () => {
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, 'users'), 
-        where('isApproved', '==', false)
-      );
-      let querySnapshot;
-      try {
-        querySnapshot = await getDocs(q);
-      } catch (e) {
-        handleFirestoreError(e, OperationType.GET, 'users');
-      }
-      if (querySnapshot) {
-        const pendingUsers = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setUsers(pendingUsers);
-      }
-    } catch (err) {
-      console.error("Error fetching pending users:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [rejectionModal, setRejectionModal] = useState<{ isOpen: boolean; userId: string | null; reason: string }>({
+    isOpen: false,
+    userId: null,
+    reason: ''
+  });
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; userId: string | null; name: string }>({
+    isOpen: false,
+    userId: null,
+    name: ''
+  });
 
   useEffect(() => {
-    fetchPendingUsers();
+    // 1. Listen for pending users
+    const qPending = query(
+      collection(db, 'users'),
+      where('approvalStatus', '==', 'pending'),
+      where('onboardingComplete', '==', true),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribePending = onSnapshot(qPending, (snapshot) => {
+      const pendingData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setUsers(pendingData);
+      setStats(prev => ({ ...prev, pending: pendingData.length }));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error listening for pending users:", error);
+      setLoading(false);
+    });
+
+    // 2. Listen for stats (Approved/Rejected Today)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayTimestamp = Timestamp.fromDate(startOfToday);
+
+    const qStats = query(
+      collection(db, 'users'),
+      where('updatedAt', '>=', todayTimestamp)
+    );
+
+    const unsubscribeStats = onSnapshot(qStats, (snapshot) => {
+      const data = snapshot.docs.map(d => d.data());
+      const approvedToday = data.filter(u => u.approvalStatus === 'approved').length;
+      const rejectedToday = data.filter(u => u.approvalStatus === 'rejected').length;
+      setStats(prev => ({ ...prev, approvedToday, rejectedToday }));
+    }, (error) => {
+      console.error("Error listening for approval stats:", error);
+    });
+
+    return () => {
+      unsubscribePending();
+      unsubscribeStats();
+    };
   }, []);
 
-  const handleUpdateStatus = async (userId: string, data: any) => {
+  const handleApprove = async (userId: string) => {
     setProcessingId(userId);
     try {
+      const currentAdminId = auth.currentUser?.uid || 'system';
       await updateDoc(doc(db, 'users', userId), {
-        ...data,
-        updatedAt: serverTimestamp()
+        approvalStatus: 'approved',
+        isApproved: true,
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        approvedBy: currentAdminId,
+        'notifications': [
+          {
+            id: crypto.randomUUID(),
+            title: 'Profile Approved',
+            message: 'Congratulations! Your Kingdom Alliance profile has been approved.',
+            type: 'system',
+            createdAt: new Date().toISOString(),
+            read: false
+          }
+        ]
       });
-      setUsers(prev => prev.filter(u => u.id !== userId));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+      setConfirmModal({ isOpen: false, userId: null, name: '' });
+    } catch (error) {
+      console.error("Error approving user:", error);
     } finally {
       setProcessingId(null);
     }
   };
 
-  const handleApprove = (userId: string) => handleUpdateStatus(userId, { isApproved: true });
-  
-  const handleReject = (userId: string) => {
-    const reason = prompt("Enter rejection reason:", "Profile information incomplete or invalid");
-    if (reason) handleUpdateStatus(userId, { 
-      isApproved: false, 
-      status: 'active',
-      rejectionReason: reason 
-    });
-  };
-
-  const handleBlock = (userId: string) => {
-    if (confirm("Are you sure you want to PERMANENTLY block this user?")) {
-      handleUpdateStatus(userId, { isApproved: false, status: 'blocked' });
+  const handleReject = async () => {
+    if (!rejectionModal.userId || !rejectionModal.reason.trim()) return;
+    
+    setProcessingId(rejectionModal.userId);
+    try {
+      const currentAdminId = auth.currentUser?.uid || 'system';
+      await updateDoc(doc(db, 'users', rejectionModal.userId), {
+        approvalStatus: 'rejected',
+        isApproved: false,
+        rejectedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        rejectedBy: currentAdminId,
+        rejectedReason: rejectionModal.reason,
+        'notifications': [
+          {
+            id: crypto.randomUUID(),
+            title: 'Profile Update',
+            message: `Your profile requires updates: ${rejectionModal.reason}`,
+            type: 'alert',
+            createdAt: new Date().toISOString(),
+            read: false
+          }
+        ]
+      });
+      setRejectionModal({ isOpen: false, userId: null, reason: '' });
+    } catch (error) {
+      console.error("Error rejecting user:", error);
+    } finally {
+      setProcessingId(null);
     }
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-headline text-3xl md:text-4xl text-on-surface">Member Approvals</h1>
-        <p className="text-on-surface-variant">Review and verify new profiles for the community</p>
+    <div className="space-y-8 pb-20">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="font-playfair text-4xl font-bold text-[#040e2a]">User Approvals</h1>
+            <span className="bg-[#d4af37]/20 text-[#d4af37] px-4 py-1 rounded-full text-sm font-bold border border-[#d4af37]/30">
+              {stats.pending} Pending
+            </span>
+          </div>
+          <p className="text-on-surface-variant mt-2 text-lg">Review and approve new member applications</p>
+        </div>
       </div>
 
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl overflow-hidden shadow-sm min-h-[400px]">
+      {/* Summary Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-[#d4af37] p-6 rounded-2xl shadow-lg text-[#040e2a]">
+          <p className="text-sm font-bold uppercase tracking-wider opacity-80">Pending Queue</p>
+          <p className="text-4xl font-black mt-1">{stats.pending}</p>
+        </div>
+        <div className="bg-[#16a34a] p-6 rounded-2xl shadow-lg text-white">
+          <p className="text-sm font-bold uppercase tracking-wider opacity-80">Approved Today</p>
+          <p className="text-4xl font-black mt-1">{stats.approvedToday}</p>
+        </div>
+        <div className="bg-[#dc2626] p-6 rounded-2xl shadow-lg text-white">
+          <p className="text-sm font-bold uppercase tracking-wider opacity-80">Rejected Today</p>
+          <p className="text-4xl font-black mt-1">{stats.rejectedToday}</p>
+        </div>
+      </div>
+
+      {/* Main List */}
+      <div className="space-y-4">
         {loading ? (
-          <div className="flex h-[400px] flex-col items-center justify-center gap-4">
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            <p className="font-label-lg text-on-surface-variant">Fetching pending profiles...</p>
+            <p className="text-on-surface-variant font-medium">Loading applications...</p>
           </div>
         ) : users.length === 0 ? (
-          <div className="flex h-[400px] flex-col items-center justify-center text-center p-8 gap-4">
-            <div className="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center text-on-surface-variant">
+          <div className="flex flex-col items-center justify-center py-24 bg-surface-container rounded-3xl border border-dashed border-outline-variant text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-6">
               <CheckCircle className="w-10 h-10" />
             </div>
-            <div className="space-y-2">
-              <h3 className="font-headline text-2xl text-on-surface">No Pending Approvals</h3>
-              <p className="text-on-surface-variant max-w-xs">All caught up! New registrations will appear here for review.</p>
-            </div>
-            <button 
-              onClick={fetchPendingUsers} 
-              className="px-6 py-2 border border-outline-variant rounded-xl font-label-lg hover:bg-surface-container transition-colors"
-            >
-              Refresh List
-            </button>
+            <h3 className="text-2xl font-bold text-on-surface">All caught up!</h3>
+            <p className="text-on-surface-variant mt-2">No pending applications at the moment.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-surface-container border-b border-outline-variant">
-                <tr>
-                  <th className="px-6 py-4 font-label-caps text-on-surface-variant text-xs uppercase tracking-widest">Profile</th>
-                  <th className="px-6 py-4 font-label-caps text-on-surface-variant text-xs uppercase tracking-widest">Denomination</th>
-                  <th className="px-6 py-4 font-label-caps text-on-surface-variant text-xs uppercase tracking-widest">Profession</th>
-                  <th className="px-6 py-4 font-label-caps text-on-surface-variant text-xs uppercase tracking-widest text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/30">
-                <AnimatePresence>
-                  {users.map((user) => (
-                    <motion.tr 
-                      key={user.id} 
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="hover:bg-surface-variant/10 group"
+          <div className="grid grid-cols-1 gap-4">
+            <AnimatePresence mode="popLayout">
+              {users.map((user) => (
+                <motion.div
+                  key={user.id}
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  className="bg-white border border-outline-variant rounded-2xl p-4 md:p-6 shadow-sm hover:shadow-md transition-shadow group flex flex-col md:flex-row items-center justify-between gap-6"
+                >
+                  <div className="flex items-center gap-6 w-full md:w-auto">
+                    <div className="relative">
+                      <img 
+                        src={user.photoUrl || user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} 
+                        alt="" 
+                        className="w-[60px] h-[60px] rounded-full object-cover border-2 border-primary-container shadow-sm"
+                      />
+                      <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-sm border border-outline-variant">
+                        <User className="w-3 h-3 text-primary" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-[#040e2a] group-hover:text-primary transition-colors">{user.name}</h3>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-on-surface-variant mt-1">
+                        <span className="capitalize">{user.gender || 'N/A'}</span>
+                        <span className="text-outline-variant">•</span>
+                        <span>{user.age || 'N/A'} yrs</span>
+                        <span className="text-outline-variant">•</span>
+                        <span>{user.denomination || 'N/A'}</span>
+                        <span className="text-outline-variant">•</span>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          <span>{user.city || user.location || 'N/A'}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-on-surface-variant/60 mt-2">
+                        <Clock className="w-3 h-3" />
+                        <span>Applied {formatRelativeTime(user.createdAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                    <button
+                      onClick={() => setSelectedUser(user)}
+                      className="flex items-center gap-2 px-4 py-2 border border-[#040e2a] text-[#040e2a] rounded-xl font-bold text-sm hover:bg-[#040e2a]/5 transition-colors"
                     >
-                      <td className="px-6 py-6">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full border-2 border-primary-container overflow-hidden group-hover:scale-110 transition-transform">
-                            <img 
-                              src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} 
-                              alt="" 
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div>
-                            <p className="text-base font-bold text-on-surface">{user.name}</p>
-                            <div className="flex flex-col gap-1 mt-1">
-                              <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-                                <span className="capitalize">{user.gender}</span> • <span>{user.age} yrs</span> • <span>{user.location}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
-                                <Phone className="w-3 h-3" /> {user.mobileNumber || 'N/A'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-6 font-inter text-sm text-on-surface-variant">
-                        {user.denomination}
-                      </td>
-                      <td className="px-6 py-6 font-inter text-sm text-on-surface-variant">
-                        {user.profession}
-                      </td>
-                      <td className="px-6 py-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <button 
-                            disabled={processingId === user.id}
-                            onClick={() => handleApprove(user.id)}
-                            className="p-2 bg-green-100 text-green-700 hover:bg-green-700 hover:text-white rounded-xl transition-all disabled:opacity-50"
-                            title="Approve Profile"
-                          >
-                            {processingId === user.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                          </button>
-                          <button 
-                            disabled={processingId === user.id}
-                            onClick={() => handleReject(user.id)}
-                            className="p-2 bg-error/10 text-error hover:bg-error hover:text-white rounded-xl transition-all disabled:opacity-50"
-                            title="Reject Profile"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                          <button 
-                            disabled={processingId === user.id}
-                            onClick={() => handleBlock(user.id)}
-                            className="p-2 bg-on-surface-variant/10 text-on-surface-variant hover:bg-on-surface-variant hover:text-white rounded-xl transition-all disabled:opacity-50"
-                            title="Block User"
-                          >
-                            <Ban className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
+                      <Eye className="w-4 h-4" />
+                      <span>View Profile</span>
+                    </button>
+                    <button
+                      onClick={() => setConfirmModal({ isOpen: true, userId: user.id, name: user.name })}
+                      className="flex items-center gap-2 px-5 py-2 bg-[#16a34a] text-white rounded-xl font-bold text-sm hover:bg-[#15803d] transition-colors shadow-sm"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Approve</span>
+                    </button>
+                    <button
+                      onClick={() => setRejectionModal({ isOpen: true, userId: user.id, reason: '' })}
+                      className="flex items-center gap-2 px-5 py-2 bg-[#dc2626] text-white rounded-xl font-bold text-sm hover:bg-[#b91c1c] transition-colors shadow-sm"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>Reject</span>
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
 
-      <div className="p-6 bg-surface-container rounded-3xl border border-outline-variant flex items-start gap-4">
-        <AlertCircle className="w-6 h-6 text-primary flex-shrink-0" />
-        <div className="space-y-1">
-          <p className="font-label-lg text-on-surface">Review Guidelines</p>
-          <p className="text-xs text-on-surface-variant leading-relaxed">
-            Ensure the profile photo is clear and respectful. Review the denomination and church details to maintain community integrity.
-            Profiles rejected will not be visible to other members.
-          </p>
-        </div>
-      </div>
+      {/* Confirmation Modals */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setConfirmModal({ isOpen: false, userId: null, name: '' })}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 text-center"
+            >
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 mx-auto mb-6">
+                <CheckCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-bold text-[#040e2a]">Approve Application?</h3>
+              <p className="text-on-surface-variant mt-4 leading-relaxed">
+                Are you sure you want to approve <strong>{confirmModal.name}</strong>'s application? They will gain full access to the platform.
+              </p>
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <button
+                  onClick={() => setConfirmModal({ isOpen: false, userId: null, name: '' })}
+                  className="px-6 py-3 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => confirmModal.userId && handleApprove(confirmModal.userId)}
+                  disabled={!!processingId}
+                  className="px-6 py-3 bg-[#16a34a] text-white rounded-xl font-bold hover:bg-[#15803d] transition-all flex items-center justify-center gap-2"
+                >
+                  {processingId ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {rejectionModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setRejectionModal({ isOpen: false, userId: null, reason: '' })}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10"
+            >
+              <h3 className="text-2xl font-bold text-[#040e2a] text-center">Reject Application</h3>
+              <p className="text-on-surface-variant mt-2 text-center">Please provide a reason for the rejection. The user will see this message.</p>
+              
+              <div className="mt-6 space-y-4">
+                <textarea
+                  value={rejectionModal.reason}
+                  onChange={(e) => setRejectionModal(prev => ({ ...prev, reason: e.target.value }))}
+                  placeholder="e.g. Profile photo is not clear, please upload a new one."
+                  className="w-full h-32 bg-surface-container rounded-2xl p-4 text-on-surface border-none focus:ring-2 focus:ring-error transition-all resize-none"
+                />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setRejectionModal({ isOpen: false, userId: null, reason: '' })}
+                    className="px-6 py-3 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReject}
+                    disabled={!!processingId || !rejectionModal.reason.trim()}
+                    className="px-6 py-3 bg-[#dc2626] text-white rounded-xl font-bold hover:bg-[#b91c1c] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {processingId ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Reject'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* View Profile Side Panel / Modal */}
+        {selectedUser && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setSelectedUser(null)}
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative z-10 w-full max-w-2xl h-full bg-white shadow-2xl overflow-y-auto"
+            >
+              <div className="sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-outline-variant p-6 flex items-center justify-between">
+                <h3 className="font-playfair text-2xl font-bold text-[#040e2a]">User Profile</h3>
+                <button 
+                  onClick={() => setSelectedUser(null)}
+                  className="p-2 hover:bg-surface-container rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="p-8">
+                {/* Simplified profile view for moderation */}
+                <div className="flex flex-col items-center text-center mb-8">
+                  <img 
+                    src={selectedUser.photoUrl || selectedUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${selectedUser.name}`} 
+                    className="w-32 h-32 rounded-full border-4 border-primary-container object-cover shadow-xl mb-4" 
+                    alt="" 
+                  />
+                  <h2 className="text-3xl font-bold text-[#040e2a]">{selectedUser.name}</h2>
+                  <p className="text-primary font-medium mt-1 uppercase tracking-widest text-xs">{selectedUser.denomination}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-2">Basic Info</h4>
+                    <InfoItem label="Age" value={selectedUser.age + ' yrs'} />
+                    <InfoItem label="Gender" value={selectedUser.gender} />
+                    <InfoItem label="Location" value={selectedUser.city || selectedUser.location} />
+                    <InfoItem label="Phone" value={selectedUser.mobileNumber} />
+                  </div>
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-2">Professional</h4>
+                    <InfoItem label="Education" value={selectedUser.education} />
+                    <InfoItem label="Profession" value={selectedUser.profession} />
+                    <InfoItem label="Income" value={selectedUser.annualIncome} />
+                  </div>
+                </div>
+
+                <div className="mt-12 space-y-4">
+                  <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-2">Church & Faith</h4>
+                  <p className="text-on-surface leading-relaxed italic">"{selectedUser.testimony || 'No testimony provided.'}"</p>
+                </div>
+
+                <div className="mt-12 flex gap-4">
+                   <button
+                    onClick={() => {
+                      setConfirmModal({ isOpen: true, userId: selectedUser.id, name: selectedUser.name });
+                      setSelectedUser(null);
+                    }}
+                    className="flex-1 py-4 bg-[#16a34a] text-white rounded-2xl font-bold hover:bg-[#15803d] shadow-lg flex items-center justify-center gap-2"
+                   >
+                     <Check className="w-5 h-5" />
+                     Approve
+                   </button>
+                   <button
+                    onClick={() => {
+                      setRejectionModal({ isOpen: true, userId: selectedUser.id, reason: '' });
+                      setSelectedUser(null);
+                    }}
+                    className="flex-1 py-4 bg-[#dc2626] text-white rounded-2xl font-bold hover:bg-[#b91c1c] shadow-lg flex items-center justify-center gap-2"
+                   >
+                     <X className="w-5 h-5" />
+                     Reject
+                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: any }) {
+  return (
+    <div>
+      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">{label}</p>
+      <p className="text-on-surface font-medium capitalize">{value || 'N/A'}</p>
     </div>
   );
 }

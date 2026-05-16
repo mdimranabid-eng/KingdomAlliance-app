@@ -133,3 +133,30 @@ export function calculateMatchScore(me: any, other: any) {
 
   return Math.min(score, 100);
 }
+
+export function formatRelativeTime(date: any): string {
+  if (!date) return 'some time ago';
+  
+  let targetDate: Date;
+  
+  if (date.toDate) {
+    targetDate = date.toDate();
+  } else if (date instanceof Date) {
+    targetDate = date;
+  } else if (typeof date === 'string' || typeof date === 'number') {
+    targetDate = new Date(date);
+  } else {
+    return 'some time ago';
+  }
+
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - targetDate.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return 'just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
+  
+  return targetDate.toLocaleDateString();
+}

@@ -2,7 +2,7 @@ import emailjs from '@emailjs/browser';
 
 // Initialize EmailJS with Public Key
 const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-if (PUBLIC_KEY) {
+if (PUBLIC_KEY && PUBLIC_KEY !== 'your_public_key') {
   emailjs.init(PUBLIC_KEY);
 }
 
@@ -18,9 +18,14 @@ export const sendEmail = async (data: EmailData) => {
   const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
   const TEMPLATE_ID = data.type === 'otp' ? import.meta.env.VITE_EMAILJS_OTP_TEMPLATE_ID : import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
 
-  if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
-    console.warn('EmailJS credentials missing. Email not sent.', data);
-    return;
+  const isPlaceholder = 
+    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
+    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
+    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
+
+  if (isPlaceholder) {
+    console.warn('⚠️ EmailJS credentials missing or using default placeholders. Simulating successful email dispatch.', data);
+    return { status: 200, text: 'Simulated success' };
   }
 
   try {

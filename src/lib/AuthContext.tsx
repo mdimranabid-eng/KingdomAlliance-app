@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (uid: string, email: string) => {
     try {
       // Bootstrap first admin if email matches developer
-      const allowedAdmins = ["md.imranabid@gmail.com", "admin@christianhearts.com", "gsmtp22@gmail.com"];
+      const allowedAdmins = ["md.imranabid@gmail.com", "admin@kingdomalliance.com", "gsmtp22@gmail.com"];
       if (email && allowedAdmins.includes(email)) {
         try {
           await withTimeout(setDoc(doc(db, 'admins', uid), { uid, email }, { merge: true }));

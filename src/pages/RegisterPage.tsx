@@ -1,1101 +1,581 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
+import { signInWithGoogle, registerWithEmail } from '../services/authService';
 import { useAuth } from '../lib/AuthContext';
-import { db, storage } from '../lib/firebase';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { sendEmailVerification, reload, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../lib/firebase';
-import imageCompression from 'browser-image-compression';
+import { Loader2, Eye, EyeOff, CheckCircle2, Heart, Lock as LockIcon, ShieldCheck, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, ArrowRight, ArrowLeft, CheckCircle2, Upload, Camera, Scale, MapPin, Church, GraduationCap, Briefcase, Ruler, ShieldCheck, X, Plus, Mail, Phone, Loader2, Lock, Eye, EyeOff, Globe, MapPinHouse } from 'lucide-react';
-import { cn, formatAuthError } from '../lib/utils';
-import { useSettings } from '../lib/SettingsContext';
-import { uploadToCloudinary } from '../lib/cloudinary';
-import { HEIGHT_FT, WORLD_COUNTRIES, getCitiesForCountry, AGE_OPTIONS } from '../lib/locationData';
-
-const STEPS = [
-  { id: 1, title: 'Basic Info', description: 'Who are you?' },
-  { id: 2, title: 'Personal, Career & Lifestyle', description: 'All about you' },
-  { id: 3, title: 'Partner Preferences', description: 'Who you seek' },
-  { id: 4, title: 'Photos', description: 'Show your best self' }
-];
-
-const COUNTRY_CODES = [
-  { code: '+1', name: 'US/CA' }, { code: '+44', name: 'UK' }, { code: '+61', name: 'AU' },
-  { code: '+91', name: 'IN' }, { code: '+86', name: 'CN' }, { code: '+81', name: 'JP' },
-  { code: '+49', name: 'DE' }, { code: '+33', name: 'FR' }, { code: '+39', name: 'IT' },
-  { code: '+34', name: 'ES' }, { code: '+7', name: 'RU' }, { code: '+55', name: 'BR' },
-  { code: '+52', name: 'MX' }, { code: '+27', name: 'ZA' }, { code: '+82', name: 'KR' },
-  { code: '+971', name: 'AE' }, { code: '+966', name: 'SA' }, { code: '+65', name: 'SG' },
-  { code: '+60', name: 'MY' }, { code: '+62', name: 'ID' }, { code: '+63', name: 'PH' },
-  { code: '+64', name: 'NZ' }, { code: '+41', name: 'CH' }, { code: '+46', name: 'SE' },
-  { code: '+47', name: 'NO' }, { code: '+45', name: 'DK' }, { code: '+358', name: 'FI' },
-  { code: '+31', name: 'NL' }, { code: '+32', name: 'BE' }, { code: '+43', name: 'AT' },
-  { code: '+30', name: 'GR' }, { code: '+351', name: 'PT' }, { code: '+48', name: 'PL' },
-  { code: '+420', name: 'CZ' }, { code: '+36', name: 'HU' }, { code: '+4罗马尼亚', name: 'RO' },
-  { code: '+353', name: 'IE' }, { code: '+92', name: 'PK' }, { code: '+880', name: 'BD' },
-  { code: '+94', name: 'LK' }, { code: '+977', name: 'NP' }, { code: '+95', name: 'MM' },
-];
+import { db } from '../lib/firebase';
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { sendEmail } from '../lib/email';
 
 export default function RegisterPage() {
-  const { settings } = useSettings();
-  const { user, profile } = useAuth();
-  const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
+  const { user, profile, signOut } = useAuth();
+  const [step, setStep] = useState(1);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [confirmedChristian, setConfirmedChristian] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [emailVerifiedLocal, setEmailVerifiedLocal] = useState(false);
-  const [showEmailOtpPopup, setShowEmailOtpPopup] = useState(false);
-  const [emailOtp, setEmailOtp] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    middleName: '',
-    lastName: '',
-    email: '',
-    countryCode: '+966',
-    mobileNumber: '',
-    password: '',
-    profileFor: '',
-    profileType: '',
-    gender: '',
-    dob: '',
-    age: '',
-    citizenship: '',
-    countryLiving: '',
-    cityLiving: '',
-    maritalStatus: '',
-    height: '',
-    weight: '',
-    bodyType: '',
-    complexion: '',
-    physicalStatus: '',
-    physicalStatusDesc: '',
-    denomination: '',
-    churchName: '',
-    diocese: '',
-    baptized: '',
-    spiritualInvolvement: [] as string[],
-    motherTongue: [] as string[],
-    languagesKnown: [] as string[],
-    education: '',
-    fieldOfStudy: '',
-    college: '',
-    profession: '',
-    employmentType: '',
-    annualIncome: '',
-    dietaryHabits: '',
-    drinkingHabits: '',
-    smokingHabits: '',
-    hobbies: [] as string[],
-    country: '',
-    state: '',
-    city: '',
-    address: '',
-    aboutMe: '',
-    // ... photos
-    photoUrl: '',
-    photoPrivacy: 'public',
-    pendingPhotoUrl: '',
-    photoStatus: 'idle',
-    gallery: [] as { id: string, url: string, status: 'pending' | 'approved' | 'rejected' }[],
-    partnerPreferences: {
-      ageMin: '',
-      ageMax: '',
-      heightMin: '',
-      heightMax: '',
-      maritalStatus: [] as string[],
-      denominations: [] as string[],
-      motherTongue: [] as string[],
-      educationLevel: '',
-      employmentStatus: '',
-      dietaryHabits: '',
-      drinkingHabits: '',
-      smokingHabits: '',
-      country: '',
-      city: '',
-      relocationPreference: ''
-    }
-  });
+  // Email OTP States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpInputs, setOtpInputs] = useState<string[]>(['', '', '', '', '', '']);
+  const [otpTimer, setOtpTimer] = useState(60);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [registeredUid, setRegisteredUid] = useState<string>('');
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const isEditing = searchParams.get('edit') === 'true';
-    
-    // Redirect if already has profile, UNLESS we are in edit mode
-    if (profile && !isEditing) {
-      navigate('/dashboard');
+    // If the user is logged in via email/password, but their profile has not been verified yet,
+    // automatically trigger the verification modal.
+    if (user && profile && profile.authProvider === 'email' && !profile.emailVerified) {
+      setEmail(user.email || '');
+      setRegisteredUid(user.uid);
+      setShowOtpModal(true);
     }
-    
-    // Test connection
-    const testConnection = async () => {
-      try {
-        await import('firebase/firestore').then(({ doc, getDocFromServer }) => getDocFromServer(doc(db, 'test', 'connection')));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Database connection issue. Check if Firebase is correctly configured.");
-        }
-      }
+  }, [user, profile]);
+
+  useEffect(() => {
+    let interval: any;
+    if (showOtpModal && otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer(prev => prev - 1);
+      }, 1000);
     }
-    testConnection();
-  }, [profile, navigate]);
-
-  const updateFormData = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const compressAndUpload = async (file: File, path: string) => {
-    const options = {
-      maxSizeMB: 3,
-      maxWidthOrHeight: 1200,
-      useWebWorker: true,
-      fileType: 'image/jpeg'
+    return () => {
+      if (interval) clearInterval(interval);
     };
+  }, [showOtpModal, otpTimer]);
 
-    console.log(`Starting compression for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`);
-
-    try {
-      const compressedFile = await imageCompression(file, options);
-      console.log(`Compressed to ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
-      
-      // Try Cloudinary first if configured
-      if (settings.cloudinaryCloudName && settings.cloudinaryUploadPreset) {
-        try {
-          console.log("Attempting Cloudinary upload...");
-          const url = await uploadToCloudinary(
-            compressedFile, 
-            import.meta.env.VITE_CLOUDINARY_CLOUD_NAME, 
-            import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
-          );
-          console.log("Cloudinary upload successful:", url);
-          return url;
-        } catch (cloudinaryError) {
-          console.warn("Cloudinary upload failed, falling back to Firebase:", cloudinaryError);
-        }
-      }
-
-      // Fallback to Firebase Storage
-      try {
-        console.log("Attempting Firebase Storage upload to:", path);
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, compressedFile);
-        const downloadUrl = await getDownloadURL(storageRef);
-        console.log("Firebase Storage upload successful:", downloadUrl);
-        return downloadUrl;
-      } catch (storageError: any) {
-        console.error("Firebase Storage upload failed:", storageError);
-        
-        // If it's a permission error, we should inform the user more clearly
-        if (storageError.code === 'storage/unauthorized') {
-          throw new Error("Storage permission denied. Please check Firebase Storage rules.");
-        }
-        
-        // Fallback to Data URL for preview purposes if storage fails completely
-        console.warn("Falling back to Data URL for preview...");
-        const dataUrl = await imageCompression.getDataUrlFromFile(compressedFile);
-        return dataUrl;
-      }
-    } catch (error) {
-      console.error("Compression error:", error);
-      throw error;
-    }
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return { score: 0, label: 'None', color: 'bg-gray-200' };
+    let score = 0;
+    if (pass.length >= 8) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[^A-Za-z0-9]/.test(pass)) score++;
+    
+    if (score === 1) return { score: 33, label: 'Weak', color: 'bg-red-500' };
+    if (score === 2) return { score: 66, label: 'Fair', color: 'bg-yellow-500' };
+    if (score === 3) return { score: 100, label: 'Strong', color: 'bg-green-500' };
+    return { score: 0, label: 'None', color: 'bg-gray-200' };
   };
 
-  const handleMainPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const currentUser = auth.currentUser;
-    
-    if (!file) return;
+  const strength = getPasswordStrength(password);
 
-    if (!file.type.match('image/jp.*')) {
-      alert("Please upload .Jpg files only.");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    if (file.size > 3 * 1024 * 1024) {
-      alert("File size must not exceed 3 MB.");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-    
-    if (!currentUser) {
-      console.error("Auth check failed: No authenticated user found during photo upload.");
-      alert("Please sign in or complete the first step to upload photos.");
-      return;
-    }
-
-    setUploading(true);
+  const handleGoogleSignUp = async () => {
+    setGoogleLoading(true);
+    setError(null);
     try {
-      const path = `users/${currentUser.uid}/main_photo_${Date.now()}`;
-      const url = await compressAndUpload(file, path);
-      updateFormData('pendingPhotoUrl', url);
-      updateFormData('photoStatus', 'pending');
-    } catch (error: any) {
-      console.error("Photo upload process failed:", error);
-      alert("Failed to upload photo. " + (error.message || "Please try again."));
+      const response = await signInWithGoogle();
+      if (response.onboardingComplete === false || response.status === 'incomplete') {
+        navigate('/onboarding');
+      } else if (response.status === 'pending') {
+        navigate('/pending-approval');
+      } else if (response.status === 'approved') {
+        navigate('/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      setError(err.message || "Google sign-up failed.");
     } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setUploading(false);
+      setGoogleLoading(false);
     }
   };
 
-  const handleGalleryAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    const currentUser = auth.currentUser;
-    if (!files || files.length === 0) return;
-    if (!currentUser) {
-      console.error("Auth check failed: No authenticated user found during gallery upload.");
-      alert("Please sign in to upload gallery photos.");
+  const sendEmailOtp = async (targetEmail: string) => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Log to developer console for easy local testing & fallback
+    console.log(`🔑 [DEV ONLY] Generated OTP for ${targetEmail}: ${code}`);
+
+    const oldOtpsQuery = query(collection(db, 'temp_otps'), where('email', '==', targetEmail));
+    const oldOtpsSnap = await getDocs(oldOtpsQuery);
+    const deletePromises = oldOtpsSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await addDoc(collection(db, 'temp_otps'), {
+      email: targetEmail,
+      otp: code,
+      expiresAt: Timestamp.fromDate(expiresAt),
+      createdAt: serverTimestamp()
+    });
+
+    try {
+      await sendEmail({
+        to_email: targetEmail,
+        otp_code: code,
+        type: 'otp'
+      });
+    } catch (err) {
+      console.warn("⚠️ EmailJS failed to send verification email. Falling back to dev-console OTP:", err);
+      // Do not rethrow the error so that local development and registration flow is never blocked
+    }
+  };
+
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
-    setUploading(true);
-    try {
-      const newPhotos = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file.type.match('image/jp.*')) {
-          console.warn(`Skipping ${file.name}: Only .Jpg files allowed.`);
-          continue;
-        }
-        if (file.size > 3 * 1024 * 1024) {
-          console.warn(`Skipping ${file.name}: Size exceeds 3 MB.`);
-          continue;
-        }
-        
-        console.log(`Uploading gallery item ${i + 1}/${files.length}...`);
-        const path = `users/${currentUser.uid}/gallery_${Date.now()}_${i}`;
-        const url = await compressAndUpload(file, path);
-        newPhotos.push({
-          id: Math.random().toString(36).substring(7),
-          url,
-          status: 'pending' as const
-        });
-      }
-      updateFormData('gallery', [...formData.gallery, ...newPhotos]);
-    } catch (error: any) {
-      console.error("Gallery upload failed:", error);
-      alert("Failed to upload gallery photos. " + (error.message || "Please try again."));
-    } finally {
-      if (galleryInputRef.current) galleryInputRef.current.value = "";
-      setUploading(false);
-    }
-  };
-
-  const removeGalleryPhoto = (id: string) => {
-    updateFormData('gallery', formData.gallery.filter(p => p.id !== id));
-  };
-
-  const handleNext = async () => {
-    setErrorMsg("");
-    if (currentStep === 1) {
-      if (!formData.mobileNumber || !formData.profileFor || !formData.profileType || !formData.name || !formData.email || !formData.dob || !formData.password || !formData.citizenship || !formData.countryLiving || !formData.cityLiving) {
-        setErrorMsg("Please fill in all mandatory fields, including Citizenship and Location.");
-        return;
-      }
-
-      const today = new Date();
-      const dobDate = new Date(formData.dob);
-      let calculatedAge = today.getFullYear() - dobDate.getFullYear();
-      const m = today.getMonth() - dobDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
-        calculatedAge--;
-      }
-      
-      if (calculatedAge < settings.minAge) {
-        setErrorMsg(`You must be at least ${settings.minAge} years old to register.`);
-        return;
-      }
-
-      // Update calculated age in formData
-      updateFormData('age', calculatedAge.toString());
-
-      if (!emailVerifiedLocal) {
-        setErrorMsg("Please verify your email address to continue.");
-        return;
-      }
-
-      // Security check: Check if mobile number already exists
-      setLoading(true);
-      try {
-        const fullMobile = `${formData.countryCode} ${formData.mobileNumber}`;
-        const q = query(collection(db, "users"), where("mobileNumber", "==", fullMobile));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          setErrorMsg("The mobile number entered is already registered.");
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.error("Error checking mobile existence:", err);
-      } finally {
-        setLoading(false);
-      }
-      
-      // If user is not yet created, we create them before moving to step 2 verification
-      if (!user) {
-        setLoading(true);
-        try {
-          await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-        } catch (err: any) {
-          setErrorMsg(formatAuthError(err));
-          setLoading(false);
-          return;
-        }
-        setLoading(false);
-      }
+    if (strength.label === 'Weak') {
+      setError("Password must be at least 8 characters with a number and symbol.");
+      return;
     }
 
-    if (currentStep === 2) {
-      const mandatoryFields = [
-        'maritalStatus', 'height', 'weight', 'bodyType', 'complexion', 
-        'physicalStatus', 'education', 'profession', 'fieldOfStudy', 
-        'annualIncome', 'dietaryHabits', 'drinkingHabits', 'smokingHabits'
-      ];
-      const missing = mandatoryFields.filter(f => !formData[f as keyof typeof formData]);
-      if (missing.length > 0) {
-        setErrorMsg("Please fill in all mandatory fields in Personal, Career & Lifestyle.");
-        return;
-      }
+    if (!agreedTerms || !confirmedChristian) {
+      setError("Please agree to all terms and conditions to continue.");
+      return;
     }
 
-    if (currentStep === 3) {
-      const pref = formData.partnerPreferences;
-      if (!pref.ageMin || !pref.ageMax || !pref.heightMin || !pref.heightMax || !pref.educationLevel || !pref.country || !pref.city || pref.maritalStatus.length === 0) {
-        setErrorMsg("Please fill in all mandatory Partner Preferences, including location and marital status.");
-        return;
-      }
-    }
-    
-    if (currentStep < STEPS.length) {
-      setCurrentStep(prev => prev + 1);
-    } else {
-      await handleSubmit();
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(prev => prev - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!user) return;
     setLoading(true);
-    setErrorMsg("");
     try {
-        const profileData = {
-        name: formData.name,
-        middleName: formData.middleName,
-        lastName: formData.lastName,
-        mobileNumber: `${formData.countryCode} ${formData.mobileNumber}`,
-        profileType: formData.profileType,
-        profileFor: formData.profileFor,
-        gender: formData.gender,
-        dob: formData.dob,
-        age: parseInt(formData.age) || 0,
-        citizenship: formData.citizenship,
-        countryLiving: formData.countryLiving,
-        cityLiving: formData.cityLiving,
-        maritalStatus: formData.maritalStatus,
-        height: formData.height, // String (e.g. 5'2")
-        weight: formData.weight,
-        bodyType: formData.bodyType,
-        complexion: formData.complexion,
-        physicalStatus: formData.physicalStatus,
-        physicalStatusDesc: formData.physicalStatusDesc,
-        denomination: formData.denomination,
-        churchName: formData.churchName,
-        diocese: formData.diocese,
-        baptized: formData.baptized,
-        spiritualInvolvement: formData.spiritualInvolvement,
-        motherTongue: formData.motherTongue,
-        languagesKnown: formData.languagesKnown,
-        education: formData.education,
-        fieldOfStudy: formData.fieldOfStudy,
-        college: formData.college,
-        profession: formData.profession,
-        employmentType: formData.employmentType,
-        annualIncome: formData.annualIncome,
-        dietaryHabits: formData.dietaryHabits,
-        drinkingHabits: formData.drinkingHabits,
-        smokingHabits: formData.smokingHabits,
-        hobbies: formData.hobbies,
-        aboutMe: formData.aboutMe,
-        photoUrl: formData.photoUrl,
-        photoPrivacy: formData.photoPrivacy,
-        pendingPhotoUrl: formData.pendingPhotoUrl,
-        photoStatus: formData.photoStatus,
-        gallery: formData.gallery,
-        partnerPreferences: {
-          ageMin: formData.partnerPreferences.ageMin,
-          ageMax: formData.partnerPreferences.ageMax,
-          heightMin: formData.partnerPreferences.heightMin,
-          heightMax: formData.partnerPreferences.heightMax,
-          maritalStatus: formData.partnerPreferences.maritalStatus,
-          denominations: formData.partnerPreferences.denominations,
-          motherTongue: formData.partnerPreferences.motherTongue,
-          educationLevel: formData.partnerPreferences.educationLevel,
-          employmentStatus: formData.partnerPreferences.employmentStatus,
-          dietaryHabits: formData.partnerPreferences.dietaryHabits,
-          drinkingHabits: formData.partnerPreferences.drinkingHabits,
-          smokingHabits: formData.partnerPreferences.smokingHabits,
-          country: formData.partnerPreferences.country,
-          city: formData.partnerPreferences.city,
-          relocationPreference: formData.partnerPreferences.relocationPreference
-        },
-        uid: user.uid,
-        email: user.email,
-        isApproved: false,
-        emailVerified: true,
-        mobileVerified: true,
-        status: 'active',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
+      const response = await registerWithEmail(email, password, fullName);
+      const uid = response.user.uid;
+      setRegisteredUid(uid);
 
-      await setDoc(doc(db, 'users', user.uid), profileData);
-      
-      setSubmissionSuccess(true);
-    } catch (error: any) {
-      console.error("Registration submission error:", error);
-      setErrorMsg(error.message || "An error occurred while saving your profile. Please try again.");
+      await sendEmailOtp(email);
+
+      setOtpInputs(['', '', '', '', '', '']);
+      setOtpError(null);
+      setOtpTimer(60);
+      setShowOtpModal(true);
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        setError("An account with this email already exists. Sign in instead.");
+      } else {
+        setError(err.message || "Registration failed.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  if (submissionSuccess) {
-    return (
-      <div className="min-h-screen bg-surface flex flex-col items-center p-4">
-        <header className="w-full h-16 bg-surface border-b border-outline-variant flex items-center justify-center mb-8">
-          <div className="flex items-center gap-2">
-            <Heart className="w-8 h-8 text-primary fill-primary" />
-            <span className="font-headline text-2xl text-primary font-bold tracking-tight">Kingdom Alliance</span>
-          </div>
-        </header>
-        <main className="flex-1 w-full max-w-lg flex flex-col items-center justify-center">
-            <div className="bg-surface-container-lowest rounded-[2rem] p-10 border border-outline-variant shadow-lg text-center space-y-6">
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-10 h-10 text-primary" />
-                </div>
-                <h2 className="font-headline text-3xl text-on-surface">Submission Successful</h2>
-                <p className="text-on-surface-variant text-base">
-                    Thank you, <span className="font-bold">{user?.email}</span>. Your profile has been submitted for review and approval.
-                </p>
-                <div className="p-4 bg-primary/5 rounded-2xl text-sm text-on-surface-variant text-left">
-                    We'll notify you via your email once your profile is approved.
-                </div>
-            </div>
-        </main>
-      </div>
-    );
-  }
+  const handleVerifyOtp = async () => {
+    setOtpError(null);
+    const code = otpInputs.join('');
+    if (code.length !== 6) {
+      setOtpError("Please enter all 6 digits.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const q = query(
+        collection(db, 'temp_otps'), 
+        where('email', '==', email),
+        where('otp', '==', code)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        setOtpError("Invalid verification code. Please check and try again.");
+        return;
+      }
+
+      const otpData = snap.docs[0].data();
+      if (otpData.expiresAt.toDate() < new Date()) {
+        setOtpError("This code has expired. Please click Resend OTP to receive a new one.");
+        return;
+      }
+
+      await deleteDoc(snap.docs[0].ref);
+
+      const userRef = doc(db, 'users', registeredUid);
+      await updateDoc(userRef, { emailVerified: true });
+
+      setShowOtpModal(false);
+      navigate('/onboarding');
+    } catch (err: any) {
+      console.error("Verification failed:", err);
+      setOtpError("Verification failed: " + (err.message || "Please try again."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setOtpError(null);
+    setOtpSending(true);
+    try {
+      await sendEmailOtp(email);
+      setOtpTimer(60);
+      setOtpInputs(['', '', '', '', '', '']);
+      if (otpRefs.current[0]) {
+        otpRefs.current[0].focus();
+      }
+    } catch (err: any) {
+      console.error("Failed to resend code:", err);
+      setOtpError("Failed to resend verification code. Please try again.");
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleCancelAndSignOut = async () => {
+    try {
+      setShowOtpModal(false);
+      await signOut();
+      navigate('/login');
+    } catch (err) {
+      console.error("Sign out failed:", err);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col items-center">
-      {/* Header */}
-      <header className="w-full h-16 bg-surface border-b border-outline-variant flex items-center justify-center relative z-10">
-        <div className="flex items-center gap-2">
-          <Heart className="w-8 h-8 text-primary fill-primary" />
-          <span className="font-headline text-2xl text-primary font-bold tracking-tight">Kingdom Alliance</span>
-        </div>
-      </header>
+    <div className="min-h-screen flex font-body bg-[#f9f9f6]">
+      {/* LEFT COLUMN - Decorative (Desktop Only) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#040e2a] flex-col justify-between p-12 text-white relative overflow-hidden">
+        <div className="relative z-10 space-y-8">
+          <div className="flex flex-col items-center space-y-4">
+            <KingdomCrossIcon size="lg" />
+            <h1 className="font-headline text-5xl font-bold text-white tracking-tight">Kingdom Alliance</h1>
+            <p className="text-[#d4af37] text-xl font-medium">Connecting Hearts Through Faith</p>
+          </div>
 
-      {/* OTP Popup */}
-      <AnimatePresence>
-        {showEmailOtpPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-surface-container-lowest rounded-[2rem] p-8 max-w-sm w-full shadow-2xl relative"
+          <div className="flex flex-col items-center space-y-4 pt-12 text-center">
+            <h2 className="font-headline text-3xl font-bold">Join Kingdom Alliance</h2>
+            <p className="text-white/70 text-lg">Begin your journey to a faith-filled union</p>
+          </div>
+        </div>
+
+        <div className="relative z-10 text-center text-white/40 text-sm italic">
+          "A sacred space for Christian matrimony"
+        </div>
+
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#d4af37]/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-white/5 rounded-full blur-3xl"></div>
+      </div>
+
+      {/* RIGHT COLUMN - Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12">
+        <AnimatePresence mode="wait">
+          {step === 1 ? (
+            <motion.div 
+              key="step1"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full max-w-md space-y-8"
             >
-              <button onClick={() => setShowEmailOtpPopup(false)} className="absolute top-4 right-4 p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant rounded-full transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="font-headline text-2xl text-on-surface mb-2">Verify Email</h3>
-              <p className="text-on-surface-variant text-sm mb-6">We've sent a 6-digit OTP to <br/><b className="text-on-surface">{formData.email}</b><br/>Please enter it below.</p>
-              
+              <div className="text-center space-y-2">
+                <div className="lg:hidden flex justify-center mb-4">
+                  <KingdomCrossIcon size="md" />
+                </div>
+                <h2 className="font-headline text-3xl text-[#040e2a] font-bold">Create Your Account</h2>
+                <p className="text-gray-500 text-sm">Join thousands of faith-filled singles</p>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-3">
+                  <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                  {error}
+                </div>
+              )}
+
               <div className="space-y-6">
-                <input 
-                  type="text" 
-                  maxLength={6} 
-                  value={emailOtp} 
-                  onChange={e => setEmailOtp(e.target.value.replace(/\D/g, ''))} 
-                  placeholder="e.g. 123456" 
-                  className="w-full px-4 py-4 bg-surface border-2 border-outline-variant focus:border-primary rounded-xl outline-none text-center text-2xl tracking-[0.5em] font-mono font-bold transition-colors" 
-                  autoFocus
-                />
-                
-                <button 
-                  onClick={() => {
-                    if (emailOtp.length >= 4) {
-                      setEmailVerifiedLocal(true);
-                      setShowEmailOtpPopup(false);
-                      setErrorMsg("");
-                    } else {
-                      alert("Please enter a valid OTP.");
-                    }
-                  }} 
-                  className="w-full py-4 bg-primary text-on-primary font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all text-lg"
+                <button
+                  onClick={handleGoogleSignUp}
+                  disabled={googleLoading || loading}
+                  className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 py-3.5 px-4 rounded-xl shadow-sm hover:shadow-md transition-all group disabled:opacity-50"
                 >
-                  Submit OTP
+                  {googleLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1c-4.3 0-8.01 2.47-9.82 6.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                  )}
+                  <span className="font-medium text-gray-700">Sign up with Google</span>
                 </button>
+
+                <div className="relative flex items-center justify-center">
+                  <div className="border-t border-gray-200 w-full"></div>
+                  <span className="bg-[#f9f9f6] px-4 text-xs text-gray-400 uppercase tracking-widest relative z-10">or register with email</span>
+                </div>
+
+                <form onSubmit={handleEmailSignUp} className="space-y-4">
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Your full name"
+                    required
+                    className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#d4af37] focus:border-transparent outline-none transition-all"
+                  />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email address"
+                    required
+                    className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#d4af37] focus:border-transparent outline-none transition-all"
+                  />
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Password"
+                        required
+                        className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#d4af37] focus:border-transparent outline-none transition-all pr-12"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 flex items-center justify-center"
+                      >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                    {password && (
+                      <div className="space-y-1 px-1">
+                        <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-500 ${strength.color}`} 
+                            style={{ width: `${strength.score}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">Strength: {strength.label}</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm Password"
+                    required
+                    className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#d4af37] focus:border-transparent outline-none transition-all"
+                  />
+
+                  <div className="space-y-3 pt-2">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className="relative flex-shrink-0 flex items-center justify-center mt-0.5">
+                        <input 
+                          type="checkbox" 
+                          checked={agreedTerms}
+                          onChange={(e) => setAgreedTerms(e.target.checked)}
+                          className="peer appearance-none w-5 h-5 border-2 border-gray-200 rounded-md checked:bg-[#d4af37] checked:border-[#d4af37] transition-all" 
+                        />
+                        <CheckCircle2 className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        I agree to the <Link to="/terms" target="_blank" className="text-[#d4af37] hover:underline">Terms of Service</Link> and <Link to="/privacy" target="_blank" className="text-[#d4af37] hover:underline">Privacy Policy</Link>
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className="relative flex-shrink-0 flex items-center justify-center mt-0.5">
+                        <input 
+                          type="checkbox" 
+                          checked={confirmedChristian}
+                          onChange={(e) => setConfirmedChristian(e.target.checked)}
+                          className="peer appearance-none w-5 h-5 border-2 border-gray-200 rounded-md checked:bg-[#d4af37] checked:border-[#d4af37] transition-all" 
+                        />
+                        <CheckCircle2 className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        I confirm I am a committed Christian seeking a faith-centered marriage
+                      </span>
+                    </label>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || googleLoading}
+                    className="w-full py-4 bg-[#040e2a] hover:bg-[#0a1b4d] text-white rounded-xl font-bold shadow-lg shadow-[#040e2a]/10 transition-all active:scale-[0.98] disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto text-white" /> : "Create Account"}
+                  </button>
+                </form>
+
+                <div className="text-center text-sm pt-4">
+                  <span className="text-gray-500">Already have an account? </span>
+                  <Link to="/login" className="text-[#d4af37] font-bold hover:underline">
+                    Sign In
+                  </Link>
+                </div>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+          ) : (
+            <motion.div 
+              key="step2"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-md text-center space-y-8"
+            >
+              <div className="flex justify-center">
+                <KingdomCrossIcon size="lg" />
+              </div>
+              <div className="space-y-4">
+                <h2 className="font-headline text-3xl text-[#040e2a] font-bold">Account Created!</h2>
+                <p className="text-gray-600">
+                  We have sent a verification email to <span className="font-bold text-[#040e2a]">{email}</span>. 
+                  Please verify your email then complete your profile.
+                </p>
+              </div>
+              
+              <div className="bg-[#d4af37]/10 p-6 rounded-2xl flex items-start gap-4 text-left border border-[#d4af37]/20">
+                <ShieldCheck className="w-6 h-6 text-[#d4af37] flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-[#040e2a]/80">
+                  Verification ensures a safe and authentic community for everyone. Check your inbox (and spam folder) for the link.
+                </p>
+              </div>
 
-      <main className="flex-1 w-full max-w-6xl px-4 py-8 lg:py-16 flex flex-col lg:flex-row gap-12 relative z-0">
-        {/* Stepper Nav */}
-        <aside className="lg:w-1/4">
-          <div className="sticky top-8 space-y-8">
-            <h2 className="font-headline text-3xl text-on-surface">Registration</h2>
-            <div className="space-y-6">
-              {STEPS.map((step) => {
-                const isActive = currentStep === step.id;
-                const isCompleted = currentStep > step.id;
-
-                return (
-                  <div key={step.id} className="flex gap-4 group">
-                    <div className="flex flex-col items-center">
-                      <div className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
-                        isActive ? "bg-primary border-primary text-on-primary shadow-lg shadow-primary/20" : 
-                        isCompleted ? "bg-secondary border-secondary text-on-secondary" :
-                        "bg-surface border-outline-variant text-on-surface-variant"
-                      )}>
-                        {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : step.id}
-                      </div>
-                      {step.id !== STEPS.length && (
-                        <div className={cn(
-                          "w-0.5 h-10 my-2 rounded-full",
-                          isCompleted ? "bg-secondary" : "bg-outline-variant"
-                        )} />
-                      )}
-                    </div>
-                    <div className="pt-1">
-                      <p className={cn(
-                        "font-label-lg transition-colors",
-                        isActive ? "text-primary font-bold" : isCompleted ? "text-secondary" : "text-on-surface-variant"
-                      )}>
-                        {step.title}
-                      </p>
-                      <p className="text-xs text-on-surface-variant">{step.description}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </aside>
-
-        {/* Form Area */}
-        <div className="flex-1 bg-surface-container-lowest rounded-3xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col">
-          <div className="p-8 lg:p-12 bg-surface-container-low border-b border-outline-variant">
-            <h3 className="font-headline text-3xl text-on-surface mb-2">{STEPS[currentStep-1].title}</h3>
-            <p className="text-on-surface-variant">{STEPS[currentStep-1].description}</p>
-          </div>
-
-          <div className="flex-1 p-8 lg:p-12">
-            {errorMsg && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 bg-error-container text-error rounded-xl border border-error/20 flex items-center gap-3"
+              <button
+                onClick={() => navigate('/onboarding')}
+                className="w-full py-4 bg-[#040e2a] hover:bg-[#0a1b4d] text-white rounded-xl font-bold transition-all shadow-lg shadow-[#040e2a]/10"
               >
-                <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm font-medium">{errorMsg}</p>
-              </motion.div>
-            )}
-            <AnimatePresence mode="wait">
+                Continue to Profile Setup
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showOtpModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            >
               <motion.div
-                key={currentStep}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-8"
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className="w-full max-w-md p-8 bg-white/95 rounded-3xl shadow-2xl border border-white/20 relative overflow-hidden"
               >
-                {/* Step 1: Basic Info */}
-                {currentStep === 1 && (
-                  <div className="space-y-6">
-                    {/* Profile Selection */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Profile created for</label>
-                        <select value={formData.profileFor} onChange={(e) => updateFormData('profileFor', e.target.value)} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary">
-                          <option value="">Select option</option>
-                          {['Self', 'Son', 'Daughter', 'Brother', 'Sister', 'Relative', 'Friend'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                         <label className="block font-label-sm text-on-surface uppercase tracking-wider">Profile Type</label>
-                         <div className="flex gap-4">
-                           {['bride', 'groom'].map(type => (
-                             <button key={type} type="button" onClick={() => { updateFormData('profileType', type); updateFormData('gender', type === 'groom' ? 'male' : 'female'); }} className={cn("flex-1 p-3 rounded-xl border-2 capitalize transition-colors font-medium", formData.profileType === type ? "border-primary bg-primary/5 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary/50")}>{type}</button>
-                           ))}
-                         </div>
-                      </div>
-                    </div>
+                <button
+                  onClick={handleCancelAndSignOut}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <X size={20} />
+                </button>
 
-                    {/* Name */}
-                    <div className="space-y-2">
-                      <label className="block font-label-sm text-on-surface uppercase tracking-wider">Full Name</label>
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <input type="text" value={formData.name} onChange={(e) => updateFormData('name', e.target.value)} placeholder="First Name" className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary flex-1" />
-                        <input type="text" value={formData.middleName} onChange={(e) => updateFormData('middleName', e.target.value)} placeholder="Middle Name (Optional)" className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary flex-1" />
-                        <input type="text" value={formData.lastName} onChange={(e) => updateFormData('lastName', e.target.value)} placeholder="Last Name" className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary flex-1" />
-                      </div>
+                <div className="text-center space-y-6">
+                  <div className="flex justify-center">
+                    <div className="w-16 h-16 bg-[#d4af37]/10 rounded-full flex items-center justify-center">
+                      <ShieldCheck className="w-8 h-8 text-[#d4af37]" />
                     </div>
+                  </div>
 
-                    {/* Mobile & DOB */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Mobile Number</label>
-                        <div className="flex bg-surface border border-outline-variant rounded-xl overflow-hidden focus-within:border-primary transition-colors">
-                          <select 
-                            value={formData.countryCode} 
-                            onChange={(e) => updateFormData('countryCode', e.target.value)}
-                            className="px-3 py-3 bg-surface border-r border-outline-variant outline-none text-on-surface text-center font-medium min-w-[80px]"
-                          >
-                            {COUNTRY_CODES.map((c, i) => (
-                              <option key={i} value={c.code}>{c.code} {c.name}</option>
-                            ))}
-                          </select>
-                          <input type="tel" value={formData.mobileNumber} onChange={(e) => updateFormData('mobileNumber', e.target.value)} placeholder="e.g. 234 567 8900" className="w-full px-4 py-3 bg-transparent outline-none flex-1" />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Date of Birth</label>
-                        <input type="date" value={formData.dob} onChange={(e) => updateFormData('dob', e.target.value)} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary" />
-                      </div>
-                    </div>
-                    
-                    {/* Account notice */}
-                    <p className="text-xs text-on-surface-variant italic -mt-2">
-                        “Your mobile number will be used for account verification and important communication related to your profile.”
+                  <div className="space-y-2">
+                    <h3 className="font-headline text-2xl text-[#040e2a] font-bold">Verify Your Email</h3>
+                    <p className="text-sm text-gray-500">
+                      We have sent a 6-digit verification code to<br />
+                      <span className="font-bold text-[#040e2a]">{email}</span>
                     </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Citizenship</label>
-                        <select value={formData.citizenship} onChange={(e) => updateFormData('citizenship', e.target.value)} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary">
-                          <option value="">Select Citizenship</option>
-                          {WORLD_COUNTRIES.map(country => <option key={country} value={country}>{country}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Country Living</label>
-                        <select value={formData.countryLiving} onChange={(e) => {
-                          updateFormData('countryLiving', e.target.value);
-                          updateFormData('cityLiving', ''); // Reset city when country changes
-                        }} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary">
-                          <option value="">Select Country</option>
-                          {WORLD_COUNTRIES.map(country => <option key={country} value={country}>{country}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">City</label>
-                        <select 
-                          value={formData.cityLiving} 
-                          onChange={(e) => updateFormData('cityLiving', e.target.value)} 
-                          disabled={!formData.countryLiving}
-                          className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary disabled:opacity-50"
-                        >
-                          <option value="">Select City</option>
-                          {getCitiesForCountry(formData.countryLiving).map(city => <option key={city} value={city}>{city}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="h-px bg-outline-variant w-full !my-8"></div>
-
-                    {/* Account Setup: Email & Password */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Email Address</label>
-                        <div className="flex gap-2">
-                          <input type="email" value={formData.email} onChange={(e) => updateFormData('email', e.target.value)} disabled={emailVerifiedLocal} placeholder="Enter your email" className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none flex-1 transition-colors focus:border-primary disabled:opacity-70" />
-                          {!emailVerifiedLocal ? (
-                            <button type="button" onClick={() => {
-                              if (!formData.email) {
-                                setErrorMsg("Please enter an email first.");
-                                return;
-                              }
-                              setShowEmailOtpPopup(true);
-                            }} className="px-6 bg-primary text-on-primary font-bold rounded-xl whitespace-nowrap hover:shadow-md transition-shadow">Verify</button>
-                          ) : (
-                            <div className="px-4 py-3 bg-surface text-primary border border-primary/30 rounded-xl flex items-center justify-center gap-2 whitespace-nowrap">
-                              <CheckCircle2 className="w-5 h-5 fill-primary text-surface" /> Verified
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Password</label>
-                        <input type="password" value={formData.password} onChange={(e) => updateFormData('password', e.target.value)} placeholder="Choose a secure password" className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary" />
-                      </div>
-                    </div>
                   </div>
-                )}
-                
-                {currentStep === 2 && (
-                  <div className="space-y-6">
-                      <h4 className="font-headline text-xl text-on-surface">Personal Details</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Marital Status</label>
-                          <select value={formData.maritalStatus} onChange={(e) => updateFormData('maritalStatus', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                            <option value="">Select Status</option>
-                            {['Never Married', 'Annulled', 'Divorced', 'Widowed'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Height (ft)</label>
-                          <select value={formData.height} onChange={(e) => updateFormData('height', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                            <option value="">Select Height</option>
-                            {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-1"><label className="block text-xs uppercase tracking-wider text-on-surface-variant">Weight (kg)</label><input type="number" value={formData.weight} onChange={(e) => updateFormData('weight', e.target.value)} placeholder="E.g. 70" className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm" /></div>
-                        <div className="space-y-1">
-                          <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Body Type</label>
-                          <select value={formData.bodyType} onChange={(e) => updateFormData('bodyType', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                            <option value="">Select Body Type</option>
-                            {['Slim', 'Average', 'Athletic', 'Heavy'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Complexion</label>
-                          <select value={formData.complexion} onChange={(e) => updateFormData('complexion', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                            <option value="">Select Complexion</option>
-                            {['Fair', 'Light', 'Medium', 'Olive', 'Dark'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Physical Status</label>
-                        <select value={formData.physicalStatus} onChange={(e) => updateFormData('physicalStatus', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                          <option value="">Select Physical Status</option>
-                          {['Normal', 'Physically Challenged'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      
-                      <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Career Path</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1"><label className="block text-xs uppercase tracking-wider text-on-surface-variant">Education</label>
-                          <select value={formData.education} onChange={(e) => updateFormData('education', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                              <option value="">Select Education</option>
-                              {['High School', 'Diploma', 'Bachelor\'s', 'Master\'s', 'PhD', 'Professional'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1"><label className="block text-xs uppercase tracking-wider text-on-surface-variant">Profession</label><input type="text" value={formData.profession} onChange={(e) => updateFormData('profession', e.target.value)} placeholder="E.g. Software Engineer" className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm" /></div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1"><label className="block text-xs uppercase tracking-wider text-on-surface-variant">Field of Study</label><input type="text" value={formData.fieldOfStudy} onChange={(e) => updateFormData('fieldOfStudy', e.target.value)} placeholder="E.g. Computer Science" className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm" /></div>
-                          <div className="space-y-1"><label className="block text-xs uppercase tracking-wider text-on-surface-variant">Annual Income</label><input type="text" value={formData.annualIncome} onChange={(e) => updateFormData('annualIncome', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm" placeholder="E.g. 500k+" /></div>
-                      </div>
 
-                      <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Lifestyle</h4>
-                      <div className="grid grid-cols-3 gap-4">
-                         <div className="space-y-1">
-                          <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Diet</label>
-                          <select value={formData.dietaryHabits} onChange={(e) => updateFormData('dietaryHabits', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                            <option value="">Select Diet</option>
-                            {['Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Vegan'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                         </div>
-                         <div className="space-y-1">
-                          <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Drinking</label>
-                          <select value={formData.drinkingHabits} onChange={(e) => updateFormData('drinkingHabits', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                            <option value="">Select Drinking Habit</option>
-                            {['Never', 'Socially', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                         </div>
-                         <div className="space-y-1">
-                          <label className="block text-xs uppercase tracking-wider text-on-surface-variant">Smoking</label>
-                          <select value={formData.smokingHabits} onChange={(e) => updateFormData('smokingHabits', e.target.value)} className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm">
-                            <option value="">Select Smoking Habit</option>
-                            {['Never', 'Occasionally', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                         </div>
-                      </div>
-                      <div className="space-y-1"><label className="block text-xs uppercase tracking-wider text-on-surface-variant">Hobbies</label><input type="text" value={formData.hobbies.join(', ')} onChange={(e) => updateFormData('hobbies', e.target.value.split(',').map(s => s.trim()))} placeholder="E.g. Reading, Traveling" className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm" /></div>
-                  </div>
-                )}
-                
-                {currentStep === 3 && (
-                  <div className="space-y-8">
-                    <h4 className="font-headline text-2xl text-on-surface">Age & Height Preferences</h4>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Min Age</label>
-                        <select value={formData.partnerPreferences.ageMin} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMin: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                          <option value="">Select Min Age</option>
-                          {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Max Age</label>
-                        <select value={formData.partnerPreferences.ageMax} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMax: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                          <option value="">Select Max Age</option>
-                          {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Min Height (ft)</label>
-                        <select value={formData.partnerPreferences.heightMin} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMin: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                          <option value="">Select Min Height</option>
-                          {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                        </select>
-                       </div>
-                       <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Max Height (ft)</label>
-                        <select value={formData.partnerPreferences.heightMax} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMax: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                          <option value="">Select Max Height</option>
-                          {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                        </select>
-                       </div>
-                    </div>
+                  {otpError && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm text-left font-medium"
+                    >
+                      {otpError}
+                    </motion.div>
+                  )}
 
-                    <h4 className="font-headline text-2xl text-on-surface">Lifestyle & References</h4>
-                    <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Dietary Habits</label>
-                        <select value={formData.partnerPreferences.dietaryHabits} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, dietaryHabits: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                          <option value="">Select Dietary Habit</option>
-                          {['No Preference', 'Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Vegan'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                       </div>
-                       <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Drinking Habits</label>
-                        <select value={formData.partnerPreferences.drinkingHabits} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, drinkingHabits: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                          <option value="">Select Drinking Habit</option>
-                          {['No Preference', 'Never', 'Socially', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block font-label-sm text-on-surface uppercase tracking-wider">Smoking Habits</label>
-                      <select value={formData.partnerPreferences.smokingHabits} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, smokingHabits: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                        <option value="">Select Smoking Habit</option>
-                        {['No Preference', 'Never', 'Occasionally', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
+                  <div className="flex justify-center gap-2.5">
+                    {otpInputs.map((val, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => { otpRefs.current[idx] = el; }}
+                        type="text"
+                        maxLength={1}
+                        value={val}
+                        onChange={(e) => {
+                          const inputVal = e.target.value.replace(/[^0-9]/g, '');
+                          const newInputs = [...otpInputs];
+                          newInputs[idx] = inputVal;
+                          setOtpInputs(newInputs);
 
-                    <h4 className="font-headline text-2xl text-on-surface">Background & Location</h4>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Education Level</label>
-                        <select value={formData.partnerPreferences.educationLevel} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, educationLevel: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                          <option value="">Select Education Level</option>
-                          {['No Preference', 'High School', 'Diploma', 'Bachelor\'s', 'Master\'s', 'PhD', 'Professional'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">Country Preference</label>
-                        <select value={formData.partnerPreferences.country} onChange={(e) => {
-                          updateFormData('partnerPreferences', {...formData.partnerPreferences, country: e.target.value, city: ''});
-                        }} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
-                            <option value="">Select Country</option>
-                            {WORLD_COUNTRIES.map(country => <option key={country} value={country}>{country}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block font-label-sm text-on-surface uppercase tracking-wider">City Preference</label>
-                        <select 
-                          value={formData.partnerPreferences.city} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, city: e.target.value})} 
-                          disabled={!formData.partnerPreferences.country}
-                          className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none disabled:opacity-50"
-                        >
-                            <option value="">Select City</option>
-                            {getCitiesForCountry(formData.partnerPreferences.country).map(city => <option key={city} value={city}>{city}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <label className="block font-label-sm text-on-surface uppercase tracking-wider">Marital Status Preference</label>
-                      <div className="flex flex-wrap gap-2">
-                        {['Never Married', 'Annulled', 'Divorced', 'Widowed'].map(status => (
-                          <button
-                            key={status}
-                            type="button"
-                            onClick={() => {
-                              const current = formData.partnerPreferences.maritalStatus;
-                              const next = current.includes(status) ? current.filter(s => s !== status) : [...current, status];
-                              updateFormData('partnerPreferences', { ...formData.partnerPreferences, maritalStatus: next });
-                            }}
-                            className={cn(
-                              "px-4 py-2 rounded-full border text-sm transition-all",
-                              formData.partnerPreferences.maritalStatus.includes(status)
-                                ? "bg-primary text-on-primary border-primary"
-                                : "bg-surface border-outline-variant hover:border-primary"
-                            )}
-                          >
-                            {status}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                          if (inputVal && idx < 5) {
+                            otpRefs.current[idx + 1]?.focus();
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Backspace') {
+                            if (!otpInputs[idx] && idx > 0) {
+                              const newInputs = [...otpInputs];
+                              newInputs[idx - 1] = '';
+                              setOtpInputs(newInputs);
+                              otpRefs.current[idx - 1]?.focus();
+                            } else {
+                              const newInputs = [...otpInputs];
+                              newInputs[idx] = '';
+                              setOtpInputs(newInputs);
+                            }
+                          }
+                        }}
+                        className="w-12 h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/20 outline-none transition-all bg-white"
+                      />
+                    ))}
                   </div>
-                )}
-                
-                {currentStep === 4 && (
-                  <div className="space-y-8">
-                    {/* Profile Photo */}
-                    <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant">
-                      <h4 className="text-lg font-semibold text-on-surface mb-6 flex items-center gap-2">
-                        <Camera className="w-5 h-5 text-primary" /> Profile Photo
-                      </h4>
-                      <div className="flex items-center gap-6">
-                        <div className="w-24 h-24 rounded-2xl bg-surface-variant flex items-center justify-center border-2 border-dashed border-outline-variant overflow-hidden shadow-inner flex-shrink-0 relative">
-                          {uploading ? (
-                            <div className="absolute inset-0 flex items-center justify-center bg-surface-variant/80 backdrop-blur-sm z-10">
-                              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                            </div>
-                          ) : null}
-                          
-                          {formData.pendingPhotoUrl ? (
-                            <img src={formData.pendingPhotoUrl} alt="Main" className="w-full h-full object-cover" />
-                          ) : (
-                            <Camera className="w-8 h-8 text-outline" />
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm text-on-surface-variant">Upload a clear, high-quality portrait photo for your main profile.</p>
-                          <label className={cn(
-                            "inline-block cursor-pointer bg-primary text-on-primary px-4 py-2 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors",
-                            uploading && "opacity-50 cursor-not-allowed pointer-events-none"
-                          )}>
-                            {formData.pendingPhotoUrl ? "Change Photo" : "Upload Photo"}
-                            <input 
-                              type="file" 
-                              ref={fileInputRef} 
-                              onChange={handleMainPhotoChange} 
-                              className="hidden" 
-                              accept=".jpg,.jpeg" 
-                              disabled={uploading}
-                            />
-                          </label>
-                          <p className="text-[10px] text-on-surface-variant mt-1">Please upload .Jpg files only and not more than 500 KB file size.</p>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-8 pt-6 border-t border-outline-variant">
-                        <h4 className="text-sm font-semibold text-on-surface mb-4">Photo Privacy Settings</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <button type="button" onClick={() => updateFormData('photoPrivacy', 'public')} className={cn("p-4 rounded-xl border flex flex-col items-center text-center gap-2 transition-colors", formData.photoPrivacy === 'public' ? "border-primary bg-primary/5 text-primary" : "border-outline-variant hover:border-primary/50 text-on-surface-variant")}>
-                            <Eye className="w-6 h-6" />
-                            <div>
-                              <div className="font-bold text-sm">Public</div>
-                              <div className="text-xs opacity-80 mt-1">Visible to all members</div>
-                            </div>
-                          </button>
-                          
-                          <button type="button" onClick={() => updateFormData('photoPrivacy', 'accepted_only')} className={cn("p-4 rounded-xl border flex flex-col items-center text-center gap-2 transition-colors", formData.photoPrivacy === 'accepted_only' ? "border-primary bg-primary/5 text-primary" : "border-outline-variant hover:border-primary/50 text-on-surface-variant")}>
-                            <Lock className="w-6 h-6" />
-                            <div>
-                              <div className="font-bold text-sm">Protected</div>
-                              <div className="text-xs opacity-80 mt-1">Visible to accepted matches</div>
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Gallery Photos */}
-                    <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant">
-                      <h4 className="text-lg font-semibold text-on-surface mb-2 flex items-center gap-2">
-                        <Upload className="w-5 h-5 text-primary" /> Gallery Photos
-                      </h4>
-                      <p className="text-sm text-on-surface-variant mb-6">Add up to 3 additional photos to showcase your lifestyle and personality.</p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {formData.gallery.slice(0, 3).map(photo => (
-                          <div key={photo.id} className="relative aspect-square rounded-2xl overflow-hidden border border-outline-variant group">
-                            <img src={photo.url} alt="Gallery" className="w-full h-full object-cover" />
-                            <button 
-                              type="button"
-                              onClick={() => removeGalleryPhoto(photo.id)} 
-                              className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                        {formData.gallery.length < 3 && (
-                          <label className={cn(
-                            "aspect-square rounded-2xl border-2 border-dashed border-outline-variant bg-surface flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all relative",
-                            uploading && "opacity-50 cursor-not-allowed pointer-events-none"
-                          )}>
-                            {uploading ? (
-                              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                            ) : (
-                              <>
-                                <Plus className="w-8 h-8 text-outline" />
-                                <span className="text-xs text-outline mt-2 font-medium">Add Photo</span>
-                              </>
-                            )}
-                            <input 
-                              type="file" 
-                              ref={galleryInputRef} 
-                              onChange={handleGalleryAdd} 
-                              className="hidden" 
-                              accept=".jpg,.jpeg" 
-                              multiple 
-                              disabled={uploading}
-                            />
-                          </label>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-on-surface-variant mt-3 text-center">Please upload .Jpg files only and not more than 500 KB file size.</p>
-                    </div>
+
+                  <button
+                    onClick={handleVerifyOtp}
+                    disabled={loading || otpInputs.some(v => !v)}
+                    className="w-full py-4 bg-[#040e2a] hover:bg-[#0a1b4d] text-white rounded-xl font-bold shadow-lg shadow-[#040e2a]/10 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    ) : (
+                      "Verify OTP"
+                    )}
+                  </button>
+
+                  <div className="flex flex-col items-center justify-center gap-2 text-sm pt-2">
+                    {otpTimer > 0 ? (
+                      <span className="text-gray-500">
+                        Resend code in <span className="font-bold text-[#d4af37]">{otpTimer}s</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendOtp}
+                        disabled={otpSending}
+                        className="text-[#d4af37] font-bold hover:underline disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {otpSending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        Resend OTP
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleCancelAndSignOut}
+                      className="text-gray-400 hover:text-red-500 transition-colors text-xs font-semibold mt-4"
+                    >
+                      Cancel & Sign Out
+                    </button>
                   </div>
-                )}
-                
+                </div>
               </motion.div>
-            </AnimatePresence>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="p-8 lg:p-12 bg-surface-container-low border-t border-outline-variant flex justify-between items-center mt-auto">
-            <button
-              onClick={handleBack}
-              disabled={currentStep === 1}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl font-label-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant disabled:opacity-0 transition-all font-inter"
-            >
-              <ArrowLeft className="w-5 h-5" /> Back
-            </button>
-            <button
-              onClick={handleNext}
-              disabled={loading}
-              className="flex items-center gap-2 px-10 py-3 bg-primary text-on-primary rounded-xl font-label-lg shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5 disabled:opacity-50 font-inter"
-            >
-              {loading ? "Submitting..." : currentStep === STEPS.length ? "Submit Profile" : "Continue"}
-              {!loading && currentStep !== STEPS.length && <ArrowRight className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-      </main>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
-

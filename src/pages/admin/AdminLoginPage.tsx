@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import { motion } from 'motion/react';
-import { Heart, ShieldCheck, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
+import { KingdomCrossIcon } from '../../components/KingdomCrossIcon';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { formatAuthError } from '../../lib/utils';
@@ -22,7 +23,7 @@ export default function AdminLoginPage() {
     setError(null);
 
     // Strict email check for admin panel entry
-    const adminEmails = ['md.imranabid@gmail.com', 'admin@christianhearts.com', 'gsmtp22@gmail.com'];
+    const adminEmails = ['md.imranabid@gmail.com', 'admin@kingdomalliance.com', 'gsmtp22@gmail.com'];
     if (!adminEmails.includes(email)) {
       setError("Unauthorized access. Admin credentials required.");
       setLoading(false);
@@ -144,7 +145,7 @@ export default function AdminLoginPage() {
               onClick={() => navigate('/')}
               className="text-on-surface-variant hover:text-primary transition-colors text-sm font-bold flex items-center justify-center gap-2 mx-auto"
             >
-              <Heart className="w-4 h-4" /> Back to Kingdom Alliance
+              <KingdomCrossIcon size="sm" /> Back to Kingdom Alliance
             </button>
         </div>
       </motion.div>

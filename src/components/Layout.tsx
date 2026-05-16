@@ -18,11 +18,13 @@ import {
   Menu,
   X,
   Camera,
-  Megaphone
+  Megaphone,
+  CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useSettings } from '../lib/SettingsContext';
+import { KingdomCrossIcon } from './KingdomCrossIcon';
 
 export default function Layout() {
   const { settings } = useSettings();
@@ -32,6 +34,8 @@ export default function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = React.useState(0);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = React.useState(0);
+  const [pendingPhotosCount, setPendingPhotosCount] = React.useState(0);
   const [toast, setToast] = React.useState<{ title: string; message: string; type: 'message' | 'interest' } | null>(null);
   const isInitialLoadMessages = React.useRef(true);
   const isInitialLoadNotifications = React.useRef(true);
@@ -75,7 +79,7 @@ export default function Layout() {
       setUnreadCount(snapshot.size);
       isInitialLoadMessages.current = false;
     }, (error) => {
-      console.error("Unread count listener failed. This is likely due to a missing Firestore index. Check this link to create it:", error);
+      console.error("Unread count listener failed:", error);
     });
 
     // Listen for unread interest notifications
@@ -118,7 +122,39 @@ export default function Layout() {
     };
   }, [user]);
 
-  let navItems = [
+  React.useEffect(() => {
+    if (!user || !isAdmin) return;
+
+    // Listen for pending approvals
+    const qApprovals = query(
+      collection(db, 'users'), 
+      where('approvalStatus', '==', 'pending'),
+      where('onboardingComplete', '==', true)
+    );
+    const unsubscribeApprovals = onSnapshot(qApprovals, (snapshot) => {
+      setPendingApprovalsCount(snapshot.size);
+    }, (error) => {
+      console.error("Error listening for pending approvals:", error);
+    });
+
+    // Listen for pending photos in the photoModeration collection
+    const qPhotos = query(
+      collection(db, 'photoModeration'), 
+      where('photoStatus', '==', 'pending')
+    );
+    const unsubscribePhotos = onSnapshot(qPhotos, (snapshot) => {
+      setPendingPhotosCount(snapshot.size);
+    }, (error) => {
+      console.error("Error listening for pending photos:", error);
+    });
+
+    return () => {
+      unsubscribeApprovals();
+      unsubscribePhotos();
+    };
+  }, [user, isAdmin]);
+
+  let navItems: any[] = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Discover', path: '/matches', icon: Search, requiresApproval: true },
     { label: 'Interests', path: '/interests', icon: Heart, requiresApproval: true },
@@ -130,8 +166,8 @@ export default function Layout() {
   if (isAdmin) {
     navItems = [
       { label: 'Admin Panel', path: '/admin', icon: ShieldCheck },
-      { label: 'User Approvals', path: '/admin/approvals', icon: Settings },
-      { label: 'Photo Moderation', path: '/admin/photos', icon: Camera },
+      { label: 'User Approvals', path: '/admin/approvals', icon: CheckCircle, badgeCount: pendingApprovalsCount },
+      { label: 'Photo Moderation', path: '/admin/photos', icon: Camera, badgeCount: pendingPhotosCount },
       { label: 'User Management', path: '/admin/users', icon: Users },
       { label: 'Announcements', path: '/admin/announcements', icon: Megaphone },
       { label: 'Site Settings', path: '/admin/settings', icon: Settings },
@@ -146,7 +182,7 @@ export default function Layout() {
       <aside className="hidden lg:flex w-64 bg-surface-container flex-col border-r border-outline-variant transition-all duration-300">
         <div className="p-6">
           <Link to="/" className="flex items-center gap-2 group">
-            <Heart className="w-8 h-8 text-primary fill-primary group-hover:scale-110 transition-transform" />
+            <KingdomCrossIcon size="md" className="group-hover:scale-110 transition-transform" />
             <span className="font-headline-md text-primary tracking-tight">{settings.siteName}</span>
           </Link>
         </div>
@@ -171,16 +207,22 @@ export default function Layout() {
               >
                 <div className="relative">
                   <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                  {((item.label === 'Messages' && unreadCount > 0) || (item.label === 'Interests' && unreadNotificationsCount > 0)) && (
+                  {((item.label === 'Messages' && unreadCount > 0) || 
+                    (item.label === 'Interests' && unreadNotificationsCount > 0) ||
+                    (item.badgeCount && item.badgeCount > 0)) && (
                     <motion.span
                       initial={{ scale: 0.5, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      className="absolute -top-1 -right-1 w-3 h-3 bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)]"
+                      className={cn(
+                        "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
+                        item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
+                      )}
                     >
+                      {item.badgeCount || ""}
                       <motion.span 
                         animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
                         transition={{ repeat: Infinity, duration: 2 }}
-                        className="absolute inset-0 bg-error rounded-full" 
+                        className="absolute inset-0 bg-error rounded-full -z-10" 
                       />
                     </motion.span>
                   )}
@@ -259,7 +301,7 @@ export default function Layout() {
             >
               <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Heart className="w-8 h-8 text-primary fill-primary" />
+                  <KingdomCrossIcon size="sm" />
                   <span className="font-headline-md text-primary tracking-tight">{settings.siteName}</span>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)}>

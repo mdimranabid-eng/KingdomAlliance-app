@@ -86,7 +86,7 @@ export default function ProfilePage() {
     const parts = url.split('/upload/');
     if (parts.length !== 2) return url;
 
-    const watermarkTransform = isWatermark ? 'l_text:Arial_15:ChristianHearts,o_15,g_south_east,y_20,x_20/' : '';
+    const watermarkTransform = isWatermark ? 'l_text:Arial_15:KingdomAlliance,o_15,g_south_east,y_20,x_20/' : '';
     return `${parts[0]}/upload/c_limit,w_1200,q_auto,f_auto/${watermarkTransform}${parts[1]}`;
   };
 
@@ -221,6 +221,9 @@ export default function ProfilePage() {
         import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
       );
 
+      // Get user name for the moderation record
+      const userName = profile.fullName || (currentUser.displayName || 'User');
+
       if (uploadTarget === 'gallery') {
         const newPhoto = {
           id: Math.random().toString(36).substring(7),
@@ -230,13 +233,41 @@ export default function ProfilePage() {
         };
 
         const updatedGallery = [...(profile.gallery || []), newPhoto];
+        
+        // Create photoModeration document for gallery photo
+        await addDoc(collection(db, 'photoModeration'), {
+          uid: currentUser.uid,
+          userName: userName,
+          photoURL: url,
+          photoType: 'galleryPhoto',
+          galleryPosition: updatedGallery.length,
+          photoStatus: 'pending',
+          uploadedAt: serverTimestamp(),
+          reviewedAt: null,
+          reviewedBy: null,
+          rejectedReason: null
+        });
+
         await updateDoc(doc(db, 'users', currentUser.uid), {
           gallery: updatedGallery,
-          photoStatus: 'pending',
           updatedAt: serverTimestamp()
         });
-        setProfile({ ...profile, gallery: updatedGallery, photoStatus: 'pending' });
+        setProfile({ ...profile, gallery: updatedGallery });
       } else {
+        // Create photoModeration document for profile photo
+        await addDoc(collection(db, 'photoModeration'), {
+          uid: currentUser.uid,
+          userName: userName,
+          photoURL: url,
+          photoType: 'profilePhoto',
+          galleryPosition: null,
+          photoStatus: 'pending',
+          uploadedAt: serverTimestamp(),
+          reviewedAt: null,
+          reviewedBy: null,
+          rejectedReason: null
+        });
+
         await updateDoc(doc(db, 'users', currentUser.uid), {
           pendingPhotoUrl: url,
           photoStatus: 'pending',
