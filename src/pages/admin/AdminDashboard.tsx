@@ -60,8 +60,7 @@ export default function AdminDashboard() {
     });
 
     // Real-time listener for photo moderation queue
-    const photoModRef = collection(db, 'photoModeration');
-    const photoQuery = query(photoModRef, where('photoStatus', '==', 'pending'));
+    const photoQuery = query(collection(db, 'users'), where('photoStatus', '==', 'pending'));
     const unsubPhotos = onSnapshot(photoQuery, (snapshot) => {
       setPhotoPendingCount(snapshot.size);
     }, (error) => {

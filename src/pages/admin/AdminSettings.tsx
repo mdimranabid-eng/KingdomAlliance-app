@@ -14,7 +14,8 @@ import {
   Bell, 
   Layout, 
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import CONFIG from '../../config';
@@ -24,6 +25,7 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const [settings, setSettings] = useState({
     siteName: CONFIG.siteName,
@@ -38,6 +40,8 @@ export default function AdminSettings() {
     minAge: CONFIG.minAge,
     cloudinaryCloudName: '',
     cloudinaryUploadPreset: '',
+    cloudinaryApiKey: '',
+    cloudinaryApiSecret: '',
   });
 
   useEffect(() => {
@@ -66,9 +70,10 @@ export default function AdminSettings() {
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-    } catch (error) {
-      console.error("Error saving settings:", error);
-      alert("Failed to save settings. Check your Firebase permissions.");
+    } catch (err) {
+      console.error("Error saving settings:", err);
+      setError("Failed to save settings. Check your Firebase permissions.");
+      setTimeout(() => setError(null), 4000);
     } finally {
       setSaving(false);
     }
@@ -107,6 +112,17 @@ export default function AdminSettings() {
         >
           <CheckCircle2 className="w-5 h-5" />
           Settings updated successfully! The changes are now live.
+        </motion.div>
+      )}
+
+      {error && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 bg-error/10 text-error rounded-2xl border border-error/20 flex items-center gap-3"
+        >
+          <XCircle className="w-5 h-5" />
+          {error}
         </motion.div>
       )}
 
@@ -283,6 +299,26 @@ export default function AdminSettings() {
                 placeholder="e.g. ml_default"
                 value={settings.cloudinaryUploadPreset} 
                 onChange={e => setSettings({...settings, cloudinaryUploadPreset: e.target.value})}
+                className="w-full p-3 bg-surface rounded-xl border border-outline-variant outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">API Key (Required for deletion)</label>
+              <input 
+                type="text" 
+                placeholder="e.g. 123456789012345"
+                value={settings.cloudinaryApiKey} 
+                onChange={e => setSettings({...settings, cloudinaryApiKey: e.target.value})}
+                className="w-full p-3 bg-surface rounded-xl border border-outline-variant outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">API Secret (Required for deletion)</label>
+              <input 
+                type="password" 
+                placeholder="••••••••••••••••"
+                value={settings.cloudinaryApiSecret} 
+                onChange={e => setSettings({...settings, cloudinaryApiSecret: e.target.value})}
                 className="w-full p-3 bg-surface rounded-xl border border-outline-variant outline-none focus:ring-2 focus:ring-primary"
               />
             </div>

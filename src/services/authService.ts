@@ -117,5 +117,5 @@ export const registerWithEmail = async (email: string, pass: string, fullName: s
 
 export const logOut = async () => {
   await signOut(auth);
-  window.location.href = '/login';
+  window.location.href = window.location.origin;
 };

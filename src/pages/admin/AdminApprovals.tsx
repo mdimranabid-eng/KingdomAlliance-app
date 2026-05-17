@@ -26,6 +26,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { cn, formatRelativeTime } from '../../lib/utils';
+import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 
 export default function AdminApprovals() {
   const [users, setUsers] = useState<any[]>([]);
@@ -93,6 +94,10 @@ export default function AdminApprovals() {
   }, []);
 
   const handleApprove = async (userId: string) => {
+    // Optimistic frontend state update for instant reactivity
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - 1) }));
+
     setProcessingId(userId);
     try {
       const currentAdminId = auth.currentUser?.uid || 'system';
@@ -124,10 +129,15 @@ export default function AdminApprovals() {
   const handleReject = async () => {
     if (!rejectionModal.userId || !rejectionModal.reason.trim()) return;
     
-    setProcessingId(rejectionModal.userId);
+    const targetUserId = rejectionModal.userId;
+    // Optimistic frontend state update for instant reactivity
+    setUsers(prev => prev.filter(u => u.id !== targetUserId));
+    setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - 1) }));
+
+    setProcessingId(targetUserId);
     try {
       const currentAdminId = auth.currentUser?.uid || 'system';
-      await updateDoc(doc(db, 'users', rejectionModal.userId), {
+      await updateDoc(doc(db, 'users', targetUserId), {
         approvalStatus: 'rejected',
         isApproved: false,
         rejectedAt: serverTimestamp(),
@@ -361,103 +371,37 @@ export default function AdminApprovals() {
             </motion.div>
           </div>
         )}
-
-        {/* View Profile Side Panel / Modal */}
-        {selectedUser && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-end">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setSelectedUser(null)}
-            />
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="relative z-10 w-full max-w-2xl h-full bg-white shadow-2xl overflow-y-auto"
-            >
-              <div className="sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-outline-variant p-6 flex items-center justify-between">
-                <h3 className="font-playfair text-2xl font-bold text-[#040e2a]">User Profile</h3>
-                <button 
-                  onClick={() => setSelectedUser(null)}
-                  className="p-2 hover:bg-surface-container rounded-full transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              
-              <div className="p-8">
-                {/* Simplified profile view for moderation */}
-                <div className="flex flex-col items-center text-center mb-8">
-                  <img 
-                    src={selectedUser.photoUrl || selectedUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${selectedUser.name}`} 
-                    className="w-32 h-32 rounded-full border-4 border-primary-container object-cover shadow-xl mb-4" 
-                    alt="" 
-                  />
-                  <h2 className="text-3xl font-bold text-[#040e2a]">{selectedUser.name}</h2>
-                  <p className="text-primary font-medium mt-1 uppercase tracking-widest text-xs">{selectedUser.denomination}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-2">Basic Info</h4>
-                    <InfoItem label="Age" value={selectedUser.age + ' yrs'} />
-                    <InfoItem label="Gender" value={selectedUser.gender} />
-                    <InfoItem label="Location" value={selectedUser.city || selectedUser.location} />
-                    <InfoItem label="Phone" value={selectedUser.mobileNumber} />
-                  </div>
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-2">Professional</h4>
-                    <InfoItem label="Education" value={selectedUser.education} />
-                    <InfoItem label="Profession" value={selectedUser.profession} />
-                    <InfoItem label="Income" value={selectedUser.annualIncome} />
-                  </div>
-                </div>
-
-                <div className="mt-12 space-y-4">
-                  <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant pb-2">Church & Faith</h4>
-                  <p className="text-on-surface leading-relaxed italic">"{selectedUser.testimony || 'No testimony provided.'}"</p>
-                </div>
-
-                <div className="mt-12 flex gap-4">
-                   <button
-                    onClick={() => {
-                      setConfirmModal({ isOpen: true, userId: selectedUser.id, name: selectedUser.name });
-                      setSelectedUser(null);
-                    }}
-                    className="flex-1 py-4 bg-[#16a34a] text-white rounded-2xl font-bold hover:bg-[#15803d] shadow-lg flex items-center justify-center gap-2"
-                   >
-                     <Check className="w-5 h-5" />
-                     Approve
-                   </button>
-                   <button
-                    onClick={() => {
-                      setRejectionModal({ isOpen: true, userId: selectedUser.id, reason: '' });
-                      setSelectedUser(null);
-                    }}
-                    className="flex-1 py-4 bg-[#dc2626] text-white rounded-2xl font-bold hover:bg-[#b91c1c] shadow-lg flex items-center justify-center gap-2"
-                   >
-                     <X className="w-5 h-5" />
-                     Reject
-                   </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
       </AnimatePresence>
-    </div>
-  );
-}
 
-function InfoItem({ label, value }: { label: string; value: any }) {
-  return (
-    <div>
-      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">{label}</p>
-      <p className="text-on-surface font-medium capitalize">{value || 'N/A'}</p>
+      {/* View Profile Side Panel / Modal */}
+      <AdminUserDetailModal
+        user={selectedUser}
+        onClose={() => setSelectedUser(null)}
+        actions={
+          <div className="flex gap-4 w-full">
+            <button
+              onClick={() => {
+                setConfirmModal({ isOpen: true, userId: selectedUser.id, name: selectedUser.name });
+                setSelectedUser(null);
+              }}
+              className="flex-1 py-4 bg-[#16a34a] text-white rounded-2xl font-bold hover:bg-[#15803d] shadow-lg flex items-center justify-center gap-2"
+            >
+              <Check className="w-5 h-5" />
+              Approve
+            </button>
+            <button
+              onClick={() => {
+                setRejectionModal({ isOpen: true, userId: selectedUser.id, reason: '' });
+                setSelectedUser(null);
+              }}
+              className="flex-1 py-4 bg-[#dc2626] text-white rounded-2xl font-bold hover:bg-[#b91c1c] shadow-lg flex items-center justify-center gap-2"
+            >
+              <X className="w-5 h-5" />
+              Reject
+            </button>
+          </div>
+        }
+      />
     </div>
   );
 }

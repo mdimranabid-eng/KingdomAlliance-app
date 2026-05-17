@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { MemoryRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { AuthGuard } from './components/AuthGuard';
 import Layout from './components/Layout';
@@ -32,6 +32,7 @@ import AdminUserManagement from './pages/admin/AdminUserManagement';
 import AdminAnnouncements from './pages/admin/AdminAnnouncements';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
+import RejectedProfilesPage from './pages/admin/RejectedProfilesPage';
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, loading } = useAuth();
@@ -43,9 +44,11 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 export default function App() {
+  const initialPath = window.location.pathname + window.location.search;
+
   return (
     <AuthProvider>
-      <Router>
+      <Router initialEntries={[initialPath]}>
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
@@ -79,6 +82,7 @@ export default function App() {
             <Route path="/admin/approvals" element={<AdminApprovals />} />
             <Route path="/admin/photos" element={<AdminPhotos />} />
             <Route path="/admin/users" element={<AdminUserManagement />} />
+            <Route path="/admin/rejected" element={<RejectedProfilesPage />} />
             <Route path="/admin/announcements" element={<AdminAnnouncements />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>

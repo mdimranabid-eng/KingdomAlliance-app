@@ -35,6 +35,8 @@ interface ModerationItem {
   uid: string;
   userName: string;
   photoURL: string;
+  photoUrl?: string;
+  pendingPhotoUrl?: string;
   photoType: 'profilePhoto' | 'galleryPhoto';
   galleryPosition: number | null;
   photoStatus: 'pending' | 'approved' | 'rejected';
@@ -60,20 +62,40 @@ export default function AdminPhotos() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectionStates, setRejectionStates] = useState<Record<string, { isOpen: boolean; reason: string; customReason: string }>>({});
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    // 1. Listen for pending photos
+    // 1. Listen for pending photos in the users collection
     const qPending = query(
-      collection(db, 'photoModeration'), 
-      where('photoStatus', '==', 'pending'),
-      orderBy('uploadedAt', 'desc')
+      collection(db, 'users'), 
+      where('photoStatus', '==', 'pending')
     );
 
     const unsubscribePending = onSnapshot(qPending, (snapshot) => {
-      const newItems = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ModerationItem[];
+      const newItems = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const userName = data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unnamed User';
+        return {
+          id: doc.id,
+          uid: doc.id,
+          userName: userName,
+          photoURL: data.pendingPhotoUrl || '',
+          photoUrl: data.photoUrl || '',
+          pendingPhotoUrl: data.pendingPhotoUrl || '',
+          photoType: 'profilePhoto',
+          galleryPosition: null,
+          photoStatus: data.photoStatus || 'pending',
+          uploadedAt: data.updatedAt || data.createdAt || null
+        };
+      }) as ModerationItem[];
+
+      // Sort client-side in desc order of uploadedAt/updatedAt
+      newItems.sort((a, b) => {
+        const timeA = a.uploadedAt?.toDate?.()?.getTime() || a.uploadedAt?.seconds || 0;
+        const timeB = b.uploadedAt?.toDate?.()?.getTime() || b.uploadedAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
       setItems(newItems);
       setStats(prev => ({ ...prev, pending: newItems.length }));
       setLoading(false);
@@ -112,12 +134,16 @@ export default function AdminPhotos() {
     const adminId = auth.currentUser?.uid || 'system';
 
     try {
-      // 1. Update Moderation Document
-      await updateDoc(doc(db, 'photoModeration', item.id), {
-        photoStatus: 'approved',
-        reviewedAt: serverTimestamp(),
-        reviewedBy: adminId
-      });
+      // 1. Try updating photoModeration collection
+      try {
+        await updateDoc(doc(db, 'photoModeration', item.id), {
+          photoStatus: 'approved',
+          reviewedAt: serverTimestamp(),
+          reviewedBy: adminId
+        });
+      } catch (e) {
+        console.log("No photoModeration document to update");
+      }
 
       // 2. Update User Document
       const userRef = doc(db, 'users', item.uid);
@@ -125,11 +151,12 @@ export default function AdminPhotos() {
       
       if (userSnap.exists()) {
         const userData = userSnap.data();
+        const targetPhoto = item.pendingPhotoUrl || item.photoURL;
         
         if (item.photoType === 'profilePhoto') {
           await updateDoc(userRef, {
-            photoUrl: item.photoURL,
-            photoURL: item.photoURL,
+            photoUrl: targetPhoto,
+            photoURL: targetPhoto,
             pendingPhotoUrl: '',
             photoStatus: 'approved',
             updatedAt: serverTimestamp(),
@@ -179,17 +206,23 @@ export default function AdminPhotos() {
     const adminId = auth.currentUser?.uid || 'system';
 
     try {
-      // 1. Update Moderation Document
-      await updateDoc(doc(db, 'photoModeration', item.id), {
-        photoStatus: 'rejected',
-        reviewedAt: serverTimestamp(),
-        reviewedBy: adminId,
-        rejectedReason: finalReason
-      });
+      // 1. Try updating photoModeration collection
+      try {
+        await updateDoc(doc(db, 'photoModeration', item.id), {
+          photoStatus: 'rejected',
+          reviewedAt: serverTimestamp(),
+          reviewedBy: adminId,
+          rejectedReason: finalReason
+        });
+      } catch (e) {
+        console.log("No photoModeration document to update");
+      }
 
-      // 2. Notify User (don't update live photo)
+      // 2. Notify User and clear pending photo state on user document
       const userRef = doc(db, 'users', item.uid);
       await updateDoc(userRef, {
+        photoStatus: 'rejected',
+        pendingPhotoUrl: '',
         notifications: arrayUnion({
           id: crypto.randomUUID(),
           title: 'Photo Not Approved',
@@ -303,13 +336,26 @@ export default function AdminPhotos() {
                   className="bg-white border border-outline-variant rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all flex flex-col group"
                 >
                   {/* Photo Preview */}
-                  <div className="relative h-[240px] bg-surface-container overflow-hidden">
-                    <img 
-                      src={item.photoURL} 
-                      alt="" 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
-                    <div className="absolute top-4 left-4">
+                  <div className="relative h-[240px] bg-surface-container overflow-hidden flex items-center justify-center">
+                    {!item.pendingPhotoUrl || imageErrors[item.id] ? (
+                      <div className="w-full h-full bg-gradient-to-br from-[#040e2a] to-[#0d2159] p-6 flex flex-col items-center justify-center text-center gap-3">
+                        <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center border border-white/20 text-[#d4af37]">
+                          <Camera className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <p className="text-white font-bold text-sm">No Image Data Found</p>
+                          <p className="text-white/60 text-xs mt-1 font-medium">{item.userName}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <img 
+                        src={item.pendingPhotoUrl} 
+                        alt={item.userName} 
+                        onError={() => setImageErrors(prev => ({ ...prev, [item.id]: true }))}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      />
+                    )}
+                    <div className="absolute top-4 left-4 z-10">
                       <span className={cn(
                         "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg backdrop-blur-md",
                         item.photoType === 'profilePhoto' ? "bg-[#040e2a] text-white" : "bg-purple-600 text-white"
@@ -317,12 +363,14 @@ export default function AdminPhotos() {
                         {item.photoType === 'profilePhoto' ? 'Profile Photo' : `Gallery — Pos ${item.galleryPosition}`}
                       </span>
                     </div>
-                    <button
-                      onClick={() => window.open(item.photoURL, '_blank')}
-                      className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-md transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
+                    {item.pendingPhotoUrl && !imageErrors[item.id] && (
+                      <button
+                        onClick={() => window.open(item.pendingPhotoUrl, '_blank')}
+                        className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-md transition-colors z-10"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Content */}

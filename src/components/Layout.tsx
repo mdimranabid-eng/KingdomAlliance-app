@@ -19,7 +19,8 @@ import {
   X,
   Camera,
   Megaphone,
-  CheckCircle
+  CheckCircle,
+  Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -137,9 +138,9 @@ export default function Layout() {
       console.error("Error listening for pending approvals:", error);
     });
 
-    // Listen for pending photos in the photoModeration collection
+    // Listen for pending photos in the users collection
     const qPhotos = query(
-      collection(db, 'photoModeration'), 
+      collection(db, 'users'), 
       where('photoStatus', '==', 'pending')
     );
     const unsubscribePhotos = onSnapshot(qPhotos, (snapshot) => {
@@ -169,6 +170,7 @@ export default function Layout() {
       { label: 'User Approvals', path: '/admin/approvals', icon: CheckCircle, badgeCount: pendingApprovalsCount },
       { label: 'Photo Moderation', path: '/admin/photos', icon: Camera, badgeCount: pendingPhotosCount },
       { label: 'User Management', path: '/admin/users', icon: Users },
+      { label: 'Rejected Profiles', path: '/admin/rejected', icon: Ban },
       { label: 'Announcements', path: '/admin/announcements', icon: Megaphone },
       { label: 'Site Settings', path: '/admin/settings', icon: Settings },
     ];

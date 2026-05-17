@@ -1,0 +1,239 @@
+import express from 'express';
+import * as admin from 'firebase-admin';
+import cors from 'cors';
+import { v2 as cloudinary } from 'cloudinary';
+
+// 1. Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: 'kingdom-alliance-v2'
+  });
+  console.log('[Admin Server] Firebase Admin SDK initialized.');
+}
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Enable CORS for Vite frontend running on localhost
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json());
+
+/**
+ * Middleware: Verifies Firebase ID Token and checks for Admin Custom Claims
+ */
+const verifyAdminToken = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Unauthorized: Missing or invalid token format.' });
+    return;
+  }
+
+  const token = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    
+    // Check if the user is an authorized admin
+    const isAdmin = decodedToken.role === 'admin' || decodedToken.admin === true || decodedToken.email?.endsWith('@kingdomalliance.com');
+    if (!isAdmin) {
+      res.status(403).json({ error: 'Access Denied: Administrative privileges required.' });
+      return;
+    }
+
+    (req as any).adminUser = decodedToken;
+    next();
+  } catch (error: any) {
+    console.error('[Admin Server] Token verification failed:', error.message);
+    res.status(401).json({ error: `Unauthorized: Token verification failed: ${error.message}` });
+  }
+};
+
+/**
+ * POST /api/admin/delete-user
+ * Complete cascade deletion workflow for a user account from Auth and Database.
+ */
+app.post('/api/admin/delete-user', verifyAdminToken, async (req: express.Request, res: express.Response) => {
+  const { uid } = req.body;
+  if (!uid) {
+     res.status(400).json({ error: 'Bad Request: Target user uid is required.' });
+     return;
+  }
+
+  console.log(`\n--- BEGIN CASCADING PURGE FOR USER: ${uid} ---`);
+  const logs: string[] = [];
+
+  // Helper to safely log steps
+  const logStep = (msg: string) => {
+    console.log(`[Admin Cascade] ${msg}`);
+    logs.push(msg);
+  };
+
+  const db = admin.firestore();
+
+  // 1. Purge Cloudinary physical assets
+  try {
+    logStep('Auditing user document for Cloudinary uploads...');
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (userDoc.exists) {
+      const userData = userDoc.data() || {};
+      
+      // Fetch Cloudinary credentials
+      const configDoc = await db.collection('settings').doc('site_config').get();
+      const configData = configDoc.exists ? configDoc.data() : {};
+      const cloudName = configData?.cloudinaryCloudName || process.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const apiKey = configData?.cloudinaryApiKey || process.env.CLOUDINARY_API_KEY;
+      const apiSecret = configData?.cloudinaryApiSecret || process.env.CLOUDINARY_API_SECRET;
+
+      if (cloudName && apiKey && apiSecret) {
+        cloudinary.config({
+          cloud_name: cloudName,
+          api_key: apiKey,
+          api_secret: apiSecret,
+          secure: true
+        });
+
+        const urlsToDelete = new Set<string>();
+        if (userData.photoUrl) urlsToDelete.add(userData.photoUrl);
+        if (userData.pendingPhotoUrl) urlsToDelete.add(userData.pendingPhotoUrl);
+        if (Array.isArray(userData.gallery)) {
+          userData.gallery.forEach((g: any) => {
+            if (g && g.url) urlsToDelete.add(g.url);
+          });
+        }
+
+        for (const url of urlsToDelete) {
+          if (url && url.includes('cloudinary.com')) {
+            const matches = url.match(/\/v\d+\/([^\s.]+)\./);
+            if (matches && matches[1]) {
+              const publicId = matches[1];
+              logStep(`Purging Cloudinary asset public ID: ${publicId}`);
+              try {
+                await cloudinary.uploader.destroy(publicId);
+              } catch (cloudinaryErr: any) {
+                console.error(`[Cloudinary Purge Error] ${cloudinaryErr.message}`);
+              }
+            }
+          }
+        }
+      } else {
+        logStep('Cloudinary config not fully set. Skipping asset purging.');
+      }
+    } else {
+      logStep('User document already missing. Skipping Cloudinary purge.');
+    }
+  } catch (error: any) {
+    logStep(`Exception during Cloudinary purging: ${error.message}`);
+  }
+
+  // 2. Cascade Delete /interests where fromId or toId is target uid
+  let relatedUids: string[] = [];
+  try {
+    logStep('Scanning interests table for matching records...');
+    const interestsFrom = await db.collection('interests').where('fromId', '==', uid).get();
+    const interestsTo = await db.collection('interests').where('toId', '==', uid).get();
+
+    const batch = db.batch();
+    interestsFrom.docs.forEach(doc => {
+      batch.delete(doc.ref);
+      const data = doc.data();
+      if (data.toId) relatedUids.push(data.toId);
+    });
+    interestsTo.docs.forEach(doc => {
+      batch.delete(doc.ref);
+      const data = doc.data();
+      if (data.fromId) relatedUids.push(data.fromId);
+    });
+
+    await batch.commit();
+    logStep(`Purged ${interestsFrom.docs.length + interestsTo.docs.length} interest documents.`);
+  } catch (error: any) {
+    logStep(`Exception during interests purge: ${error.message}`);
+  }
+
+  // 3. Cascade Delete /shortlists where userId or targetId is target uid
+  try {
+    logStep('Scanning shortlists table for matching records...');
+    const shortlistsUser = await db.collection('shortlists').where('userId', '==', uid).get();
+    const shortlistsTarget = await db.collection('shortlists').where('targetId', '==', uid).get();
+
+    const batch = db.batch();
+    shortlistsUser.docs.forEach(doc => batch.delete(doc.ref));
+    shortlistsTarget.docs.forEach(doc => batch.delete(doc.ref));
+
+    await batch.commit();
+    logStep(`Purged ${shortlistsUser.docs.length + shortlistsTarget.docs.length} shortlist documents.`);
+  } catch (error: any) {
+    logStep(`Exception during shortlists purge: ${error.message}`);
+  }
+
+  // 4. Cascade Delete /chats and subcollection /messages matching derived chatIds
+  try {
+    logStep('Scanning chats and subcollection messages...');
+    const chatIds = Array.from(new Set(relatedUids.map(otherId => [uid, otherId].sort().join('_'))));
+
+    for (const cid of chatIds) {
+      logStep(`Purging subcollection messages for chat: ${cid}`);
+      const messagesRef = db.collection(`chats/${cid}/messages`);
+      const messagesSnap = await messagesRef.get();
+      
+      const batch = db.batch();
+      messagesSnap.docs.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+
+      logStep(`Purging parent chat document chats/${cid}`);
+      await db.collection('chats').doc(cid).delete();
+    }
+    logStep(`Chat cascade completed.`);
+  } catch (error: any) {
+    logStep(`Exception during chat cascade: ${error.message}`);
+  }
+
+  // 5. Delete Photo Moderation records
+  try {
+    logStep('Scanning photo moderation collection...');
+    const moderationSnap = await db.collection('photoModeration').where('userId', '==', uid).get();
+    const batch = db.batch();
+    moderationSnap.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    logStep(`Purged ${moderationSnap.docs.length} photoModeration records.`);
+  } catch (error: any) {
+    logStep(`Exception during photoModeration purge: ${error.message}`);
+  }
+
+  // 6. Delete Authentication Credentials from Firebase Auth (strict idempotent catch)
+  try {
+    logStep('Executing Firebase Authentication deletion...');
+    await admin.auth().deleteUser(uid);
+    logStep('Firebase Authentication account successfully deleted.');
+  } catch (error: any) {
+    if (error.code === 'auth/user-not-found') {
+      logStep('User was not found in Firebase Authentication (already deleted).');
+    } else {
+      logStep(`Auth deletion warning (continuing cascade): ${error.message}`);
+    }
+  }
+
+  // 7. Delete Firestore main profile document `users/{uid}`
+  try {
+    logStep(`Purging main user document: users/${uid}`);
+    await db.collection('users').doc(uid).delete();
+    logStep('Main Firestore document successfully deleted.');
+  } catch (error: any) {
+    logStep(`Exception during main user document purge: ${error.message}`);
+  }
+
+  logStep('--- CASACADING PURGE END ---');
+  res.status(200).json({
+    success: true,
+    message: 'User account and all related database records were permanently purged.',
+    logs
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`[Admin Server] Running on http://localhost:${PORT}`);
+});

@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
-import { collection, query, getDocs, updateDoc, doc, serverTimestamp, where, orderBy, limit, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, query, getDocs, updateDoc, doc, serverTimestamp, getDoc, deleteDoc, where, orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Printer, Eye, UserX, UserCheck } from 'lucide-react';
+import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin, Printer } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
-import { Link } from 'react-router-dom';
-import { seedTestData } from '../../lib/seeder';
 import { generateBiodataPDF } from '../../lib/BiodataGenerator';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 import { deleteFromCloudinary } from '../../lib/cloudinary';
@@ -83,71 +81,45 @@ interface UserProfile {
   // Contact
   address?: string;
   aboutMe?: string;
-  
-  partnerPreferences?: {
-    ageMin: string;
-    ageMax: string;
-    heightMin?: string;
-    heightMax?: string;
-    maritalStatus: string[];
-    denominations: string[];
-    motherTongue?: string[];
-    educationLevel: string;
-    employmentStatus?: string;
-    dietaryHabits?: string;
-    drinkingHabits?: string;
-    smokingHabits?: string;
-    country?: string;
-    city?: string;
-    relocationPreference?: string;
-  };
 }
 
-export default function AdminUserManagement() {
+export default function RejectedProfilesPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'suspended' | 'blocked'>('all');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  
+  // Modal configurations
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [approvingUser, setApprovingUser] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [showSeedConfirm, setShowSeedConfirm] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleSeedConfirm = async () => {
-    setShowSeedConfirm(false);
-    setSeeding(true);
-    try {
-      const count = await seedTestData();
-      showToast(`Successfully seeded ${count} test profiles!`, 'success');
-      fetchUsers(); // Refresh list
-    } catch (err: any) {
-      showToast("Seeding failed: " + err.message, 'error');
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const handleSeed = () => setShowSeedConfirm(true);
-
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const usersRef = collection(db, 'users');
-      // For now we fetch all, or we could add search/filter query
-      const q = query(usersRef, orderBy('createdAt', 'desc'), limit(100));
+      // Retrieve the last 200 users, filter client-side for absolute reliability
+      const q = query(usersRef, orderBy('createdAt', 'desc'), limit(200));
       const snap = await getDocs(q);
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserProfile));
-      setUsers(docs);
+      
+      // Filter for suspended or rejected profiles
+      const filtered = docs.filter(u => 
+        u.status === 'suspended' || 
+        u.photoStatus === 'rejected' || 
+        u.approvalStatus === 'rejected'
+      );
+      setUsers(filtered);
     } catch (err) {
-      console.error("Error fetching users:", err);
+      console.error("Error fetching rejected/suspended users:", err);
     } finally {
       setLoading(false);
     }
@@ -157,16 +129,45 @@ export default function AdminUserManagement() {
     fetchUsers();
   }, []);
 
-  const handleUpdateStatus = async (userId: string, newStatus: UserProfile['status']) => {
+  const handleApproveUser = async () => {
+    if (!selectedUser) return;
+    setApprovingUser(true);
+    const targetUserId = selectedUser.id;
+    
+    // Optimistically update frontend state
+    setUsers(prev => prev.filter(u => u.id !== targetUserId));
+    
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        status: newStatus,
-        updatedAt: serverTimestamp()
+      const currentAdminId = auth.currentUser?.uid || 'system';
+      await updateDoc(doc(db, 'users', targetUserId), {
+        isApproved: true,
+        status: 'active',
+        photoStatus: 'approved',
+        approvalStatus: 'approved',
+        approvedBy: currentAdminId,
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        'notifications': [
+          {
+            id: crypto.randomUUID(),
+            title: 'Profile Approved',
+            message: 'Congratulations! Your profile has been reviewed and reactivated.',
+            type: 'system',
+            createdAt: new Date().toISOString(),
+            read: false
+          }
+        ]
       });
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-      if (selectedUser?.id === userId) setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
+
+      setSelectedUser(null);
+      setShowApproveConfirm(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+      console.error("Error activating rejected user:", err);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${targetUserId}`);
+      // Refresh list to restore state on fail
+      fetchUsers();
+    } finally {
+      setApprovingUser(false);
     }
   };
 
@@ -300,6 +301,8 @@ export default function AdminUserManagement() {
       } catch (fallbackErr) {
         console.error("[Admin Delete Fallback] Complete deletion failure:", fallbackErr);
         handleFirestoreError(fallbackErr, OperationType.DELETE, `users/${targetUserId}`);
+        // Restore user to page view if deletion completely fails
+        fetchUsers();
       }
     } finally {
       setDeletingUser(false);
@@ -307,60 +310,31 @@ export default function AdminUserManagement() {
   };
 
   const filteredUsers = users.filter(u => {
-    // Exclude users awaiting approval as they belong in the Approvals page
-    if (u.approvalStatus === 'pending' || !u.isApproved) {
-      return false;
-    }
     const matchesSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           u.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || u.status === filterStatus;
-    return matchesSearch && matchesFilter;
+    return matchesSearch;
   });
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="font-headline text-4xl text-on-surface">User Management</h1>
-          <p className="text-on-surface-variant">Search, edit, and manage user accounts</p>
+          <h1 className="font-headline text-4xl text-on-surface">Rejected Profiles</h1>
+          <p className="text-on-surface-variant">Review, reinstate, or permanently delete rejected or suspended user accounts</p>
         </div>
-        <button 
-          onClick={handleSeed}
-          disabled={seeding}
-          className="flex items-center gap-2 px-6 py-3 bg-secondary-container text-on-secondary-container rounded-2xl font-bold hover:bg-secondary-container/80 transition-all disabled:opacity-50 shadow-sm"
-        >
-          {seeding ? (
-            <><Loader2 className="w-5 h-5 animate-spin" /> Seeding...</>
-          ) : (
-            <><Database className="w-5 h-5" /> Seed Test Data</>
-          )}
-        </button>
       </div>
 
       {/* Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-surface-container-low p-4 rounded-3xl border border-outline-variant">
-        <div className="relative md:col-span-2">
+      <div className="bg-surface-container-low p-4 rounded-3xl border border-outline-variant">
+        <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
           <input 
             type="text"
-            placeholder="Search by name or email..."
+            placeholder="Search rejected by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
           />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-5 h-5 text-on-surface-variant ml-2" />
-          <select 
-            value={filterStatus}
-            onChange={(e: any) => setFilterStatus(e.target.value)}
-            className="flex-1 px-4 py-3 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-            <option value="blocked">Blocked</option>
-          </select>
         </div>
       </div>
 
@@ -387,7 +361,7 @@ export default function AdminUserManagement() {
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-on-surface-variant">
-                    No users found matching your criteria.
+                    No rejected or suspended profiles found.
                   </td>
                 </tr>
               ) : (
@@ -420,9 +394,9 @@ export default function AdminUserManagement() {
                        <span className={cn(
                         "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 w-fit",
                         user.status === 'active' ? "bg-green-100 text-green-700" : 
-                        user.status === 'suspended' ? "bg-gold/10 text-gold" : "bg-error/10 text-error"
+                        user.status === 'suspended' ? "bg-amber-100 text-amber-700" : "bg-error/10 text-error"
                       )}>
-                        <div className="w-1 h-1 rounded-full bg-current" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-current" />
                         {user.status}
                       </span>
                     </td>
@@ -445,53 +419,53 @@ export default function AdminUserManagement() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
-                          <button 
-                            onClick={() => generateBiodataPDF(user)}
-                            className="p-2.5 bg-[#0d9488] text-white rounded-xl hover:bg-[#0f766e] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
-                            title="Print Biodata"
-                          >
-                            <Printer className="w-4 h-4" />
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Print Biodata</span>
-                          </button>
-                          
-                          <button 
-                            onClick={() => setSelectedUser(user)}
-                            className="p-2.5 bg-[#2563eb] text-white rounded-xl hover:bg-[#1d4ed8] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
-                            title="View Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">View Details</span>
-                          </button>
-                          
-                          <button 
-                            onClick={() => handleUpdateStatus(user.id, user.status === 'active' ? 'suspended' : 'active')}
-                            className={cn(
-                              "p-2.5 text-white rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm group relative",
-                              user.status === 'active' ? "bg-[#dc2626] hover:bg-[#b91c1c]" : "bg-[#d97706] hover:bg-[#c2410c]"
-                            )}
-                            title={user.status === 'active' ? 'Suspend User' : 'Re-activate User'}
-                          >
-                            {user.status === 'active' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
-                              {user.status === 'active' ? 'Suspend User' : 'Re-activate User'}
-                            </span>
-                          </button>
+                      <div className="flex items-center justify-end gap-2.5">
+                        <button 
+                          onClick={() => generateBiodataPDF(user)}
+                          className="p-2.5 bg-[#0d9488] text-white rounded-xl hover:bg-[#0f766e] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                          title="Print Biodata"
+                        >
+                          <Printer className="w-4 h-4" />
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Print Biodata</span>
+                        </button>
+                        
+                        <button 
+                          onClick={() => setSelectedUser(user)}
+                          className="p-2.5 bg-[#2563eb] text-white rounded-xl hover:bg-[#1d4ed8] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">View Details</span>
+                        </button>
 
-                          <button 
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowDeleteConfirm(true);
-                            }}
-                            className="p-2.5 bg-[#ef4444] text-white rounded-xl hover:bg-[#dc2626] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
-                            title="Delete User"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
-                              Delete User
-                            </span>
-                          </button>
-                        </div>
+                        <button 
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowApproveConfirm(true);
+                          }}
+                          className="p-2.5 bg-[#16a34a] text-white rounded-xl hover:bg-[#15803d] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                          title="Approve User"
+                        >
+                          <UserCheck className="w-4 h-4" />
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
+                            Approve Profile
+                          </span>
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowDeleteConfirm(true);
+                          }}
+                          className="p-2.5 bg-[#ef4444] text-white rounded-xl hover:bg-[#dc2626] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                          title="Delete User"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
+                            Delete User
+                          </span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -505,11 +479,74 @@ export default function AdminUserManagement() {
       <AdminUserDetailModal
         user={selectedUser}
         onClose={() => setSelectedUser(null)}
-        onUpdateStatus={handleUpdateStatus}
-        onDelete={() => setShowDeleteConfirm(true)}
+        actions={
+          selectedUser && (
+            <div className="flex gap-4 w-full">
+              <button
+                onClick={() => setShowApproveConfirm(true)}
+                className="flex-1 py-4 bg-[#16a34a] text-white rounded-2xl font-bold hover:bg-[#15803d] shadow-lg flex items-center justify-center gap-2"
+              >
+                <Check className="w-5 h-5" />
+                Approve
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex-1 py-4 bg-[#ef4444] text-white rounded-2xl font-bold hover:bg-[#dc2626] shadow-lg flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-5 h-5" />
+                Delete
+              </button>
+            </div>
+          )
+        }
       />
 
-      {/* Permanent Deletion Confirmation [Point 4] */}
+      {/* Approve Confirmation Modal */}
+      <AnimatePresence>
+        {showApproveConfirm && selectedUser && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !approvingUser && setShowApproveConfirm(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl z-10 text-center"
+            >
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 mx-auto mb-6">
+                <CheckCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-bold text-[#040e2a]">Approve Application?</h3>
+              <p className="text-on-surface-variant mt-4 leading-relaxed">
+                Are you sure you want to approve <strong>{selectedUser.name}</strong>'s application? This will activate their account and grant them active access to the matrimonial network.
+              </p>
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <button
+                  disabled={approvingUser}
+                  onClick={() => setShowApproveConfirm(false)}
+                  className="px-6 py-3 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={approvingUser}
+                  onClick={handleApproveUser}
+                  className="px-6 py-3 bg-[#16a34a] text-white rounded-xl font-bold hover:bg-[#15803d] transition-all flex items-center justify-center gap-2"
+                >
+                  {approvingUser ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Permanent Deletion Confirmation Modal */}
       <AnimatePresence>
         {showDeleteConfirm && selectedUser && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -524,7 +561,7 @@ export default function AdminUserManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-surface-container-lowest rounded-[2rem] p-8 shadow-2xl border border-error/20"
+              className="relative w-full max-w-md bg-surface-container-lowest rounded-[2rem] p-8 shadow-2xl border border-error/20 z-10"
             >
               <div className="text-center space-y-6">
                 <div className="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto">
@@ -589,62 +626,6 @@ export default function AdminUserManagement() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Custom Seed Confirmation Modal */}
-      <AnimatePresence>
-        {showSeedConfirm && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => !seeding && setShowSeedConfirm(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl z-10 text-center"
-            >
-              <div className="w-16 h-16 bg-secondary-container/20 rounded-full flex items-center justify-center text-secondary mx-auto mb-6">
-                <Database className="w-8 h-8" />
-              </div>
-              <h3 className="text-2xl font-bold text-[#040e2a]">Seed Test Data?</h3>
-              <p className="text-on-surface-variant mt-4 leading-relaxed">
-                This will add 20 dummy matrimonial profiles to your database. Would you like to continue?
-              </p>
-              <div className="grid grid-cols-2 gap-4 mt-8">
-                <button
-                  disabled={seeding}
-                  onClick={() => setShowSeedConfirm(false)}
-                  className="px-6 py-3 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={seeding}
-                  onClick={handleSeedConfirm}
-                  className="px-6 py-3 bg-[#004b87] text-white rounded-xl font-bold hover:bg-[#003a6a] transition-all flex items-center justify-center gap-2"
-                >
-                  {seeding ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function DetailItem({ label, value, colSpan = 1 }: { label: string, value: any, colSpan?: number }) {
-  if (!value) return null;
-  const spanClass = colSpan === 2 ? "col-span-2" : colSpan === 3 ? "col-span-1 md:col-span-3" : "";
-  return (
-    <div className={cn("space-y-1", spanClass)}>
-      <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{label}</p>
-      <p className="font-medium text-on-surface text-sm">{value}</p>
     </div>
   );
 }
