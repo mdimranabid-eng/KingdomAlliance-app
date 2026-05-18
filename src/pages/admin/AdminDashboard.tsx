@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AdminReportModal from '../../components/admin/AdminReportModal';
-import { parseFirestoreDate } from '../../lib/utils';
+import { parseFirestoreDate, resolveApprovalStatus } from '../../lib/utils';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -39,15 +39,31 @@ export default function AdminDashboard() {
     const unsubUsers = onSnapshot(usersRef, (snapshot) => {
       const usersData = snapshot.docs.map(d => d.data());
       
-      // Matrimonial users are not admins
-      const matrimonialUsers = usersData.filter(u => u.role !== 'admin');
+      // Total Users: Count of all documents in the users collection
+      const totalUsersCount = usersData.length;
 
-      const pending = matrimonialUsers.filter(u => u.approvalStatus === 'pending' && u.onboardingComplete === true).length;
-      const males = matrimonialUsers.filter(u => u.gender === 'male').length;
-      const females = matrimonialUsers.filter(u => u.gender === 'female').length;
+      // Grooms: where the gender field indicates Male/Groom
+      const groomsCount = usersData.filter(u => {
+        const gender = (u.gender || '').toLowerCase();
+        const pType = (u.profileType || '').toLowerCase();
+        return gender === 'male' || gender === 'groom' || pType === 'groom';
+      }).length;
+
+      // Brides: where the gender field indicates Female/Bride
+      const bridesCount = usersData.filter(u => {
+        const gender = (u.gender || '').toLowerCase();
+        const pType = (u.profileType || '').toLowerCase();
+        return gender === 'female' || gender === 'bride' || pType === 'bride';
+      }).length;
+
+      // Pending Approvals: where the account status is pending/unapproved
+      const pendingApprovalsCount = usersData.filter(u => {
+        const status = resolveApprovalStatus(u);
+        return status === 'pending' || status === 'incomplete' || status === 'not_approved' || u.isApproved === false;
+      }).length;
 
       // Calculate actual active today count
-      const activeTodayCount = matrimonialUsers.filter(u => {
+      const activeTodayCount = usersData.filter(u => {
         const lastActive = parseFirestoreDate(u.lastActive) || parseFirestoreDate(u.updatedAt);
         if (!lastActive) return false;
         const activeDate = new Date(lastActive);
@@ -58,17 +74,17 @@ export default function AdminDashboard() {
       }).length;
 
       setStats({
-        totalUsers: matrimonialUsers.length,
-        pendingApprovals: pending,
+        totalUsers: totalUsersCount,
+        pendingApprovals: pendingApprovalsCount,
         activeToday: Math.max(1, activeTodayCount), // At least 1 to keep it alive
-        newThisWeek: matrimonialUsers.filter(u => {
+        newThisWeek: usersData.filter(u => {
           const createdDate = parseFirestoreDate(u.createdAt);
           if (!createdDate) return false;
           return (Date.now() - createdDate.getTime()) < 7 * 24 * 60 * 60 * 1000;
         }).length
       });
 
-      setMaleFemaleRatio({ male: males, female: females });
+      setMaleFemaleRatio({ male: groomsCount, female: bridesCount });
       setLoading(false);
     }, (error) => {
       console.error("Error listening for user stats:", error);
