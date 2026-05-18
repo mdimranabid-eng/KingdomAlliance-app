@@ -27,6 +27,14 @@ import {
 import { Link } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType, calculateMatchScore } from '../lib/utils';
 
+const getOptimizedImageUrl = (url: string) => {
+  if (!url) return '';
+  if (!url.includes('cloudinary.com')) return url;
+  const parts = url.split('/upload/');
+  if (parts.length !== 2) return url;
+  return `${parts[0]}/upload/c_fill,w_600,h_800,g_face,q_auto,f_auto/${parts[1]}`;
+};
+
 export default function MatchesPage() {
   const { profile, user: authUser } = useAuth();
   const [matches, setMatches] = useState<any[]>([]);
@@ -63,19 +71,37 @@ export default function MatchesPage() {
   const fetchMatches = async () => {
     setLoading(true);
     try {
-      const oppositeGender = profile?.gender === 'male' ? 'female' : 'male';
+      const userRole = (profile?.profileType || '').toLowerCase();
+      let oppositeRole = 'bride';
+      if (userRole === 'groom') {
+        oppositeRole = 'bride';
+      } else if (userRole === 'bride') {
+        oppositeRole = 'groom';
+      } else {
+        oppositeRole = profile?.gender === 'male' ? 'bride' : 'groom';
+      }
+
       let q = query(
         collection(db, 'users'), 
-        where('gender', '==', oppositeGender),
+        where('profileType', '==', oppositeRole),
         where('isApproved', '==', true),
         limit(100) // Fetch more to filter locally if needed, or refine queries
       );
       
       const querySnapshot = await getDocs(q);
-      let docs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as any[];
+      const currentUserUid = profile?.uid || profile?.id;
+      let docs = querySnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }) as any)
+        .filter(u => {
+          const uStatus = (u.status || u.approvalStatus || '').toLowerCase();
+          const isApprovedUser = u.isApproved === true || uStatus === 'approved' || uStatus === 'active';
+          const isNotSelf = u.uid !== currentUserUid && u.id !== currentUserUid;
+          const isNotBannedOrPending = uStatus !== 'banned' && uStatus !== 'pending' && uStatus !== 'suspended' && !u.isBanned && !u.isSuspended;
+          return isApprovedUser && isNotSelf && isNotBannedOrPending;
+        });
 
       // Apply Filters Locally for complex ones
       docs = docs.filter(u => {
@@ -446,7 +472,7 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
     >
       <Link to={`/profile/${user.id}`} className="block relative aspect-[3/4] overflow-hidden">
         <img 
-          src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} 
+          src={getOptimizedImageUrl(user.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} 
           alt={user.name} 
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
         />

@@ -138,9 +138,9 @@ export default function Layout() {
       console.error("Error listening for pending approvals:", error);
     });
 
-    // Listen for pending photos in the users collection
+    // Listen for pending photos in the photoModeration collection directly
     const qPhotos = query(
-      collection(db, 'users'), 
+      collection(db, 'photoModeration'), 
       where('photoStatus', '==', 'pending')
     );
     const unsubscribePhotos = onSnapshot(qPhotos, (snapshot) => {
@@ -332,16 +332,22 @@ export default function Layout() {
                     >
                       <div className="relative">
                         <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                        {((item.label === 'Messages' && unreadCount > 0) || (item.label === 'Interests' && unreadNotificationsCount > 0)) && (
+                        {((item.label === 'Messages' && unreadCount > 0) || 
+                          (item.label === 'Interests' && unreadNotificationsCount > 0) ||
+                          (item.badgeCount && item.badgeCount > 0)) && (
                           <motion.span
                             initial={{ scale: 0.5, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="absolute -top-1 -right-1 w-3 h-3 bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)]"
+                            className={cn(
+                              "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
+                              item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
+                            )}
                           >
+                            {item.badgeCount || ""}
                             <motion.span 
                               animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
                               transition={{ repeat: Infinity, duration: 2 }}
-                              className="absolute inset-0 bg-error rounded-full" 
+                              className="absolute inset-0 bg-error rounded-full -z-10" 
                             />
                           </motion.span>
                         )}

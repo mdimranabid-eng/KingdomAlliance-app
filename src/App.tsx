@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MemoryRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { AuthGuard } from './components/AuthGuard';
 import Layout from './components/Layout';
@@ -43,12 +43,15 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-export default function App() {
-  const initialPath = window.location.pathname + window.location.search;
+const ProfileRedirect = () => {
+  const { user } = useAuth();
+  return <Navigate to={user ? `/profile/${user.uid}` : '/login'} replace />;
+};
 
+export default function App() {
   return (
     <AuthProvider>
-      <Router initialEntries={[initialPath]}>
+      <Router>
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
@@ -57,6 +60,7 @@ export default function App() {
           
           {/* Status Routes (Publicly accessible but usually redirected to) */}
           <Route path="/pending-approval" element={<PendingApprovalPage />} />
+          <Route path="/waiting-room" element={<PendingApprovalPage />} />
           <Route path="/suspended" element={<SuspendedPage />} />
           <Route path="/banned" element={<BannedPage />} />
           <Route path="/rejected" element={<RejectedPage />} />
@@ -74,6 +78,7 @@ export default function App() {
             <Route path="/shortlist" element={<ShortlistsPage />} />
             <Route path="/interests" element={<InterestsPage />} />
             <Route path="/profile/:id" element={<ProfilePage />} />
+            <Route path="/profile" element={<ProfileRedirect />} />
           </Route>
 
           {/* Protected Admin Routes */}

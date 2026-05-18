@@ -8,7 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "admin:install": "cd server && npm install",
+    "admin:dev": "cd server && npm run dev",
+    "admin:emulator": "cd server && npm run dev:emulator"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

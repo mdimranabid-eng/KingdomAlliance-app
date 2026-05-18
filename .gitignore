@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Admin Server
+server/node_modules/
+
+# Firebase service account (NEVER commit this)
+serviceAccountKey.json
+*serviceAccountKey*.json

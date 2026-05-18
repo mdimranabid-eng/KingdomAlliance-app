@@ -22,11 +22,11 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
 export interface AuthResponse {
   user: User;
   isNewUser: boolean;
-  status?: 'incomplete' | 'pending' | 'approved' | 'rejected';
+  status?: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended';
   onboardingComplete?: boolean;
 }
 
-const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status: 'incomplete' | 'pending' | 'approved' | 'rejected'; onboardingComplete: boolean }> => {
+const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended'; onboardingComplete: boolean }> => {
   const userRef = doc(db, 'users', user.uid);
   const userDoc = await getDoc(userRef);
 
@@ -50,30 +50,26 @@ const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status
 
   const data = userDoc.data();
 
-  // 1. Banned Check
+  // Determine status
+  let status: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended' = 
+    (data.status || data.approvalStatus || 'incomplete') as any;
+
   if (data.isBanned) {
-    await signOut(auth);
-    throw new Error("Your account has been permanently closed. Please contact support.");
-  }
-
-  // 2. Suspended Check
-  if (data.isSuspended) {
-    await signOut(auth);
-    throw new Error("Your account has been suspended. Please contact support@kingdomalliance.com");
-  }
-
-  // 3. Rejected Check
-  if (data.approvalStatus === 'rejected') {
-    await signOut(auth);
-    throw new Error("Your application was not approved. Please contact support.");
+    status = 'banned';
+  } else if (data.isSuspended) {
+    status = 'suspended';
   }
 
   // Update last active
-  await updateDoc(userRef, { lastActive: serverTimestamp() });
+  try {
+    await updateDoc(userRef, { lastActive: serverTimestamp() });
+  } catch (err) {
+    console.warn("Could not update lastActive timestamp:", err);
+  }
 
   return { 
     isNewUser: false, 
-    status: data.approvalStatus as 'incomplete' | 'pending' | 'approved' | 'rejected',
+    status,
     onboardingComplete: !!data.onboardingComplete
   };
 };

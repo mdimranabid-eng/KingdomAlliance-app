@@ -4,6 +4,8 @@ import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { signInWithGoogle, signInWithEmail } from '../services/authService';
 import { Loader2, Eye, EyeOff, CheckCircle2, Heart, Lock as LockIcon } from 'lucide-react';
 import { motion } from 'motion/react';
+import { auth, db } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,16 +16,40 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleAuthResponse = (response: any) => {
-    if (response.onboardingComplete === false || response.status === 'incomplete') {
-      navigate('/onboarding');
-    } else if (response.status === 'pending') {
-      navigate('/pending-approval');
-    } else if (response.status === 'approved') {
-      navigate('/dashboard');
-    } else {
-      // Default fallback
-      navigate('/dashboard');
+  const enforceGatekeeperRouting = async (uid: string) => {
+    try {
+      // 1. Intercept admin accounts attempting standard client login
+      const adminRef = doc(db, 'admins', uid);
+      const adminDoc = await getDoc(adminRef);
+      if (adminDoc.exists()) {
+        const { signOut } = await import('firebase/auth');
+        await signOut(auth);
+        throw new Error("Administrative accounts are restricted. Please sign in via the Admin Access portal.");
+      }
+
+      const userRef = doc(db, 'users', uid);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        navigate('/onboarding');
+        return;
+      }
+
+      const data = userDoc.data();
+      const status = (data.status || data.approvalStatus || 'incomplete').toLowerCase();
+
+      if (status === 'banned' || data.isBanned) {
+        navigate('/banned');
+      } else if (status === 'not_approved' || status === 'pending') {
+        navigate('/waiting-room');
+      } else if (status === 'approved') {
+        navigate('/dashboard');
+      } else {
+        navigate('/onboarding');
+      }
+    } catch (err: any) {
+      console.error("Gatekeeper routing error:", err);
+      throw new Error(err.message || "Failed to process user status routing.");
     }
   };
 
@@ -48,10 +74,9 @@ export default function LoginPage() {
     setError(null);
     try {
       const response = await signInWithGoogle();
-      handleAuthResponse(response);
+      await enforceGatekeeperRouting(response.user.uid);
     } catch (err: any) {
       setError(formatError(err));
-    } finally {
       setGoogleLoading(false);
     }
   };
@@ -62,10 +87,9 @@ export default function LoginPage() {
     setError(null);
     try {
       const response = await signInWithEmail(email, password);
-      handleAuthResponse(response);
+      await enforceGatekeeperRouting(response.user.uid);
     } catch (err: any) {
       setError(formatError(err));
-    } finally {
       setLoading(false);
     }
   };

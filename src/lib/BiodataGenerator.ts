@@ -164,6 +164,19 @@ export const generateBiodataPDF = async (user: any) => {
       const lines = doc.splitTextToSize(text, width);
       let lineY = startY;
       lines.forEach((line: string, i: number) => {
+        if (lineY > pageHeight - 15) {
+          doc.addPage();
+          currentPage++;
+          drawLayout();
+          
+          // Re-apply standard text layout styles
+          doc.setTextColor(COLORS.CHARCOAL[0], COLORS.CHARCOAL[1], COLORS.CHARCOAL[2]);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          
+          lineY = 20; // Reset to top of the next page
+        }
+
         if (i === lines.length - 1 || doc.getTextWidth(line) < width * 0.8) {
           doc.text(line, x, lineY);
         } else {
@@ -209,6 +222,12 @@ export const generateBiodataPDF = async (user: any) => {
     ].filter(i => i.value && !i.value.includes('undefined'));
 
     items.forEach((item, i) => {
+      if (currentY > pageHeight - 15) {
+        doc.addPage();
+        currentPage++;
+        drawLayout();
+        currentY = 20; // reset to top of the next page
+      }
       if (i % 2 === 0) {
         doc.setFillColor(COLORS.LIGHT_NAVY[0], COLORS.LIGHT_NAVY[1], COLORS.LIGHT_NAVY[2]);
         doc.rect(sidebarWidth + margin, currentY - 4, mainWidth - (margin * 2), 6, 'F');
@@ -269,7 +288,7 @@ export const generateBiodataPDF = async (user: any) => {
     mainY);
 
   mainY = addMainSection('Family Background', 
-    `Father's Name: ${user.fatherName || 'N/A'}\nFather's Occupation: ${user.fatherOccupation || 'N/A'}\n\nMother's Name: ${user.motherName || 'N/A'}\nMother's Occupation: ${user.motherOccupation || 'N/A'}\n\nNumber of Siblings: ${user.noOfSiblings || 'N/A'}\nFamily Type: ${user.familyType || 'N/A'}\nFamily Faith Background: ${user.familyFaith || 'N/A'}`, 
+    `Father's Name: ${user.fathersName || user.fatherName || 'N/A'}\nFather's Occupation: ${user.fathersOccupation || user.fatherOccupation || 'N/A'}\n\nMother's Name: ${user.mothersName || user.motherName || 'N/A'}\nMother's Occupation: ${user.mothersOccupation || user.motherOccupation || 'N/A'}\n\nNumber of Siblings: ${user.numberOfSiblings || user.noOfSiblings || 'N/A'}\nFamily Type: ${user.familyType || 'N/A'}\nFamily Faith Background: ${user.familyFaith || 'N/A'}`, 
     mainY);
 
   mainY = addMainSection('Lifestyle & Interests', 

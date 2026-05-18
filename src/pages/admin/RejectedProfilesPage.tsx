@@ -67,6 +67,11 @@ interface UserProfile {
   motherName?: string;
   motherOccupation?: string;
   noOfSiblings?: string;
+  fathersName?: string;
+  fathersOccupation?: string;
+  mothersName?: string;
+  mothersOccupation?: string;
+  numberOfSiblings?: string;
   familyType?: string;
   familyFaith?: string;
 

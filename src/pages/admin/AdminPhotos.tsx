@@ -65,31 +65,31 @@ export default function AdminPhotos() {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    // 1. Listen for pending photos in the users collection
+    // 1. Listen for pending photos in the photoModeration collection directly
     const qPending = query(
-      collection(db, 'users'), 
+      collection(db, 'photoModeration'), 
       where('photoStatus', '==', 'pending')
     );
 
     const unsubscribePending = onSnapshot(qPending, (snapshot) => {
       const newItems = snapshot.docs.map(doc => {
         const data = doc.data();
-        const userName = data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unnamed User';
+        const userName = data.userName || data.name || 'Unnamed User';
         return {
           id: doc.id,
-          uid: doc.id,
+          uid: data.userId || data.uid || '',
           userName: userName,
-          photoURL: data.pendingPhotoUrl || '',
-          photoUrl: data.photoUrl || '',
-          pendingPhotoUrl: data.pendingPhotoUrl || '',
-          photoType: 'profilePhoto',
-          galleryPosition: null,
+          photoURL: data.photoUrl || data.photoURL || '',
+          photoUrl: data.photoUrl || data.photoURL || '',
+          pendingPhotoUrl: data.photoUrl || data.photoURL || '',
+          photoType: data.photoType || 'profilePhoto',
+          galleryPosition: data.galleryPosition !== undefined ? data.galleryPosition : null,
           photoStatus: data.photoStatus || 'pending',
-          uploadedAt: data.updatedAt || data.createdAt || null
+          uploadedAt: data.uploadedAt || data.createdAt || null
         };
       }) as ModerationItem[];
 
-      // Sort client-side in desc order of uploadedAt/updatedAt
+      // Sort client-side in desc order of uploadedAt
       newItems.sort((a, b) => {
         const timeA = a.uploadedAt?.toDate?.()?.getTime() || a.uploadedAt?.seconds || 0;
         const timeB = b.uploadedAt?.toDate?.()?.getTime() || b.uploadedAt?.seconds || 0;
@@ -138,6 +138,7 @@ export default function AdminPhotos() {
       try {
         await updateDoc(doc(db, 'photoModeration', item.id), {
           photoStatus: 'approved',
+          status: 'approved',
           reviewedAt: serverTimestamp(),
           reviewedBy: adminId
         });
@@ -146,47 +147,49 @@ export default function AdminPhotos() {
       }
 
       // 2. Update User Document
-      const userRef = doc(db, 'users', item.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const targetPhoto = item.pendingPhotoUrl || item.photoURL;
+      if (item.uid) {
+        const userRef = doc(db, 'users', item.uid);
+        const userSnap = await getDoc(userRef);
         
-        if (item.photoType === 'profilePhoto') {
-          await updateDoc(userRef, {
-            photoUrl: targetPhoto,
-            photoURL: targetPhoto,
-            pendingPhotoUrl: '',
-            photoStatus: 'approved',
-            updatedAt: serverTimestamp(),
-            notifications: arrayUnion({
-              id: crypto.randomUUID(),
-              title: 'Photo Approved',
-              message: 'Your profile photo has been approved.',
-              type: 'success',
-              read: false,
-              createdAt: new Date().toISOString()
-            })
-          });
-        } else {
-          const gallery = userData.gallery || [];
-          const updatedGallery = gallery.map((p: any) => 
-            p.url === item.photoURL ? { ...p, status: 'approved' } : p
-          );
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          const targetPhoto = item.pendingPhotoUrl || item.photoURL;
           
-          await updateDoc(userRef, {
-            gallery: updatedGallery,
-            updatedAt: serverTimestamp(),
-            notifications: arrayUnion({
-              id: crypto.randomUUID(),
-              title: 'Gallery Photo Approved',
-              message: 'Your gallery photo has been approved.',
-              type: 'success',
-              read: false,
-              createdAt: new Date().toISOString()
-            })
-          });
+          if (item.photoType === 'profilePhoto') {
+            await updateDoc(userRef, {
+              photoUrl: targetPhoto,
+              photoURL: targetPhoto,
+              pendingPhotoUrl: '',
+              photoStatus: 'approved',
+              updatedAt: serverTimestamp(),
+              notifications: arrayUnion({
+                id: crypto.randomUUID(),
+                title: 'Photo Approved',
+                message: 'Your profile photo has been approved.',
+                type: 'success',
+                read: false,
+                createdAt: new Date().toISOString()
+              })
+            });
+          } else {
+            const gallery = userData.gallery || [];
+            const updatedGallery = gallery.map((p: any) => 
+              p.url === item.photoURL ? { ...p, status: 'approved' } : p
+            );
+            
+            await updateDoc(userRef, {
+              gallery: updatedGallery,
+              updatedAt: serverTimestamp(),
+              notifications: arrayUnion({
+                id: crypto.randomUUID(),
+                title: 'Gallery Photo Approved',
+                message: 'Your gallery photo has been approved.',
+                type: 'success',
+                read: false,
+                createdAt: new Date().toISOString()
+              })
+            });
+          }
         }
       }
     } catch (err) {
@@ -210,6 +213,7 @@ export default function AdminPhotos() {
       try {
         await updateDoc(doc(db, 'photoModeration', item.id), {
           photoStatus: 'rejected',
+          status: 'rejected',
           reviewedAt: serverTimestamp(),
           reviewedBy: adminId,
           rejectedReason: finalReason
@@ -219,32 +223,45 @@ export default function AdminPhotos() {
       }
 
       // 2. Notify User and clear pending photo state on user document
-      const userRef = doc(db, 'users', item.uid);
-      await updateDoc(userRef, {
-        photoStatus: 'rejected',
-        pendingPhotoUrl: '',
-        notifications: arrayUnion({
-          id: crypto.randomUUID(),
-          title: 'Photo Not Approved',
-          message: `Your photo was not approved: ${finalReason}. Please upload a new one.`,
-          type: 'alert',
-          read: false,
-          createdAt: new Date().toISOString()
-        }),
-        updatedAt: serverTimestamp()
-      });
-
-      if (item.photoType === 'galleryPhoto') {
+      if (item.uid) {
+        const userRef = doc(db, 'users', item.uid);
         const userSnap = await getDoc(userRef);
+
         if (userSnap.exists()) {
-          const gallery = userSnap.data().gallery || [];
-          const updatedGallery = gallery.map((p: any) => 
-            p.url === item.photoURL ? { ...p, status: 'rejected', rejectionReason: finalReason } : p
-          );
-          await updateDoc(userRef, { gallery: updatedGallery });
+          if (item.photoType === 'profilePhoto') {
+            await updateDoc(userRef, {
+              photoStatus: 'rejected',
+              pendingPhotoUrl: '',
+              notifications: arrayUnion({
+                id: crypto.randomUUID(),
+                title: 'Profile Photo Rejected',
+                message: `Your profile photo was not approved: ${finalReason}. Please upload a new one.`,
+                type: 'alert',
+                read: false,
+                createdAt: new Date().toISOString()
+              }),
+              updatedAt: serverTimestamp()
+            });
+          } else {
+            const gallery = userSnap.data().gallery || [];
+            const updatedGallery = gallery.map((p: any) => 
+              p.url === item.photoURL ? { ...p, status: 'rejected', rejectionReason: finalReason } : p
+            );
+            await updateDoc(userRef, {
+              gallery: updatedGallery,
+              notifications: arrayUnion({
+                id: crypto.randomUUID(),
+                title: 'Gallery Photo Rejected',
+                message: `Your gallery photo was not approved: ${finalReason}.`,
+                type: 'alert',
+                read: false,
+                createdAt: new Date().toISOString()
+              }),
+              updatedAt: serverTimestamp()
+            });
+          }
         }
       }
-
     } catch (err) {
       console.error("Error rejecting photo:", err);
     } finally {

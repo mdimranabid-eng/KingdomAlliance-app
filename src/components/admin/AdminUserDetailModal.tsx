@@ -15,7 +15,6 @@ import {
   Loader2
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { Link } from 'react-router-dom';
 import { generateBiodataPDF } from '../../lib/BiodataGenerator';
 
 export interface UserProfile {
@@ -76,6 +75,11 @@ export interface UserProfile {
   motherName?: string;
   motherOccupation?: string;
   noOfSiblings?: string;
+  fathersName?: string;
+  fathersOccupation?: string;
+  mothersName?: string;
+  mothersOccupation?: string;
+  numberOfSiblings?: string;
   familyType?: string;
   familyFaith?: string;
 
@@ -291,11 +295,11 @@ export default function AdminUserDetailModal({
                   <h4 className="font-bold text-sm uppercase tracking-wider">Family Background</h4>
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <DetailItem label="Father's Name" value={user.fatherName} />
-                  <DetailItem label="Father's Job" value={user.fatherOccupation} />
-                  <DetailItem label="Mother's Name" value={user.motherName} />
-                  <DetailItem label="Mother's Job" value={user.motherOccupation} />
-                  <DetailItem label="Siblings" value={user.noOfSiblings} />
+                  <DetailItem label="Father's Name" value={user.fathersName || user.fatherName} />
+                  <DetailItem label="Father's Job" value={user.fathersOccupation || user.fatherOccupation} />
+                  <DetailItem label="Mother's Name" value={user.mothersName || user.motherName} />
+                  <DetailItem label="Mother's Job" value={user.mothersOccupation || user.motherOccupation} />
+                  <DetailItem label="Siblings" value={user.numberOfSiblings || user.noOfSiblings} />
                   <DetailItem label="Family Type" value={user.familyType} />
                   <DetailItem label="Family Faith" value={user.familyFaith} colSpan={2} />
                 </div>
@@ -426,11 +430,6 @@ export default function AdminUserDetailModal({
               )
             )}
 
-            <div className="pt-6 border-t border-outline-variant">
-              <Link to={`/profile/${user.id}`} className="w-full block py-4 bg-surface-container text-center rounded-2xl font-bold hover:bg-surface-variant transition-colors">
-                View Full Public Profile
-              </Link>
-            </div>
           </div>
         </motion.div>
       </div>

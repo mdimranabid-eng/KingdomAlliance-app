@@ -56,6 +56,85 @@ const COUNTRY_CODES = [
   { code: '+94', name: 'LK' }, { code: '+977', name: 'NP' }, { code: '+95', name: 'MM' },
 ];
 
+const INDIAN_LANGUAGES = [
+  'Hindi', 'Bengali', 'Marathi', 'Telugu', 'Tamil', 'Gujarati', 'Urdu', 'Kannada', 'Odia', 'Malayalam', 'Punjabi', 'Assamese', 'Maithili', 'Santali', 'Kashmiri', 'Nepali', 'Konkani', 'Sindhi', 'Dogri', 'Manipuri', 'Bodo', 'Sanskrit'
+];
+
+export interface UserOnboardingData {
+  name: string;
+  middleName: string;
+  lastName: string;
+  email: string;
+  countryCode: string;
+  mobileNumber: string;
+  password?: string;
+  profileFor: string;
+  profileType: string;
+  gender: string;
+  dob: string;
+  age: string;
+  citizenship: string;
+  countryLiving: string;
+  cityLiving: string;
+  maritalStatus: string;
+  height: string;
+  weight: string;
+  bodyType: string;
+  complexion: string;
+  physicalStatus: string;
+  physicalStatusDesc: string;
+  denomination: string;
+  churchName: string;
+  diocese: string;
+  baptized: string;
+  spiritualInvolvement: string[];
+  motherTongue: string;
+  languagesKnown: string[];
+  education: string;
+  fieldOfStudy: string;
+  college: string;
+  profession: string;
+  employmentType: string;
+  annualIncome: string;
+  dietaryHabits: string;
+  drinkingHabits: string;
+  smokingHabits: string;
+  hobbies: string[];
+  country: string;
+  state: string;
+  city: string;
+  address: string;
+  aboutMe: string;
+  fathersName: string;
+  fathersOccupation: string;
+  mothersName: string;
+  mothersOccupation: string;
+  numberOfSiblings: string;
+  churchCity: string;
+  photoUrl: string;
+  photoPrivacy: string;
+  pendingPhotoUrl: string;
+  photoStatus: string;
+  gallery: { id: string; url: string; status: 'pending' | 'approved' | 'rejected' }[];
+  partnerPreferences: {
+    ageMin: string;
+    ageMax: string;
+    heightMin: string;
+    heightMax: string;
+    maritalStatus: string[];
+    denominations: string[];
+    motherTongue: string[];
+    educationLevel: string;
+    employmentStatus: string;
+    dietaryHabits: string;
+    drinkingHabits: string;
+    smokingHabits: string;
+    country: string;
+    city: string;
+    relocationPreference: string;
+  };
+}
+
 export default function RegisterPage() {
   const { settings } = useSettings();
   const { user, profile } = useAuth();
@@ -70,7 +149,28 @@ export default function RegisterPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState({
+  const [showLanguagesDropdown, setShowLanguagesDropdown] = useState(false);
+  const languagesDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [showPrefMotherTongueDropdown, setShowPrefMotherTongueDropdown] = useState(false);
+  const prefMotherTongueDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (languagesDropdownRef.current && !languagesDropdownRef.current.contains(event.target as Node)) {
+        setShowLanguagesDropdown(false);
+      }
+      if (prefMotherTongueDropdownRef.current && !prefMotherTongueDropdownRef.current.contains(event.target as Node)) {
+        setShowPrefMotherTongueDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const [formData, setFormData] = useState<UserOnboardingData>({
     name: '',
     middleName: '',
     lastName: '',
@@ -98,7 +198,7 @@ export default function RegisterPage() {
     diocese: '',
     baptized: '',
     spiritualInvolvement: [] as string[],
-    motherTongue: [] as string[],
+    motherTongue: '',
     languagesKnown: [] as string[],
     education: '',
     fieldOfStudy: '',
@@ -178,7 +278,7 @@ export default function RegisterPage() {
   };
 
   const FieldLabel = ({ label, field, isOptional = false }: { label: string, field: string, isOptional?: boolean }) => (
-    <label className="block font-label-sm text-on-surface uppercase tracking-wider">
+    <label className="block font-label-sm text-on-surface uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis">
       {label}
       {!isOptional ? (
         <span className="text-[#dc2626] font-bold text-[14px] ml-[3px]">*</span>
@@ -392,9 +492,39 @@ export default function RegisterPage() {
     let errors: string[] = [];
 
     if (currentStep === 1) {
+      const trimmedName = formData.name.trim();
+      const trimmedLastName = formData.lastName.trim();
+      const trimmedChurchName = formData.churchName.trim();
+      const trimmedChurchCity = formData.churchCity.trim();
+
+      // Update form state with trimmed values
+      setFormData(prev => ({
+        ...prev,
+        name: trimmedName,
+        lastName: trimmedLastName,
+        churchName: trimmedChurchName,
+        churchCity: trimmedChurchCity
+      }));
+
       const required = ['profileFor', 'profileType', 'name', 'lastName', 'email', 'mobileNumber', 'dob', 'citizenship', 'countryLiving', 'cityLiving', 'denomination', 'churchName', 'churchCity'];
-      errors = required.filter(f => !formData[f as keyof typeof formData]);
       
+      const valMap: Record<string, string> = {
+        profileFor: formData.profileFor,
+        profileType: formData.profileType,
+        name: trimmedName,
+        lastName: trimmedLastName,
+        email: formData.email.trim(),
+        mobileNumber: formData.mobileNumber.trim(),
+        dob: formData.dob,
+        citizenship: formData.citizenship,
+        countryLiving: formData.countryLiving,
+        cityLiving: formData.cityLiving,
+        denomination: formData.denomination,
+        churchName: trimmedChurchName,
+        churchCity: trimmedChurchCity
+      };
+
+      errors = required.filter(f => !valMap[f]);
       if (errors.length > 0) {
         setInvalidFields(errors);
         setErrorMsg("Please fill in all mandatory fields.");
@@ -402,21 +532,72 @@ export default function RegisterPage() {
         return;
       }
 
-      // Security check: Check if mobile number already exists
+      // 1. Email Format Validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const cleanEmail = formData.email.trim();
+      if (!emailRegex.test(cleanEmail)) {
+        setErrorMsg("Please enter a valid email address.");
+        setInvalidFields(['email']);
+        scrollToFirstError(['email']);
+        return;
+      }
+
+      // 2. Date of Birth Age Check (under 18 rejected)
+      if (formData.dob) {
+        const dobDate = new Date(formData.dob);
+        const today = new Date();
+        let age = today.getFullYear() - dobDate.getFullYear();
+        const m = today.getMonth() - dobDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+          age--;
+        }
+        if (age < 18) {
+          setErrorMsg("You must be at least 18 years of age to register.");
+          setInvalidFields(['dob']);
+          scrollToFirstError(['dob']);
+          return;
+        }
+      }
+
+      // 3. Mobile Number Numeric Format and Length Check (ignoring spaces/hyphens)
+      const cleanMobile = formData.mobileNumber.replace(/[\s-]/g, '');
+      if (!/^\d+$/.test(cleanMobile) || cleanMobile.length < 7 || cleanMobile.length > 15) {
+        setErrorMsg("Mobile number must be standard numeric format between 7 and 15 digits.");
+        setInvalidFields(['mobileNumber']);
+        scrollToFirstError(['mobileNumber']);
+        return;
+      }
+
       setLoading(true);
       try {
-        const fullMobile = `${formData.countryCode} ${formData.mobileNumber}`;
-        const q = query(collection(db, "users"), where("mobileNumber", "==", fullMobile));
-        const querySnapshot = await getDocs(q);
+        // Live check against Firestore '/users' collection for duplicate email
+        const emailQ = query(collection(db, "users"), where("email", "==", cleanEmail));
+        const emailSnapshot = await getDocs(emailQ);
+        const existingEmailDocs = emailSnapshot.docs.filter(doc => doc.id !== user?.uid);
         
-        if (!querySnapshot.empty) {
+        if (existingEmailDocs.length > 0) {
+          setErrorMsg("Email already registered. Please log in or use another email.");
+          setInvalidFields(['email']);
+          scrollToFirstError(['email']);
+          setLoading(false);
+          return;
+        }
+
+        // Live check against Firestore for duplicate mobile number
+        const fullMobile = `${formData.countryCode} ${cleanMobile}`;
+        const mobileQ = query(collection(db, "users"), where("mobileNumber", "==", fullMobile));
+        const mobileSnapshot = await getDocs(mobileQ);
+        const existingMobileDocs = mobileSnapshot.docs.filter(doc => doc.id !== user?.uid);
+        
+        if (existingMobileDocs.length > 0) {
           setErrorMsg("The mobile number entered is already registered.");
           setInvalidFields(['mobileNumber']);
+          scrollToFirstError(['mobileNumber']);
           setLoading(false);
           return;
         }
       } catch (err) {
-        console.error("Error checking mobile existence:", err);
+        console.error("Error verifying registration uniqueness:", err);
       } finally {
         setLoading(false);
       }
@@ -430,12 +611,40 @@ export default function RegisterPage() {
     }
 
     if (currentStep === 2) {
+      const trimmedAboutMe = formData.aboutMe.trim();
+      const trimmedCollege = formData.college.trim();
+      const trimmedFieldOfStudy = formData.fieldOfStudy.trim();
+
+      setFormData(prev => ({
+        ...prev,
+        aboutMe: trimmedAboutMe,
+        college: trimmedCollege,
+        fieldOfStudy: trimmedFieldOfStudy
+      }));
+
       const required = [
         'maritalStatus', 'height', 'weight', 'bodyType', 'complexion', 
-        'physicalStatus', 'education', 'profession', 
+        'physicalStatus', 'motherTongue', 'education', 'profession', 
         'dietaryHabits', 'drinkingHabits', 'smokingHabits', 'aboutMe'
       ];
-      errors = required.filter(f => !formData[f as keyof typeof formData]);
+      
+      const valMap: Record<string, string> = {
+        maritalStatus: formData.maritalStatus,
+        height: formData.height,
+        weight: formData.weight,
+        bodyType: formData.bodyType,
+        complexion: formData.complexion,
+        physicalStatus: formData.physicalStatus,
+        motherTongue: formData.motherTongue,
+        education: formData.education,
+        profession: formData.profession,
+        dietaryHabits: formData.dietaryHabits,
+        drinkingHabits: formData.drinkingHabits,
+        smokingHabits: formData.smokingHabits,
+        aboutMe: trimmedAboutMe
+      };
+
+      errors = required.filter(f => !valMap[f]);
       if (errors.length > 0) {
         setInvalidFields(errors);
         setErrorMsg("Please fill in all mandatory fields.");
@@ -445,11 +654,33 @@ export default function RegisterPage() {
     }
 
     if (currentStep === 3) {
+      const trimmedFathersName = formData.fathersName.trim();
+      const trimmedFathersOccupation = formData.fathersOccupation.trim();
+      const trimmedMothersName = formData.mothersName.trim();
+      const trimmedMothersOccupation = formData.mothersOccupation.trim();
+
+      setFormData(prev => ({
+        ...prev,
+        fathersName: trimmedFathersName,
+        fathersOccupation: trimmedFathersOccupation,
+        mothersName: trimmedMothersName,
+        mothersOccupation: trimmedMothersOccupation
+      }));
+
       const required = [
         'fathersName', 'fathersOccupation', 'mothersName', 'mothersOccupation', 
         'numberOfSiblings'
       ];
-      errors = required.filter(f => !formData[f as keyof typeof formData]);
+
+      const valMap: Record<string, string> = {
+        fathersName: trimmedFathersName,
+        fathersOccupation: trimmedFathersOccupation,
+        mothersName: trimmedMothersName,
+        mothersOccupation: trimmedMothersOccupation,
+        numberOfSiblings: formData.numberOfSiblings
+      };
+
+      errors = required.filter(f => !valMap[f]);
       if (errors.length > 0) {
         setInvalidFields(errors);
         setErrorMsg("Please fill in all mandatory Family Background fields.");
@@ -1052,20 +1283,101 @@ export default function RegisterPage() {
                           <ErrorMessage field="complexion" message="This field is required." />
                         </div>
                       </div>
-                      <div className="space-y-1" id="field-physicalStatus">
-                        <FieldLabel label="Physical Status" field="physicalStatus" />
-                        <select 
-                          value={formData.physicalStatus} 
-                          onChange={(e) => updateFormData('physicalStatus', e.target.value)} 
-                          className={cn(
-                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                            invalidFields.includes('physicalStatus') && "field-error-animation"
-                          )}
-                        >
-                          <option value="">Select Physical Status</option>
-                          {['Normal', 'Physically Challenged'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <ErrorMessage field="physicalStatus" message="This field is required." />
+                      <div className="flex flex-row flex-nowrap gap-4 w-full">
+                        <div className="flex-1 min-w-0 space-y-1" id="field-physicalStatus">
+                          <FieldLabel label="Physical Status" field="physicalStatus" />
+                          <select 
+                            value={formData.physicalStatus} 
+                            onChange={(e) => updateFormData('physicalStatus', e.target.value)} 
+                            className={cn(
+                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                              invalidFields.includes('physicalStatus') && "field-error-animation"
+                            )}
+                          >
+                            <option value="">Select Physical Status</option>
+                            {['Normal', 'Physically Challenged'].map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <ErrorMessage field="physicalStatus" message="This field is required." />
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1" id="field-motherTongue">
+                          <FieldLabel label="Mother Tongue" field="motherTongue" />
+                          <select 
+                            value={formData.motherTongue} 
+                            onChange={(e) => updateFormData('motherTongue', e.target.value)} 
+                            className={cn(
+                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                              invalidFields.includes('motherTongue') && "field-error-animation"
+                            )}
+                          >
+                            <option value="">Select Mother Tongue</option>
+                            {['English', ...INDIAN_LANGUAGES].map(lang => <option key={lang} value={lang}>{lang}</option>)}
+                          </select>
+                          <ErrorMessage field="motherTongue" message="This field is required." />
+                        </div>
+
+                        <div ref={languagesDropdownRef} className="flex-1 min-w-0 space-y-1 relative" id="field-languagesKnown">
+                          <FieldLabel label="Languages I Know" field="languagesKnown" isOptional={true} />
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowLanguagesDropdown(!showLanguagesDropdown)}
+                              className={cn(
+                                "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary",
+                                invalidFields.includes('languagesKnown') && "field-error-animation"
+                              )}
+                            >
+                              <span className="truncate">
+                                {formData.languagesKnown.length > 0
+                                  ? formData.languagesKnown.join(', ')
+                                  : "Select Languages"
+                                }
+                              </span>
+                              <svg className="w-4 h-4 text-on-surface-variant transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            
+                            {showLanguagesDropdown && (
+                              <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-lg shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
+                                <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={formData.languagesKnown.includes('English')}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      const next = checked
+                                        ? [...formData.languagesKnown, 'English']
+                                        : formData.languagesKnown.filter(l => l !== 'English');
+                                      updateFormData('languagesKnown', next);
+                                    }}
+                                    className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  <span className="text-on-surface font-medium">English</span>
+                                </label>
+                                <div className="border-t border-outline-variant my-1"></div>
+                                {INDIAN_LANGUAGES.map(lang => (
+                                  <label key={lang} className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={formData.languagesKnown.includes(lang)}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        const next = checked
+                                          ? [...formData.languagesKnown, lang]
+                                          : formData.languagesKnown.filter(l => l !== lang);
+                                        updateFormData('languagesKnown', next);
+                                      }}
+                                      className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                    />
+                                    <span className="text-on-surface">{lang}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <ErrorMessage field="languagesKnown" message="Please select at least one language." />
+                        </div>
                       </div>
                       
                       <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Career Path</h4>
@@ -1291,71 +1603,129 @@ export default function RegisterPage() {
                 
                 {currentStep === 4 && (
                   <div className="space-y-8">
-                    <h4 className="font-headline text-2xl text-on-surface">Age & Height Preferences</h4>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-2" id="field-ageMin">
-                        <FieldLabel label="Min Age" field="ageMin" />
-                        <select 
-                          value={formData.partnerPreferences.ageMin} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMin: e.target.value})} 
-                          className={cn(
-                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                            invalidFields.includes('ageMin') && "field-error-animation"
-                          )}
-                        >
-                          <option value="">Select Min Age</option>
-                          {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
-                        </select>
-                        <ErrorMessage field="ageMin" message="Required." />
-                      </div>
-                      <div className="space-y-2" id="field-ageMax">
-                        <FieldLabel label="Max Age" field="ageMax" />
-                        <select 
-                          value={formData.partnerPreferences.ageMax} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMax: e.target.value})} 
-                          className={cn(
-                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                            invalidFields.includes('ageMax') && "field-error-animation"
-                          )}
-                        >
-                          <option value="">Select Max Age</option>
-                          {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
-                        </select>
-                        <ErrorMessage field="ageMax" message="Required." />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-2" id="field-heightMin">
-                        <FieldLabel label="Min Height (ft)" field="heightMin" />
-                        <select 
-                          value={formData.partnerPreferences.heightMin} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMin: e.target.value})} 
-                          className={cn(
-                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                            invalidFields.includes('heightMin') && "field-error-animation"
-                          )}
-                        >
-                          <option value="">Select Min Height</option>
-                          {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                        </select>
-                        <ErrorMessage field="heightMin" message="Required." />
+                     <h4 className="font-headline text-2xl text-on-surface">Age, Height & Language Preferences</h4>
+                     <div className="grid grid-cols-2 gap-6">
+                       <div className="space-y-2" id="field-ageMin">
+                         <FieldLabel label="Min Age" field="ageMin" />
+                         <select 
+                           value={formData.partnerPreferences.ageMin} 
+                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMin: e.target.value})} 
+                           className={cn(
+                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                             invalidFields.includes('ageMin') && "field-error-animation"
+                           )}
+                         >
+                           <option value="">Select Min Age</option>
+                           {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
+                         </select>
+                         <ErrorMessage field="ageMin" message="Required." />
                        </div>
-                       <div className="space-y-2" id="field-heightMax">
-                        <FieldLabel label="Max Height (ft)" field="heightMax" />
-                        <select 
-                          value={formData.partnerPreferences.heightMax} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMax: e.target.value})} 
-                          className={cn(
-                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                            invalidFields.includes('heightMax') && "field-error-animation"
-                          )}
-                        >
-                          <option value="">Select Max Height</option>
-                          {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                        </select>
-                        <ErrorMessage field="heightMax" message="Required." />
+                       <div className="space-y-2" id="field-ageMax">
+                         <FieldLabel label="Max Age" field="ageMax" />
+                         <select 
+                           value={formData.partnerPreferences.ageMax} 
+                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMax: e.target.value})} 
+                           className={cn(
+                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                             invalidFields.includes('ageMax') && "field-error-animation"
+                           )}
+                         >
+                           <option value="">Select Max Age</option>
+                           {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
+                         </select>
+                         <ErrorMessage field="ageMax" message="Required." />
                        </div>
-                    </div>
+                     </div>
+                     <div className="grid grid-cols-3 gap-6">
+                        <div className="space-y-2" id="field-heightMin">
+                         <FieldLabel label="Min Height (ft)" field="heightMin" />
+                         <select 
+                           value={formData.partnerPreferences.heightMin} 
+                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMin: e.target.value})} 
+                           className={cn(
+                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                             invalidFields.includes('heightMin') && "field-error-animation"
+                           )}
+                         >
+                           <option value="">Select Min Height</option>
+                           {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
+                         </select>
+                         <ErrorMessage field="heightMin" message="Required." />
+                        </div>
+                        <div className="space-y-2" id="field-heightMax">
+                         <FieldLabel label="Max Height (ft)" field="heightMax" />
+                         <select 
+                           value={formData.partnerPreferences.heightMax} 
+                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMax: e.target.value})} 
+                           className={cn(
+                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                             invalidFields.includes('heightMax') && "field-error-animation"
+                           )}
+                         >
+                           <option value="">Select Max Height</option>
+                           {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
+                         </select>
+                         <ErrorMessage field="heightMax" message="Required." />
+                        </div>
+                        <div ref={prefMotherTongueDropdownRef} className="space-y-2 relative" id="field-pref-motherTongue">
+                          <FieldLabel label="Mother Tongue" field="pref-motherTongue" isOptional={true} />
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowPrefMotherTongueDropdown(!showPrefMotherTongueDropdown)}
+                              className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary"
+                            >
+                              <span className="truncate">
+                                {formData.partnerPreferences.motherTongue.length > 0
+                                  ? formData.partnerPreferences.motherTongue.join(', ')
+                                  : "Any"
+                                }
+                              </span>
+                              <svg className="w-4 h-4 text-on-surface-variant transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            
+                            {showPrefMotherTongueDropdown && (
+                              <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-xl shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
+                                <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={formData.partnerPreferences.motherTongue.includes('English')}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      const next = checked
+                                        ? [...formData.partnerPreferences.motherTongue, 'English']
+                                        : formData.partnerPreferences.motherTongue.filter(l => l !== 'English');
+                                      updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
+                                    }}
+                                    className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  <span className="text-on-surface font-medium">English</span>
+                                </label>
+                                <div className="border-t border-outline-variant my-1"></div>
+                                {INDIAN_LANGUAGES.map(lang => (
+                                  <label key={lang} className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={formData.partnerPreferences.motherTongue.includes(lang)}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        const next = checked
+                                          ? [...formData.partnerPreferences.motherTongue, lang]
+                                          : formData.partnerPreferences.motherTongue.filter(l => l !== lang);
+                                        updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
+                                      }}
+                                      className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                    />
+                                    <span className="text-on-surface">{lang}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                     </div>
 
                     <h4 className="font-headline text-2xl text-on-surface">Lifestyle & References</h4>
                     <div className="grid grid-cols-2 gap-6">
@@ -1416,25 +1786,25 @@ export default function RegisterPage() {
                         <ErrorMessage field="country" message="Required." />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-2" id="field-city">
-                        <FieldLabel label="City Preference" field="city" />
-                        <select 
-                          value={formData.partnerPreferences.city} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, city: e.target.value})} 
-                          disabled={!formData.partnerPreferences.country || formData.partnerPreferences.country === 'Any'}
-                          className={cn(
-                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none disabled:opacity-50",
-                            invalidFields.includes('city') && "field-error-animation"
-                          )}
-                        >
-                            <option value="">Select City</option>
-                            <option value="Any">Any</option>
-                            {getCitiesForCountry(formData.partnerPreferences.country).map(city => <option key={city} value={city}>{city}</option>)}
-                        </select>
-                        <ErrorMessage field="city" message="Required." />
-                      </div>
-                    </div>
+                     <div className="grid grid-cols-2 gap-6">
+                       <div className="space-y-2" id="field-city">
+                         <FieldLabel label="City Preference" field="city" />
+                         <select 
+                           value={formData.partnerPreferences.city} 
+                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, city: e.target.value})} 
+                           disabled={!formData.partnerPreferences.country || formData.partnerPreferences.country === 'Any'}
+                           className={cn(
+                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none disabled:opacity-50",
+                             invalidFields.includes('city') && "field-error-animation"
+                           )}
+                         >
+                             <option value="">Select City</option>
+                             <option value="Any">Any</option>
+                             {getCitiesForCountry(formData.partnerPreferences.country).map(city => <option key={city} value={city}>{city}</option>)}
+                         </select>
+                         <ErrorMessage field="city" message="Required." />
+                       </div>
+                     </div>
                     <div className="space-y-4" id="field-pref-maritalStatus">
                       <FieldLabel label="Marital Status Preference" field="pref-maritalStatus" />
                       <div className={cn(

@@ -13,6 +13,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -29,21 +30,48 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   useEffect(() => {
     if (!user) return;
 
-    // Real-time listener for user profile
-    const unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (doc) => {
-      if (doc.exists()) {
-        setProfile(doc.data());
+    let profileLoaded = false;
+    let adminLoaded = false;
+
+    const checkLoading = () => {
+      if (profileLoaded && adminLoaded) {
+        setLoading(false);
       }
-      setLoading(false);
+    };
+
+    // Real-time listener for user profile
+    const unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setProfile(docSnap.data());
+      } else {
+        setProfile(null);
+      }
+      profileLoaded = true;
+      checkLoading();
     }, (error) => {
       console.error("Error fetching profile:", error);
-      setLoading(false);
+      profileLoaded = true;
+      checkLoading();
     });
 
-    return () => unsubscribeProfile();
+    // Real-time listener for admin status
+    const unsubscribeAdmin = onSnapshot(doc(db, 'admins', user.uid), (docSnap) => {
+      setIsAdmin(docSnap.exists());
+      adminLoaded = true;
+      checkLoading();
+    }, (error) => {
+      console.error("Error fetching admin status:", error);
+      adminLoaded = true;
+      checkLoading();
+    });
+
+    return () => {
+      unsubscribeProfile();
+      unsubscribeAdmin();
+    };
   }, [user]);
 
-  if (loading || (user && !profile)) {
+  if (loading) {
     return (
       <div className="fixed inset-0 bg-[#f9f9f6] flex flex-col items-center justify-center z-50">
         <div className="relative">
@@ -61,41 +89,54 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isOnboardingPath = location.pathname === '/onboarding';
+  // Administrators bypass all standard user matrimonial flow redirections
+  if (isAdmin) {
+    return <>{children}</>;
+  }
 
-  if (profile) {
-    // 1. Strict Email Verification Check (Email Auth Users)
-    if (profile.authProvider === 'email' && !profile.emailVerified) {
-      return <Navigate to="/register" replace />;
-    }
-
-    // 2. Global Status Checks
-    if (profile.isBanned) return <Navigate to="/banned" replace />;
-    if (profile.isSuspended) return <Navigate to="/suspended" replace />;
-    if (profile.approvalStatus === 'rejected') return <Navigate to="/rejected" replace />;
-
-    // Route-specific logic
-    if (isOnboardingPath) {
-      if (profile.onboardingComplete) {
-        if (profile.approvalStatus === 'approved') {
-          return <Navigate to="/dashboard" replace />;
-        }
-        if (profile.approvalStatus === 'pending') {
-          return <Navigate to="/pending-approval" replace />;
-        }
-      }
-      // Otherwise allow access to onboarding
+  // Redirect standard users without a profile to onboarding
+  if (!profile) {
+    if (location.pathname === '/onboarding') {
       return <>{children}</>;
     }
+    return <Navigate to="/onboarding" replace />;
+  }
 
-    // Protection for all other routes
-    if (!profile.onboardingComplete || profile.approvalStatus === 'incomplete') {
-      return <Navigate to="/onboarding" replace />;
-    }
+  // 1. Strict Email Verification Check (Email Auth Users)
+  if (profile.authProvider === 'email' && !profile.emailVerified) {
+    return <Navigate to="/register" replace />;
+  }
 
-    if (profile.approvalStatus === 'pending') {
-      return <Navigate to="/pending-approval" replace />;
+  const status = (profile.status || profile.approvalStatus || '').toLowerCase();
+
+  // 2. Global Status Checks
+  if (status === 'banned' || profile.isBanned) return <Navigate to="/banned" replace />;
+  if (status === 'suspended' || profile.isSuspended) return <Navigate to="/suspended" replace />;
+  if (status === 'rejected') return <Navigate to="/rejected" replace />;
+
+  const isOnboardingPath = location.pathname === '/onboarding';
+
+  // Route-specific logic
+  if (isOnboardingPath) {
+    if (profile.onboardingComplete) {
+      if (status === 'approved') {
+        return <Navigate to="/dashboard" replace />;
+      }
+      if (status === 'not_approved' || status === 'pending') {
+        return <Navigate to="/waiting-room" replace />;
+      }
     }
+    // Otherwise allow access to onboarding
+    return <>{children}</>;
+  }
+
+  // Protection for all other routes
+  if (!profile.onboardingComplete || status === 'incomplete') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (status === 'not_approved' || status === 'pending') {
+    return <Navigate to="/waiting-room" replace />;
   }
 
   return <>{children}</>;

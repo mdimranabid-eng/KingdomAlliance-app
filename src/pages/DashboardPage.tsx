@@ -26,6 +26,14 @@ import {
 import { Link } from 'react-router-dom';
 import { cn, calculateMatchScore } from '../lib/utils';
 
+const getOptimizedImageUrl = (url: string) => {
+  if (!url) return '';
+  if (!url.includes('cloudinary.com')) return url;
+  const parts = url.split('/upload/');
+  if (parts.length !== 2) return url;
+  return `${parts[0]}/upload/c_fill,w_600,h_800,g_face,q_auto,f_auto/${parts[1]}`;
+};
+
 export default function DashboardPage() {
   const { profile, loading: authLoading } = useAuth();
   const [suggestedMatches, setSuggestedMatches] = useState<any[]>([]);
@@ -35,19 +43,42 @@ export default function DashboardPage() {
     const fetchSuggestions = async () => {
       if (!profile) return;
       try {
-        const oppositeGender = profile.gender === 'male' ? 'female' : 'male';
+        const userRole = (profile.profileType || '').toLowerCase();
+        let oppositeRole = 'bride';
+        if (userRole === 'groom') {
+          oppositeRole = 'bride';
+        } else if (userRole === 'bride') {
+          oppositeRole = 'groom';
+        } else {
+          oppositeRole = profile.gender === 'male' ? 'bride' : 'groom';
+        }
+
         const q = query(
           collection(db, 'users'),
-          where('gender', '==', oppositeGender),
+          where('profileType', '==', oppositeRole),
           where('isApproved', '==', true),
-          limit(20)
+          limit(100)
         );
         const snap = await getDocs(q);
-        const docs = snap.docs.map(d => ({
-          id: d.id,
-          ...d.data(),
-          matchScore: calculateMatchScore(profile, d.data())
-        })).sort((a, b) => b.matchScore - a.matchScore).slice(0, 6);
+        const currentUserUid = profile.uid || profile.id;
+        const docs = snap.docs
+          .map(d => ({
+            id: d.id,
+            ...d.data()
+          }) as any)
+          .filter(u => {
+            const uStatus = (u.status || u.approvalStatus || '').toLowerCase();
+            const isApprovedUser = u.isApproved === true || uStatus === 'approved' || uStatus === 'active';
+            const isNotSelf = u.uid !== currentUserUid && u.id !== currentUserUid;
+            const isNotBannedOrPending = uStatus !== 'banned' && uStatus !== 'pending' && uStatus !== 'suspended' && !u.isBanned && !u.isSuspended;
+            return isApprovedUser && isNotSelf && isNotBannedOrPending;
+          })
+          .map(u => ({
+            ...u,
+            matchScore: calculateMatchScore(profile, u)
+          }))
+          .sort((a, b) => b.matchScore - a.matchScore)
+          .slice(0, 2);
         
         setSuggestedMatches(docs);
       } catch (err) {
@@ -232,7 +263,7 @@ export default function DashboardPage() {
                       location={match.location} 
                       denomination={match.denomination}
                       matchScore={match.matchScore}
-                      imageUrl={match.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.id}`}
+                      imageUrl={getOptimizedImageUrl(match.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.id}`}
                     />
                   ))
                 )}

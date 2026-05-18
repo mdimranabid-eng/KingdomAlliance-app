@@ -41,12 +41,36 @@ async function performRetroactiveCleanup() {
       const userDoc = await db.collection('users').doc(uid).get();
 
       if (!userDoc.exists) {
-        // 3. Purge Orphaned account from Authentication
+        // 3. Purge Orphaned account from Authentication and Firestore, and cascade to Photo Moderation
         console.warn(`[ALERT] ORPHANED ACCOUNT IDENTIFIED: ${email} (UID: ${uid})`);
         
         try {
+          // A. Delete Auth credential
           await auth.deleteUser(uid);
-          console.log(`[PURGE] Successfully deleted orphaned credential for email: ${email}`);
+          console.log(`[PURGE] Successfully deleted orphaned Auth credential for email: ${email}`);
+          
+          // B. Delete Firestore user document (with 2s safety timeout for offline/emulated runs)
+          await Promise.race([
+            db.collection('users').doc(uid).delete(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Write timeout - network offline')), 2000))
+          ]).then(() => {
+            console.log(`[PURGE] Executed Firestore document cleanup for UID: ${uid}`);
+          }).catch(err => {
+            console.log(`[PURGE] Firestore document cleanup skipped or timed out: ${err.message}`);
+          });
+
+          // C. Delete matching moderation documents in the 'photoModeration' collection (with 2s safety timeout for offline/emulated runs)
+          const modDocs = await Promise.race([
+            db.collection('photoModeration').where('userId', '==', uid).get(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout - network offline')), 2000))
+          ]).catch(err => {
+            console.log(`[PURGE] photoModeration cascade skipped or timed out: ${err.message}`);
+            return { docs: [] };
+          });
+          const modDeletions = modDocs.docs.map(doc => doc.ref.delete());
+          await Promise.all(modDeletions);
+          console.log(`[PURGE] Cascaded and deleted ${modDeletions.length} photoModeration documents.`);
+
           orphansDeleted++;
         } catch (deleteError) {
           console.error(`[PURGE ERROR] Failed to delete orphaned account ${email}:`, deleteError.message);
