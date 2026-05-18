@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, getDoc, deleteDoc, where, orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin, Printer } from 'lucide-react';
+import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
-import { generateBiodataPDF } from '../../lib/BiodataGenerator';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 import { deleteFromCloudinary } from '../../lib/cloudinary';
 
@@ -425,15 +424,6 @@ export default function RejectedProfilesPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2.5">
-                        <button 
-                          onClick={() => generateBiodataPDF(user)}
-                          className="p-2.5 bg-[#0d9488] text-white rounded-xl hover:bg-[#0f766e] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
-                          title="Print Biodata"
-                        >
-                          <Printer className="w-4 h-4" />
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Print Biodata</span>
-                        </button>
-                        
                         <button 
                           onClick={() => setSelectedUser(user)}
                           className="p-2.5 bg-[#2563eb] text-white rounded-xl hover:bg-[#1d4ed8] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"

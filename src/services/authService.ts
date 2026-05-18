@@ -16,17 +16,19 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
+import { resolveApprovalStatus } from '../lib/utils';
+
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export interface AuthResponse {
   user: User;
   isNewUser: boolean;
-  status?: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended';
+  status?: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended' | 'not_approved';
   onboardingComplete?: boolean;
 }
 
-const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended'; onboardingComplete: boolean }> => {
+const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended' | 'not_approved'; onboardingComplete: boolean }> => {
   const userRef = doc(db, 'users', user.uid);
   const userDoc = await getDoc(userRef);
 
@@ -51,8 +53,7 @@ const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status
   const data = userDoc.data();
 
   // Determine status
-  let status: 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended' = 
-    (data.status || data.approvalStatus || 'incomplete') as any;
+  let status = resolveApprovalStatus(data);
 
   if (data.isBanned) {
     status = 'banned';

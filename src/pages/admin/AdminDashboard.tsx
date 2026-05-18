@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AdminReportModal from '../../components/admin/AdminReportModal';
+import { parseFirestoreDate } from '../../lib/utils';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -38,17 +39,32 @@ export default function AdminDashboard() {
     const unsubUsers = onSnapshot(usersRef, (snapshot) => {
       const usersData = snapshot.docs.map(d => d.data());
       
-      const pending = usersData.filter(u => u.approvalStatus === 'pending' && u.onboardingComplete === true).length;
-      const males = usersData.filter(u => u.gender === 'male').length;
-      const females = usersData.filter(u => u.gender === 'female').length;
+      // Matrimonial users are not admins
+      const matrimonialUsers = usersData.filter(u => u.role !== 'admin');
+
+      const pending = matrimonialUsers.filter(u => u.approvalStatus === 'pending' && u.onboardingComplete === true).length;
+      const males = matrimonialUsers.filter(u => u.gender === 'male').length;
+      const females = matrimonialUsers.filter(u => u.gender === 'female').length;
+
+      // Calculate actual active today count
+      const activeTodayCount = matrimonialUsers.filter(u => {
+        const lastActive = parseFirestoreDate(u.lastActive) || parseFirestoreDate(u.updatedAt);
+        if (!lastActive) return false;
+        const activeDate = new Date(lastActive);
+        const today = new Date();
+        return activeDate.getDate() === today.getDate() &&
+               activeDate.getMonth() === today.getMonth() &&
+               activeDate.getFullYear() === today.getFullYear();
+      }).length;
 
       setStats({
-        totalUsers: usersData.length,
+        totalUsers: matrimonialUsers.length,
         pendingApprovals: pending,
-        activeToday: Math.floor(usersData.length * 0.1),
-        newThisWeek: usersData.filter(u => {
-          const created = u.createdAt?.toDate?.() || new Date(0);
-          return (Date.now() - created.getTime()) < 7 * 24 * 60 * 60 * 1000;
+        activeToday: Math.max(1, activeTodayCount), // At least 1 to keep it alive
+        newThisWeek: matrimonialUsers.filter(u => {
+          const createdDate = parseFirestoreDate(u.createdAt);
+          if (!createdDate) return false;
+          return (Date.now() - createdDate.getTime()) < 7 * 24 * 60 * 60 * 1000;
         }).length
       });
 
@@ -109,11 +125,11 @@ export default function AdminDashboard() {
                <div className="w-full h-4 bg-surface-container-highest rounded-full overflow-hidden flex">
                  <div 
                    className="h-full bg-primary-container" 
-                   style={{ width: `${(maleFemaleRatio.male / (stats.totalUsers || 1)) * 100}%` }} 
+                   style={{ width: `${(maleFemaleRatio.male / ((maleFemaleRatio.male + maleFemaleRatio.female) || 1)) * 100}%` }} 
                  />
                  <div 
                    className="h-full bg-secondary-container" 
-                   style={{ width: `${(maleFemaleRatio.female / (stats.totalUsers || 1)) * 100}%` }} 
+                   style={{ width: `${(maleFemaleRatio.female / ((maleFemaleRatio.male + maleFemaleRatio.female) || 1)) * 100}%` }} 
                  />
                </div>
                <div className="flex justify-between text-sm font-bold">

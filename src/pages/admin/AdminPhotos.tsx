@@ -11,7 +11,8 @@ import {
   arrayUnion, 
   getDoc,
   Timestamp,
-  orderBy
+  orderBy,
+  addDoc
 } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -30,6 +31,9 @@ import {
 } from 'lucide-react';
 import { cn, formatRelativeTime } from '../../lib/utils';
 
+// Legacy email triggers removed; now processed securely on the backend server.
+
+
 interface ModerationItem {
   id: string;
   uid: string;
@@ -41,6 +45,7 @@ interface ModerationItem {
   galleryPosition: number | null;
   photoStatus: 'pending' | 'approved' | 'rejected';
   uploadedAt: any;
+  isSynthesized?: boolean;
 }
 
 const REJECTION_REASONS = [
@@ -65,6 +70,24 @@ export default function AdminPhotos() {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    let activeModeration: ModerationItem[] = [];
+    let activeUsers: ModerationItem[] = [];
+
+    const updateCombinedItems = () => {
+      const moderationUids = new Set(activeModeration.map(item => item.uid));
+      const filteredUsers = activeUsers.filter(userItem => !moderationUids.has(userItem.uid));
+      const combined = [...activeModeration, ...filteredUsers];
+
+      combined.sort((a, b) => {
+        const timeA = a.uploadedAt?.toDate?.()?.getTime() || a.uploadedAt?.seconds || 0;
+        const timeB = b.uploadedAt?.toDate?.()?.getTime() || b.uploadedAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setItems(combined);
+      setStats(prev => ({ ...prev, pending: combined.length }));
+    };
+
     // 1. Listen for pending photos in the photoModeration collection directly
     const qPending = query(
       collection(db, 'photoModeration'), 
@@ -72,7 +95,7 @@ export default function AdminPhotos() {
     );
 
     const unsubscribePending = onSnapshot(qPending, (snapshot) => {
-      const newItems = snapshot.docs.map(doc => {
+      activeModeration = snapshot.docs.map(doc => {
         const data = doc.data();
         const userName = data.userName || data.name || 'Unnamed User';
         return {
@@ -89,22 +112,45 @@ export default function AdminPhotos() {
         };
       }) as ModerationItem[];
 
-      // Sort client-side in desc order of uploadedAt
-      newItems.sort((a, b) => {
-        const timeA = a.uploadedAt?.toDate?.()?.getTime() || a.uploadedAt?.seconds || 0;
-        const timeB = b.uploadedAt?.toDate?.()?.getTime() || b.uploadedAt?.seconds || 0;
-        return timeB - timeA;
-      });
-
-      setItems(newItems);
-      setStats(prev => ({ ...prev, pending: newItems.length }));
+      updateCombinedItems();
       setLoading(false);
     }, (error) => {
       console.error("Error listening for pending photos:", error);
       setLoading(false);
     });
 
-    // 2. Listen for stats (Approved/Rejected Today)
+    // 2. Safety Net: Listen for users with photoStatus == 'pending' (to reconcile missing moderation records)
+    const qPendingUsers = query(
+      collection(db, 'users'),
+      where('photoStatus', '==', 'pending')
+    );
+
+    const unsubscribePendingUsers = onSnapshot(qPendingUsers, (snapshot) => {
+      activeUsers = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const userName = data.name ? `${data.name} ${data.lastName || ''}`.trim() : 'Unnamed User';
+        const photo = data.pendingPhotoUrl || data.photoUrl || data.photoURL || '';
+        return {
+          id: `user-sync-${doc.id}`,
+          uid: doc.id,
+          userName: userName,
+          photoURL: photo,
+          photoUrl: photo,
+          pendingPhotoUrl: photo,
+          photoType: 'profilePhoto',
+          galleryPosition: null,
+          photoStatus: 'pending',
+          uploadedAt: data.submittedAt || data.updatedAt || null,
+          isSynthesized: true
+        };
+      }) as ModerationItem[];
+
+      updateCombinedItems();
+    }, (error) => {
+      console.error("Error listening for pending users:", error);
+    });
+
+    // 3. Listen for stats (Approved/Rejected Today)
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const todayTimestamp = Timestamp.fromDate(startOfToday);
@@ -125,75 +171,34 @@ export default function AdminPhotos() {
 
     return () => {
       unsubscribePending();
+      unsubscribePendingUsers();
       unsubscribeStats();
     };
   }, []);
 
   const handleApprove = async (item: ModerationItem) => {
     setProcessingId(item.id);
-    const adminId = auth.currentUser?.uid || 'system';
 
     try {
-      // 1. Try updating photoModeration collection
-      try {
-        await updateDoc(doc(db, 'photoModeration', item.id), {
-          photoStatus: 'approved',
-          status: 'approved',
-          reviewedAt: serverTimestamp(),
-          reviewedBy: adminId
-        });
-      } catch (e) {
-        console.log("No photoModeration document to update");
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('http://localhost:3001/api/admin/approve-photo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ item })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to approve photo');
       }
 
-      // 2. Update User Document
-      if (item.uid) {
-        const userRef = doc(db, 'users', item.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          const targetPhoto = item.pendingPhotoUrl || item.photoURL;
-          
-          if (item.photoType === 'profilePhoto') {
-            await updateDoc(userRef, {
-              photoUrl: targetPhoto,
-              photoURL: targetPhoto,
-              pendingPhotoUrl: '',
-              photoStatus: 'approved',
-              updatedAt: serverTimestamp(),
-              notifications: arrayUnion({
-                id: crypto.randomUUID(),
-                title: 'Photo Approved',
-                message: 'Your profile photo has been approved.',
-                type: 'success',
-                read: false,
-                createdAt: new Date().toISOString()
-              })
-            });
-          } else {
-            const gallery = userData.gallery || [];
-            const updatedGallery = gallery.map((p: any) => 
-              p.url === item.photoURL ? { ...p, status: 'approved' } : p
-            );
-            
-            await updateDoc(userRef, {
-              gallery: updatedGallery,
-              updatedAt: serverTimestamp(),
-              notifications: arrayUnion({
-                id: crypto.randomUUID(),
-                title: 'Gallery Photo Approved',
-                message: 'Your gallery photo has been approved.',
-                type: 'success',
-                read: false,
-                createdAt: new Date().toISOString()
-              })
-            });
-          }
-        }
-      }
+      console.log("Photo approved successfully via backend.");
     } catch (err) {
       console.error("Error approving photo:", err);
+      alert(err instanceof Error ? err.message : "Error approving photo");
     } finally {
       setProcessingId(null);
     }
@@ -206,64 +211,33 @@ export default function AdminPhotos() {
     if (!finalReason) return;
 
     setProcessingId(item.id);
-    const adminId = auth.currentUser?.uid || 'system';
 
     try {
-      // 1. Try updating photoModeration collection
-      try {
-        await updateDoc(doc(db, 'photoModeration', item.id), {
-          photoStatus: 'rejected',
-          status: 'rejected',
-          reviewedAt: serverTimestamp(),
-          reviewedBy: adminId,
-          rejectedReason: finalReason
-        });
-      } catch (e) {
-        console.log("No photoModeration document to update");
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('http://localhost:3001/api/admin/reject-photo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ item, reason: finalReason })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reject photo');
       }
 
-      // 2. Notify User and clear pending photo state on user document
-      if (item.uid) {
-        const userRef = doc(db, 'users', item.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          if (item.photoType === 'profilePhoto') {
-            await updateDoc(userRef, {
-              photoStatus: 'rejected',
-              pendingPhotoUrl: '',
-              notifications: arrayUnion({
-                id: crypto.randomUUID(),
-                title: 'Profile Photo Rejected',
-                message: `Your profile photo was not approved: ${finalReason}. Please upload a new one.`,
-                type: 'alert',
-                read: false,
-                createdAt: new Date().toISOString()
-              }),
-              updatedAt: serverTimestamp()
-            });
-          } else {
-            const gallery = userSnap.data().gallery || [];
-            const updatedGallery = gallery.map((p: any) => 
-              p.url === item.photoURL ? { ...p, status: 'rejected', rejectionReason: finalReason } : p
-            );
-            await updateDoc(userRef, {
-              gallery: updatedGallery,
-              notifications: arrayUnion({
-                id: crypto.randomUUID(),
-                title: 'Gallery Photo Rejected',
-                message: `Your gallery photo was not approved: ${finalReason}.`,
-                type: 'alert',
-                read: false,
-                createdAt: new Date().toISOString()
-              }),
-              updatedAt: serverTimestamp()
-            });
-          }
-        }
-      }
+      console.log("Photo rejected successfully via backend.");
+      
+      // Close rejection dialog
+      setRejectionStates(prev => ({
+        ...prev,
+        [item.id]: { isOpen: false, reason: '', customReason: '' }
+      }));
     } catch (err) {
       console.error("Error rejecting photo:", err);
+      alert(err instanceof Error ? err.message : "Error rejecting photo");
     } finally {
       setProcessingId(null);
     }

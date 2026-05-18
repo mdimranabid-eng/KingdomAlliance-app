@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, where, orderBy, limit, deleteDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Printer, Eye, UserX, UserCheck } from 'lucide-react';
+import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Eye, UserX, UserCheck } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import { seedTestData } from '../../lib/seeder';
-import { generateBiodataPDF } from '../../lib/BiodataGenerator';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 import { deleteFromCloudinary } from '../../lib/cloudinary';
 
@@ -18,11 +17,12 @@ interface UserProfile {
   lastName?: string;
   email: string;
   profileType: 'bride' | 'groom';
-  status: 'active' | 'suspended' | 'blocked';
+  status: 'active' | 'suspended' | 'blocked' | 'inactive';
   isApproved: boolean;
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   mobileNumber?: string;
   createdAt: any;
+  lastLoginAt?: any;
   photoUrl?: string;
   photoStatus?: 'pending' | 'approved' | 'rejected' | 'none';
   pendingPhotoUrl?: string;
@@ -113,7 +113,7 @@ export default function AdminUserManagement() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'suspended' | 'blocked'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'blocked'>('all');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
@@ -311,6 +311,29 @@ export default function AdminUserManagement() {
     }
   };
 
+  const getEffectiveStatus = (user: UserProfile) => {
+    if (user.status === 'suspended' || user.status === 'blocked') {
+      return user.status;
+    }
+    
+    // Check lastLoginAt
+    if (user.lastLoginAt) {
+      const lastLoginDate = user.lastLoginAt.toDate ? user.lastLoginAt.toDate() : new Date(user.lastLoginAt);
+      const daysDiff = (Date.now() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > 40) {
+        return 'inactive';
+      }
+    } else if (user.createdAt) {
+      const createdDate = user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt);
+      const daysDiff = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > 40) {
+        return 'inactive';
+      }
+    }
+    
+    return user.status || 'active';
+  };
+
   const filteredUsers = users.filter(u => {
     // Exclude users awaiting approval as they belong in the Approvals page
     if (u.approvalStatus === 'pending' || !u.isApproved) {
@@ -318,7 +341,8 @@ export default function AdminUserManagement() {
     }
     const matchesSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           u.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || u.status === filterStatus;
+    const effectiveStatus = getEffectiveStatus(u);
+    const matchesFilter = filterStatus === 'all' || effectiveStatus === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
@@ -363,6 +387,7 @@ export default function AdminUserManagement() {
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
+            <option value="inactive">Inactive (&gt;40 days)</option>
             <option value="suspended">Suspended</option>
             <option value="blocked">Blocked</option>
           </select>
@@ -422,14 +447,20 @@ export default function AdminUserManagement() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                       <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 w-fit",
-                        user.status === 'active' ? "bg-green-100 text-green-700" : 
-                        user.status === 'suspended' ? "bg-gold/10 text-gold" : "bg-error/10 text-error"
-                      )}>
-                        <div className="w-1 h-1 rounded-full bg-current" />
-                        {user.status}
-                      </span>
+                      {(() => {
+                        const effectiveStatus = getEffectiveStatus(user);
+                        return (
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 w-fit",
+                            effectiveStatus === 'active' ? "bg-green-100 text-green-700" : 
+                            effectiveStatus === 'inactive' ? "bg-slate-100 text-slate-500" :
+                            effectiveStatus === 'suspended' ? "bg-gold/10 text-gold" : "bg-error/10 text-error"
+                          )}>
+                            <div className="w-1 h-1 rounded-full bg-current" />
+                            {effectiveStatus}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       {user.photoStatus === 'pending' || (user.gallery && user.gallery.some((p: any) => p.status === 'pending')) ? (
@@ -451,15 +482,6 @@ export default function AdminUserManagement() {
                     </td>
                     <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2.5">
-                          <button 
-                            onClick={() => generateBiodataPDF(user)}
-                            className="p-2.5 bg-[#0d9488] text-white rounded-xl hover:bg-[#0f766e] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
-                            title="Print Biodata"
-                          >
-                            <Printer className="w-4 h-4" />
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Print Biodata</span>
-                          </button>
-                          
                           <button 
                             onClick={() => setSelectedUser(user)}
                             className="p-2.5 bg-[#2563eb] text-white rounded-xl hover:bg-[#1d4ed8] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"

@@ -15,6 +15,7 @@ import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { HEIGHT_FT, WORLD_COUNTRIES, getCitiesForCountry, AGE_OPTIONS } from '../lib/locationData';
 import { sendEmail } from '../lib/email';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const STEPS = [
   { id: 1, title: 'Basic Info', description: 'Who are you?' },
@@ -142,6 +143,7 @@ export default function RegisterPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showLimitAlert, setShowLimitAlert] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
@@ -421,13 +423,28 @@ export default function RegisterPage() {
       return;
     }
 
+    const currentCount = formData.gallery.length;
+    const remainingSlots = 3 - currentCount;
+
+    if (remainingSlots <= 0) {
+      setShowLimitAlert(true);
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+      return;
+    }
+
+    if (files.length > remainingSlots) {
+      setShowLimitAlert(true);
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+      return;
+    }
+
     setUploading(true);
     try {
       const newPhotos = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         if (!file.type.match('image/jp.*')) {
-          console.warn(`Skipping ${file.name}: Only .Jpg files allowed.`);
+          console.warn(`Skipping ${file.name}: Only .jpg files allowed.`);
           continue;
         }
         if (file.size > 3 * 1024 * 1024) {
@@ -472,8 +489,28 @@ export default function RegisterPage() {
     }
   };
 
-  const removeGalleryPhoto = (id: string) => {
-    updateFormData('gallery', formData.gallery.filter(p => p.id !== id));
+  const removeGalleryPhoto = async (id: string) => {
+    const targetPhoto = formData.gallery.find(p => p.id === id);
+    if (targetPhoto) {
+      const deletedPhotoUrl = targetPhoto.url;
+      updateFormData('gallery', formData.gallery.filter(p => p.id !== id));
+      
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        try {
+          const q = query(
+            collection(db, 'photoModeration'),
+            where('uid', '==', currentUser.uid),
+            where('photoURL', '==', deletedPhotoUrl)
+          );
+          const querySnapshot = await getDocs(q);
+          const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
+        } catch (err) {
+          console.error("Failed to delete photo moderation document:", err);
+        }
+      }
+    }
   };
 
   const scrollToFirstError = (errors: string[]) => {
@@ -1934,8 +1971,11 @@ export default function RegisterPage() {
                             )}
                             <button 
                               type="button"
-                              onClick={() => removeGalleryPhoto(photo.id)} 
-                              className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeGalleryPhoto(photo.id);
+                              }} 
+                              className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition-all z-20"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -1995,6 +2035,17 @@ export default function RegisterPage() {
           </div>
         </div>
       </main>
+
+      <ConfirmationModal
+        isOpen={showLimitAlert}
+        onClose={() => setShowLimitAlert(false)}
+        onConfirm={() => setShowLimitAlert(false)}
+        title="Upload Limit Reached"
+        message="You have reached the maximum limit of photo you can upload"
+        confirmText="OK"
+        isDestructive={false}
+        singleButton={true}
+      />
     </div>
   );
 }

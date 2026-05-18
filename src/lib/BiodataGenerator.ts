@@ -94,14 +94,18 @@ export const generateBiodataPDF = async (user: any) => {
       doc.setDrawColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
       doc.setLineWidth(1);
       doc.circle(photoX + (photoSize / 2), photoY + (photoSize / 2), photoSize / 2, 'S');
-      doc.addImage(photoBase64, 'JPEG', photoX, photoY, photoSize, photoSize, undefined, 'FAST');
+      try {
+        doc.addImage(photoBase64, 'JPEG', photoX, photoY, photoSize, photoSize, undefined, 'FAST');
+      } catch (err) {
+        console.error("Failed to add profile photo to PDF:", err);
+      }
     }
 
     // Name & Basic Info
     doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
     doc.setFont('times', 'bold'); // Placeholder for Playfair
     doc.setFontSize(24);
-    doc.text(`${user.name} ${user.lastName || ''}`.toUpperCase(), 45, 22);
+    doc.text(`${user.name || ''} ${user.lastName || ''}`.toUpperCase().trim(), 45, 22);
 
     doc.setTextColor(COLORS.GOLD[0], COLORS.GOLD[1], COLORS.GOLD[2]);
     doc.setFontSize(11);
@@ -297,5 +301,12 @@ export const generateBiodataPDF = async (user: any) => {
 
   mainY = addPreferenceGrid(user.partnerPreferences, mainY);
 
-  doc.save(`${user.name.replace(/\s+/g, '_')}_Biodata_Premium.pdf`);
+  let profileName = '';
+  if (user.name) profileName += user.name;
+  if (user.middleName) profileName += ' ' + user.middleName;
+  if (user.lastName) profileName += ' ' + user.lastName;
+  profileName = profileName.replace(/\s+/g, ' ').trim() || 'Profile';
+
+  const sanitizedName = profileName.replace(/[/\\?%*:|"<>]/g, '').trim();
+  doc.save(`${sanitizedName}.pdf`);
 };

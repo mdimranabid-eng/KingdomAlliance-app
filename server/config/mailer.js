@@ -1,59 +1,78 @@
-import emailjs from '@emailjs/browser';
+'use strict';
 
-// Initialize EmailJS with Public Key
-const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-if (PUBLIC_KEY && PUBLIC_KEY !== 'your_public_key') {
-  emailjs.init(PUBLIC_KEY);
+const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
+
+// ─── Manual Environment Variable Loader ──────────────────────────────────────
+// Loads variables from the root .env file so the backend node process can access SMTP keys.
+function loadEnv() {
+  const envPath = path.resolve(__dirname, '../../.env');
+  if (fs.existsSync(envPath)) {
+    const data = fs.readFileSync(envPath, { encoding: 'utf8' });
+    const lines = data.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const idx = trimmed.indexOf('=');
+      if (idx === -1) continue;
+      const key = trimmed.slice(0, idx).trim();
+      const val = trimmed.slice(idx + 1).trim();
+      process.env[key] = val;
+    }
+  }
 }
 
-export interface EmailData {
-  to_email: string;
-  to_name?: string;
-  otp_code?: string;
-  reset_link?: string;
-  type: 'otp' | 'welcome' | 'interest';
+loadEnv();
+
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+
+const isPlaceholder = !SMTP_USER || !SMTP_PASS || SMTP_USER.includes('your_') || SMTP_PASS.includes('your_');
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+let transporter;
+
+if (!isPlaceholder) {
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465, // True for 465, false for other ports
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    },
+    tls: {
+      rejectUnauthorized: isProduction
+    }
+  });
+
+  // Verify connection configuration on startup
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('❌ [Mailer] SMTP connection verification FAILED:', error);
+    } else {
+      console.log('✅ [Mailer] SMTP transporter successfully verified & active!');
+    }
+  });
+} else {
+  console.warn('⚠️ [Mailer] SMTP credentials missing or using placeholders. Mailer will run in SIMULATION mode.');
 }
 
-export const sendEmail = async (data: EmailData) => {
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = data.type === 'otp' ? import.meta.env.VITE_EMAILJS_OTP_TEMPLATE_ID : import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
-    console.warn('⚠️ EmailJS credentials missing or using default placeholders. Simulating successful email dispatch.', data);
-    return { status: 200, text: 'Simulated success' };
-  }
-
-  try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: data.to_email,
-        to_name: data.to_name || 'User',
-        otp_code: data.otp_code,
-        reset_link: data.reset_link,
-      }
-    );
-    return response;
-  } catch (error) {
-    console.error('Failed to send email:', error);
-    throw error;
-  }
-};
-
-// ─── PROFILE PHOTO PIPELINE ──────────────────────────────────────────────────
+// ─── SMTP Notification Pipelines ─────────────────────────────────────────────
 
 /**
+ * 1. PROFILE PHOTO APPROVAL PIPELINE
  * Sends an email notification when a user's primary profile photo is approved.
  */
-export const sendProfilePhotoApprovalEmail = async (userEmail: string, userName: string) => {
+async function sendProfilePhotoApprovalEmail(userEmail, userName) {
   const subject = "Kingdom Alliance | Your Profile Photo Has Been Approved! 🎉";
-  
+  const fromName = "Kingdom Alliance";
+  const fromEmail = SMTP_USER || "no-reply@kingdomalliance.com";
+
   const htmlContent = `
 <div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
   <div style="text-align: center; margin-bottom: 32px;">
@@ -79,48 +98,40 @@ export const sendProfilePhotoApprovalEmail = async (userEmail: string, userName:
 </div>
   `;
 
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
+  if (isPlaceholder || !transporter) {
     console.log(`\n==================================================`);
     console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
     console.log(`Subject: ${subject}`);
     console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nWe are pleased to inform you that your primary Profile Photo has been successfully reviewed and approved by our team. Your profile is now fully visible to other members and is actively appearing in match recommendations. Thank you for maintaining an authentic community profile!`);
+    console.log(`Content:\nWe are pleased to inform you that your primary Profile Photo has been approved.`);
     console.log(`==================================================\n`);
     return { status: 200, text: 'Simulated success' };
   }
 
   try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nWe are pleased to inform you that your primary Profile Photo has been successfully reviewed and approved by our team. Your profile is now fully visible to other members and is actively appearing in match recommendations. Thank you for maintaining an authentic community profile!`
-      }
-    );
-    return response;
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: userEmail,
+      subject: subject,
+      html: htmlContent,
+      text: `Dear ${userName},\n\nWe are pleased to inform you that your primary Profile Photo has been successfully reviewed and approved by our team. Your profile is now fully visible to other members and is actively appearing in match recommendations. Thank you for maintaining an authentic community profile!`
+    });
+    console.log(`📧 [Mailer] Profile Photo Approval email sent to ${userEmail}. MessageId: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.error('Failed to send profile photo approval email:', error);
+    console.error(`❌ [Mailer] Failed to send Profile Photo Approval email to ${userEmail}:`, error);
     throw error;
   }
-};
+}
 
 /**
+ * 2. PROFILE PHOTO REJECTION PIPELINE
  * Sends an email notification when a user's primary profile photo is rejected.
  */
-export const sendProfilePhotoRejectionEmail = async (userEmail: string, userName: string, rejectionReason: string) => {
+async function sendProfilePhotoRejectionEmail(userEmail, userName, rejectionReason) {
   const subject = "Action Required: Kingdom Alliance Profile Photo Update ⚠️";
+  const fromName = "Kingdom Alliance";
+  const fromEmail = SMTP_USER || "no-reply@kingdomalliance.com";
 
   const htmlContent = `
 <div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
@@ -150,50 +161,40 @@ export const sendProfilePhotoRejectionEmail = async (userEmail: string, userName
 </div>
   `;
 
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
+  if (isPlaceholder || !transporter) {
     console.log(`\n==================================================`);
     console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
     console.log(`Subject: ${subject}`);
     console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nDuring our routine safety verification, your primary Profile Photo was declined for the following reason: ${rejectionReason}. As a result, your primary photo has been safely blurred on your profile layout. Please log in to your dashboard to upload a conforming profile picture so matches can see you clearly.`);
+    console.log(`Content:\nYour primary Profile Photo was declined. Reason: ${rejectionReason}`);
     console.log(`==================================================\n`);
     return { status: 200, text: 'Simulated success' };
   }
 
   try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nDuring our routine safety verification, your primary Profile Photo was declined for the following reason: ${rejectionReason}. As a result, your primary photo has been safely blurred on your profile layout. Please log in to your dashboard to upload a conforming profile picture so matches can see you clearly.`
-      }
-    );
-    return response;
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: userEmail,
+      subject: subject,
+      html: htmlContent,
+      text: `Dear ${userName},\n\nDuring our routine safety verification, your primary Profile Photo was declined for the following reason:\n\n"${rejectionReason}"\n\nAs a result, your photo has been safely blurred on your profile. Please log in to upload a conforming profile picture.`
+    });
+    console.log(`📧 [Mailer] Profile Photo Rejection email sent to ${userEmail}. MessageId: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.error('Failed to send profile photo rejection email:', error);
+    console.error(`❌ [Mailer] Failed to send Profile Photo Rejection email to ${userEmail}:`, error);
     throw error;
   }
-};
-
-// ─── GALLERY / STORY PHOTO PIPELINE ──────────────────────────────────────────
+}
 
 /**
+ * 3. GALLERY PHOTO APPROVAL PIPELINE
  * Sends an email notification when a user's gallery photo is approved.
  */
-export const sendGalleryPhotoApprovalEmail = async (userEmail: string, userName: string) => {
+async function sendGalleryPhotoApprovalEmail(userEmail, userName) {
   const subject = "Kingdom Alliance | Your New Gallery Photo Is Live! 📸";
+  const fromName = "Kingdom Alliance";
+  const fromEmail = SMTP_USER || "no-reply@kingdomalliance.com";
 
   const htmlContent = `
 <div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
@@ -220,53 +221,45 @@ export const sendGalleryPhotoApprovalEmail = async (userEmail: string, userName:
 </div>
   `;
 
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
+  if (isPlaceholder || !transporter) {
     console.log(`\n==================================================`);
     console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
     console.log(`Subject: ${subject}`);
     console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nGreat news! The photo you recently uploaded to your personal album/gallery has passed moderation and is now live. Other members visiting your full profile can now view this update in your media gallery.`);
+    console.log(`Content:\nGreat news! The photo you recently uploaded to your gallery is now live.`);
     console.log(`==================================================\n`);
     return { status: 200, text: 'Simulated success' };
   }
 
   try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nGreat news! The photo you recently uploaded to your personal album/gallery has passed moderation and is now live. Other members visiting your full profile can now view this update in your media gallery.`
-      }
-    );
-    return response;
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: userEmail,
+      subject: subject,
+      html: htmlContent,
+      text: `Dear ${userName},\n\nGreat news! The photo you recently uploaded to your personal album/gallery has passed moderation and is now live. Other members visiting your full profile can now view this update in your media gallery.`
+    });
+    console.log(`📧 [Mailer] Gallery Photo Approval email sent to ${userEmail}. MessageId: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.error('Failed to send gallery photo approval email:', error);
+    console.error(`❌ [Mailer] Failed to send Gallery Photo Approval email to ${userEmail}:`, error);
     throw error;
   }
-};
+}
 
 /**
+ * 4. GALLERY PHOTO REJECTION PIPELINE
  * Sends an email notification when a user's gallery photo is rejected.
  */
-export const sendGalleryPhotoRejectionEmail = async (userEmail: string, userName: string, rejectionReason: string) => {
-  const subject = "Update: Kingdom Alliance Gallery Photo Notification ℹ️";
+async function sendGalleryPhotoRejectionEmail(userEmail, userName, rejectionReason) {
+  const subject = "Update: Kingdom Alliance Gallery Photo Notification ℹ";
+  const fromName = "Kingdom Alliance";
+  const fromEmail = SMTP_USER || "no-reply@kingdomalliance.com";
 
   const htmlContent = `
 <div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
   <div style="text-align: center; margin-bottom: 32px;">
-    <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; background-color: rgba(149, 141, 165, 0.1); border-radius: 16px; margin-bottom: 16px; color: #958DA5; font-size: 28px; font-weight: bold; text-align: center;">ℹ️</div>
+    <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; background-color: rgba(149, 141, 165, 0.1); border-radius: 16px; margin-bottom: 16px; color: #958DA5; font-size: 28px; font-weight: bold; text-align: center;">ℹ</div>
     <h2 style="font-size: 24px; font-weight: 800; color: #1C1B1F; margin: 0; font-family: 'Outfit', 'Inter', sans-serif;">Kingdom Alliance</h2>
     <p style="font-size: 13px; color: #958DA5; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Media Gallery Notification</p>
   </div>
@@ -291,40 +284,35 @@ export const sendGalleryPhotoRejectionEmail = async (userEmail: string, userName
 </div>
   `;
 
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
+  if (isPlaceholder || !transporter) {
     console.log(`\n==================================================`);
     console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
     console.log(`Subject: ${subject}`);
     console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nWe are writing to let you know that an image uploaded to your personal media gallery/album did not meet our community guidelines and was declined for the following reason: ${rejectionReason}. Please note that your primary profile status and overall visibility remain completely unaffected; only this specific gallery item has been hidden. You are welcome to upload an alternative photo to your album at any time.`);
+    console.log(`Content:\nA gallery photo was declined. Reason: ${rejectionReason}`);
     console.log(`==================================================\n`);
     return { status: 200, text: 'Simulated success' };
   }
 
   try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nWe are writing to let you know that an image uploaded to your personal media gallery/album did not meet our community guidelines and was declined for the following reason: ${rejectionReason}. Please note that your primary profile status and overall visibility remain completely unaffected; only this specific gallery item has been hidden. You are welcome to upload an alternative photo to your album at any time.`
-      }
-    );
-    return response;
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: userEmail,
+      subject: subject,
+      html: htmlContent,
+      text: `Dear ${userName},\n\nWe are writing to let you know that an image uploaded to your personal media gallery/album did not meet our community guidelines and was declined for the following reason:\n\n"${rejectionReason}"\n\nOnly this specific item was hidden; your primary status is completely unaffected.`
+    });
+    console.log(`📧 [Mailer] Gallery Photo Rejection email sent to ${userEmail}. MessageId: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.error('Failed to send gallery photo rejection email:', error);
+    console.error(`❌ [Mailer] Failed to send Gallery Photo Rejection email to ${userEmail}:`, error);
     throw error;
   }
-};
+}
 
+module.exports = {
+  sendProfilePhotoApprovalEmail,
+  sendProfilePhotoRejectionEmail,
+  sendGalleryPhotoApprovalEmail,
+  sendGalleryPhotoRejectionEmail
+};

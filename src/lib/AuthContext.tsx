@@ -62,6 +62,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profileDoc?.exists()) {
         const data = profileDoc.data();
         setProfile(data);
+
+        // Update login stats if lastLoginAt is blank, >40 days ago, or status is currently 'inactive'
+        const lastLogin = data.lastLoginAt?.toDate?.() || (data.lastLoginAt ? new Date(data.lastLoginAt) : null);
+        const daysDiff = lastLogin ? (Date.now() - lastLogin.getTime()) / (1000 * 60 * 60 * 24) : 999;
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+        if (!lastLogin || lastLogin < fiveMinutesAgo || data.status === 'inactive' || daysDiff > 40) {
+          try {
+            const { updateDoc, doc, serverTimestamp } = await import('firebase/firestore');
+            const userRef = doc(db, 'users', uid);
+            const updates: any = {
+              lastLoginAt: serverTimestamp()
+            };
+            if (data.status === 'inactive' || !data.status || daysDiff > 40) {
+              updates.status = 'active';
+            }
+            await updateDoc(userRef, updates);
+          } catch (err) {
+            console.warn("Error updating user active status on login:", err);
+          }
+        }
       } else {
         setProfile(null);
       }

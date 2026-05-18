@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
   confirmText?: string;
   cancelText?: string;
   isDestructive?: boolean;
+  singleButton?: boolean;
 }
 
 export default function ConfirmationModal({
@@ -22,7 +23,8 @@ export default function ConfirmationModal({
   message,
   confirmText = "Yes, Continue",
   cancelText = "No, Cancel",
-  isDestructive = true
+  isDestructive = true,
+  singleButton = false
 }: ConfirmationModalProps) {
   return (
     <AnimatePresence>
@@ -69,12 +71,14 @@ export default function ConfirmationModal({
                 >
                   {confirmText}
                 </button>
-                <button
-                  onClick={onClose}
-                  className="w-full py-4 rounded-2xl font-bold text-sm text-on-surface-variant hover:bg-surface-variant/20 transition-all border border-outline-variant"
-                >
-                  {cancelText}
-                </button>
+                {!singleButton && (
+                  <button
+                    onClick={onClose}
+                    className="w-full py-4 rounded-2xl font-bold text-sm text-on-surface-variant hover:bg-surface-variant/20 transition-all border border-outline-variant"
+                  >
+                    {cancelText}
+                  </button>
+                )}
               </div>
             </div>
 

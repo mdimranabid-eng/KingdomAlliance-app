@@ -23,7 +23,7 @@ import {
 import { collection, query, where, getDocs, orderBy, limit, collectionGroup, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { KingdomCrossIcon } from '../KingdomCrossIcon';
-import { cn } from '../../lib/utils';
+import { cn, parseFirestoreDate } from '../../lib/utils';
 import { format, subDays, startOfDay, isAfter } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -79,7 +79,9 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
     console.log("🚀 Starting live report data fetch...");
     try {
       const usersSnap = await getDocs(collection(db, 'users'));
-      const allUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      const allUsers = usersSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() as any }))
+        .filter(u => u.role !== 'admin');
       
       const now = new Date();
       const currentYear = now.getFullYear();
@@ -91,13 +93,13 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
       const totalUsers = allUsers.length;
       console.log("📊 Card 1 (Total Users):", totalUsers);
 
-      // Card 2: Pending Approvals
-      const pending = allUsers.filter(u => u.approvalStatus === 'pending' || (u.isApproved === false && u.approvalStatus !== 'rejected')).length;
+      // Card 2: Pending Approvals (onboarding complete and pending approvalStatus)
+      const pending = allUsers.filter(u => u.approvalStatus === 'pending' && u.onboardingComplete === true).length;
       console.log("📊 Card 2 (Pending Approvals):", pending);
 
       // Card 3: Active Today
       const activeToday = allUsers.filter(u => {
-        const lastActive = u.lastActive?.toDate?.() || u.updatedAt?.toDate?.();
+        const lastActive = parseFirestoreDate(u.lastActive) || parseFirestoreDate(u.updatedAt);
         if (!lastActive) return false;
         return format(lastActive, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
       }).length;
@@ -105,7 +107,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
 
       // Card 4: New This Week
       const newWeek = allUsers.filter(u => {
-        const created = u.createdAt?.toDate?.();
+        const created = parseFirestoreDate(u.createdAt);
         if (!created) return false;
         return isAfter(created, weekAgo);
       }).length;
@@ -114,7 +116,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
       const maleUsers = allUsers.filter(u => u.gender === 'male');
       const femaleUsers = allUsers.filter(u => u.gender === 'female');
       const newMonth = allUsers.filter(u => {
-        const created = u.createdAt?.toDate?.();
+        const created = parseFirestoreDate(u.createdAt);
         if (!created) return false;
         return isAfter(created, monthAgo);
       }).length;

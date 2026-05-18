@@ -6,6 +6,7 @@ import { Loader2, Eye, EyeOff, CheckCircle2, Heart, Lock as LockIcon } from 'luc
 import { motion } from 'motion/react';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { resolveApprovalStatus } from '../lib/utils';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -36,7 +37,7 @@ export default function LoginPage() {
       }
 
       const data = userDoc.data();
-      const status = (data.status || data.approvalStatus || 'incomplete').toLowerCase();
+      const status = resolveApprovalStatus(data);
 
       if (status === 'banned' || data.isBanned) {
         navigate('/banned');
@@ -191,7 +192,23 @@ export default function LoginPage() {
               <span className="bg-[#f9f9f6] px-4 text-xs text-gray-400 uppercase tracking-widest relative z-10">or sign in with email</span>
             </div>
 
-            <form onSubmit={handleEmailSignIn} className="space-y-4">
+            <form onSubmit={handleEmailSignIn} className="space-y-4" autoComplete="off">
+              {/* Dummy inputs to deceive browser password managers and prevent auto-fill on page load */}
+              <input 
+                type="text" 
+                name="prevent_autofill_email" 
+                style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }} 
+                tabIndex={-1} 
+                aria-hidden="true" 
+              />
+              <input 
+                type="password" 
+                name="prevent_autofill_password" 
+                style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }} 
+                tabIndex={-1} 
+                aria-hidden="true" 
+              />
+
               <div className="space-y-1.5">
                 <input
                   type="email"

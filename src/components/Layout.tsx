@@ -167,8 +167,8 @@ export default function Layout() {
   if (isAdmin) {
     navItems = [
       { label: 'Admin Panel', path: '/admin', icon: ShieldCheck },
-      { label: 'User Approvals', path: '/admin/approvals', icon: CheckCircle, badgeCount: pendingApprovalsCount },
-      { label: 'Photo Moderation', path: '/admin/photos', icon: Camera, badgeCount: pendingPhotosCount },
+      { label: 'User Approvals', path: '/admin/approvals', icon: CheckCircle },
+      { label: 'Photo Moderation', path: '/admin/photos', icon: Camera },
       { label: 'User Management', path: '/admin/users', icon: Users },
       { label: 'Rejected Profiles', path: '/admin/rejected', icon: Ban },
       { label: 'Announcements', path: '/admin/announcements', icon: Megaphone },

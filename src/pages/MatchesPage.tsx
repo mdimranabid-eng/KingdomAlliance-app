@@ -25,7 +25,7 @@ import {
   Ruler
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, handleFirestoreError, OperationType, calculateMatchScore } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus } from '../lib/utils';
 
 const getOptimizedImageUrl = (url: string) => {
   if (!url) return '';
@@ -96,8 +96,8 @@ export default function MatchesPage() {
           ...doc.data()
         }) as any)
         .filter(u => {
-          const uStatus = (u.status || u.approvalStatus || '').toLowerCase();
-          const isApprovedUser = u.isApproved === true || uStatus === 'approved' || uStatus === 'active';
+          const uStatus = resolveApprovalStatus(u);
+          const isApprovedUser = u.isApproved === true || uStatus === 'approved';
           const isNotSelf = u.uid !== currentUserUid && u.id !== currentUserUid;
           const isNotBannedOrPending = uStatus !== 'banned' && uStatus !== 'pending' && uStatus !== 'suspended' && !u.isBanned && !u.isSuspended;
           return isApprovedUser && isNotSelf && isNotBannedOrPending;

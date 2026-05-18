@@ -160,3 +160,29 @@ export function formatRelativeTime(date: any): string {
   
   return targetDate.toLocaleDateString();
 }
+
+export function resolveApprovalStatus(data: any): 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended' | 'not_approved' {
+  const rawApproval = data?.approvalStatus || '';
+  const rawStatus = data?.status || '';
+  
+  // Normalize inputs
+  const check = (rawApproval || rawStatus).toLowerCase();
+  
+  // Strictly validate against valid administrative states
+  if (['pending', 'approved', 'rejected', 'banned', 'suspended', 'not_approved'].includes(check)) {
+    return check as any;
+  }
+  
+  return 'incomplete'; // Default safe fallback
+}
+
+export function parseFirestoreDate(field: any): Date | null {
+  if (!field) return null;
+  if (typeof field.toDate === 'function') return field.toDate();
+  if (field.seconds !== undefined) return new Date(field.seconds * 1000);
+  if (field._seconds !== undefined) return new Date(field._seconds * 1000);
+  const date = new Date(field);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+

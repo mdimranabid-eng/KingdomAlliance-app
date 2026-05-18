@@ -71,6 +71,7 @@ export default function ProfilePage() {
   const [uploadTarget, setUploadTarget] = useState<'profile' | 'gallery'>('gallery');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
+  const [showLimitAlert, setShowLimitAlert] = useState(false);
   const [activeTab, setActiveTab] = useState('about');
   const [isEditingAbout, setIsEditingAbout] = useState(false);
   const [aboutMeDraft, setAboutMeDraft] = useState('');
@@ -196,6 +197,13 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !currentUser) return;
 
+    if (uploadTarget === 'gallery' && (profile.gallery || []).length >= 3) {
+      setGalleryError("You have reached the maximum limit of photo you can upload");
+      setShowLimitAlert(true);
+      setShowUploadModal(false);
+      return;
+    }
+
     if (file.size > 3 * 1024 * 1024) {
       setGalleryError("File size exceeds 3MB limit.");
       setShowUploadModal(false);
@@ -271,9 +279,17 @@ export default function ProfilePage() {
         await updateDoc(doc(db, 'users', currentUser.uid), {
           pendingPhotoUrl: url,
           photoStatus: 'pending',
+          rejectedPhotoUrl: '',
+          rejectedPhotoReason: '',
           updatedAt: serverTimestamp()
         });
-        setProfile({ ...profile, pendingPhotoUrl: url, photoStatus: 'pending' });
+        setProfile({ 
+          ...profile, 
+          pendingPhotoUrl: url, 
+          photoStatus: 'pending',
+          rejectedPhotoUrl: '',
+          rejectedPhotoReason: ''
+        });
       }
     } catch (err: any) {
       setGalleryError(err.message || "Upload failed");
@@ -285,14 +301,28 @@ export default function ProfilePage() {
   const confirmDeletePhoto = async () => {
     if (!currentUser || !photoToDelete) return;
 
+    const targetPhoto = profile.gallery.find((p: any) => p.id === photoToDelete);
+    if (!targetPhoto) return;
+    const deletedPhotoUrl = targetPhoto.url;
+
     const updatedGallery = profile.gallery.filter((p: any) => p.id !== photoToDelete);
     try {
       await updateDoc(doc(db, 'users', currentUser.uid), {
         gallery: updatedGallery,
-        photoStatus: 'pending',
         updatedAt: serverTimestamp()
       });
-      setProfile({ ...profile, gallery: updatedGallery, photoStatus: 'pending' });
+
+      // Delete corresponding photoModeration documents in Firestore
+      const q = query(
+        collection(db, 'photoModeration'),
+        where('uid', '==', currentUser.uid),
+        where('photoURL', '==', deletedPhotoUrl)
+      );
+      const querySnapshot = await getDocs(q);
+      const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      setProfile({ ...profile, gallery: updatedGallery });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, 'users');
     } finally {
@@ -372,6 +402,11 @@ export default function ProfilePage() {
     </div>
   );
 
+  const fullName = [profile.name, profile.middleName, profile.lastName]
+    .filter(Boolean)
+    .map(name => name.trim())
+    .join(' ');
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20">
       {/* Premium Hero Banner */}
@@ -400,9 +435,15 @@ export default function ProfilePage() {
                   >
                     <PhotoProtector>
                       <img
-                        src={getSecureImageUrl(profile.photoUrl || profile.pendingPhotoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`)}
+                        src={getSecureImageUrl(
+                          (isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl)
+                            ? profile.rejectedPhotoUrl
+                            : (profile.photoUrl || profile.pendingPhotoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`)
+                        )}
                         alt={profile.name}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
+                          (isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl) ? 'blur-md scale-95' : ''
+                        }`}
                       />
                     </PhotoProtector>
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
@@ -412,6 +453,18 @@ export default function ProfilePage() {
                         <div className="flex flex-col items-center gap-2">
                           <Clock className="w-8 h-8 text-white animate-pulse" />
                           <span className="text-white text-xs font-medium">Pending Review</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl && (
+                      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center">
+                        <div className="flex flex-col items-center gap-2 max-w-[85%]">
+                          <XCircle className="w-9 h-9 text-red-500" />
+                          <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Photo Rejected</span>
+                          <p className="text-white text-[11px] font-medium leading-relaxed px-1 break-words max-h-24 overflow-y-auto">
+                            Reason: {profile.rejectedPhotoReason || "Does not meet guidelines"}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -432,7 +485,7 @@ export default function ProfilePage() {
                   <div className="text-center md:text-left space-y-4">
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
                       <h1 className="font-headline text-4xl md:text-5xl text-slate-900 font-bold tracking-tight">
-                        {profile.name}, {profile.age}
+                        {fullName || profile.name || 'Unnamed Member'}, {profile.age}
                       </h1>
                       <div className="flex gap-2">
                         {profile.isApproved ? (
@@ -469,9 +522,19 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 text-slate-500 font-medium text-lg">
-                      <span className="flex items-center gap-2"><MapPin className="w-5 h-5 text-primary/70" /> {profile.city}, {profile.state}</span>
-                      <span className="flex items-center gap-2"><Church className="w-5 h-5 text-primary/70" /> {profile.denomination}</span>
-                      <span className="flex items-center gap-2"><Briefcase className="w-5 h-5 text-primary/70" /> {profile.occupation}</span>
+                      <span className="flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-primary/70" /> 
+                        {profile.cityLiving || profile.city ? `${profile.cityLiving || profile.city}, ${profile.countryLiving || profile.state || ''}` : 'Location not specified'}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Church className="w-5 h-5 text-primary/70" /> 
+                        {profile.denomination ? `Christian (${profile.denomination})` : 'Christian'}
+                      </span>
+                      {profile.occupation && (
+                        <span className="flex items-center gap-2">
+                          <Briefcase className="w-5 h-5 text-primary/70" /> {profile.occupation}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -592,7 +655,9 @@ export default function ProfilePage() {
                     <h2 className="text-2xl font-bold text-slate-900 mb-8">Personal Details</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                       <InfoRow label="Profile ID" value={profile.profileId || id?.substring(0, 8).toUpperCase()} />
-                      <InfoRow label="Full Name" value={profile.name} />
+                      <InfoRow label="Full Name" value={fullName || profile.name} />
+                      <InfoRow label="Location" value={profile.cityLiving || profile.city ? `${profile.cityLiving || profile.city}, ${profile.countryLiving || profile.state || ''}` : 'Not Specified'} />
+                      <InfoRow label="Religion" value={profile.denomination ? `Christian (${profile.denomination})` : 'Christian'} />
                       <InfoRow label="Age / Height" value={`${profile.age} Yrs, ${profile.height || 'N/A'}`} />
                       <InfoRow label="Mother Tongue" value={profile.motherTongue || 'English'} />
                       <InfoRow label="Marital Status" value={profile.maritalStatus} />
@@ -608,7 +673,14 @@ export default function ProfilePage() {
                       </h2>
                       {isOwnProfile && (
                         <button
-                          onClick={() => { setUploadTarget('gallery'); setShowUploadModal(true); }}
+                          onClick={() => {
+                            if ((profile.gallery || []).length >= 3) {
+                              setShowLimitAlert(true);
+                              return;
+                            }
+                            setUploadTarget('gallery');
+                            setShowUploadModal(true);
+                          }}
                           className="flex items-center gap-2 px-6 py-3 bg-secondary text-on-secondary rounded-xl font-bold shadow-md hover:scale-105 transition-transform"
                         >
                           <Plus className="w-5 h-5" /> Add Photo
@@ -623,8 +695,11 @@ export default function ProfilePage() {
                             <img
                               src={getSecureImageUrl(photo.url)}
                               alt="Gallery"
-                              className="w-full h-full object-cover cursor-pointer transition-transform duration-500 group-hover:scale-110"
+                              className={`w-full h-full object-cover cursor-pointer transition-transform duration-500 group-hover:scale-110 ${
+                                photo.status === 'rejected' ? 'blur-md scale-95' : ''
+                              }`}
                               onClick={() => {
+                                if (photo.status === 'rejected') return;
                                 const mainPhoto = profile.photoUrl || profile.pendingPhotoUrl;
                                 const gallery = (profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile);
                                 openLightbox(index + 1, [mainPhoto, ...gallery.map((p: any) => p.url)]);
@@ -639,10 +714,24 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           )}
+                          {photo.status === 'rejected' && (
+                            <div className="absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-10">
+                              <div className="flex flex-col items-center gap-1.5 max-w-full">
+                                <XCircle className="w-7 h-7 text-red-500" />
+                                <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">Photo Rejected</span>
+                                <p className="text-white text-[11px] font-medium leading-tight px-1 break-words max-h-16 overflow-y-auto">
+                                  Reason: {photo.rejectionReason || "Does not meet guidelines"}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           {isOwnProfile && (
                             <button
-                              onClick={() => handleDeletePhoto(photo.id)}
-                              className="absolute top-3 right-3 p-2.5 bg-error text-white rounded-xl opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePhoto(photo.id);
+                              }}
+                              className="absolute top-3 right-3 p-2.5 bg-error hover:bg-error/90 text-white rounded-xl transition-all shadow-lg z-30"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -902,6 +991,18 @@ export default function ProfilePage() {
         confirmText="Delete"
         cancelText="Cancel"
         isDestructive={true}
+      />
+
+      {/* Upload Limit Confirmation Alert */}
+      <ConfirmationModal
+        isOpen={showLimitAlert}
+        onClose={() => setShowLimitAlert(false)}
+        onConfirm={() => setShowLimitAlert(false)}
+        title="Upload Limit Reached"
+        message="You have reached the maximum limit of photo you can upload"
+        confirmText="OK"
+        isDestructive={false}
+        singleButton={true}
       />
     </div>
   );

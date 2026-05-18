@@ -4,6 +4,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { Navigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
 import { KingdomCrossIcon } from './KingdomCrossIcon';
+import { resolveApprovalStatus } from '../lib/utils';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -91,6 +92,9 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
 
   // Administrators bypass all standard user matrimonial flow redirections
   if (isAdmin) {
+    if (location.pathname === '/onboarding') {
+      return <Navigate to="/admin" replace />;
+    }
     return <>{children}</>;
   }
 
@@ -107,7 +111,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     return <Navigate to="/register" replace />;
   }
 
-  const status = (profile.status || profile.approvalStatus || '').toLowerCase();
+  const status = resolveApprovalStatus(profile);
 
   // 2. Global Status Checks
   if (status === 'banned' || profile.isBanned) return <Navigate to="/banned" replace />;
@@ -122,9 +126,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
       if (status === 'approved') {
         return <Navigate to="/dashboard" replace />;
       }
-      if (status === 'not_approved' || status === 'pending') {
-        return <Navigate to="/waiting-room" replace />;
-      }
+      return <Navigate to="/waiting-room" replace />;
     }
     // Otherwise allow access to onboarding
     return <>{children}</>;

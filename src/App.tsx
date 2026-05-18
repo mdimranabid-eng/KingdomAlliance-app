@@ -71,7 +71,6 @@ export default function App() {
           {/* Protected Routes */}
           <Route element={<AuthGuard><Layout /></AuthGuard>}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/matches" element={<MatchesPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/messages/:id" element={<MessagesPage />} />
@@ -80,6 +79,9 @@ export default function App() {
             <Route path="/profile/:id" element={<ProfilePage />} />
             <Route path="/profile" element={<ProfileRedirect />} />
           </Route>
+
+          {/* Onboarding Protected Route (Independent from Sidebar/Header Layout) */}
+          <Route path="/onboarding" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
 
           {/* Protected Admin Routes */}
           <Route element={<AdminRoute><Layout /></AdminRoute>}>

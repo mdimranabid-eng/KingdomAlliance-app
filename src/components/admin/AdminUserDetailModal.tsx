@@ -25,10 +25,11 @@ export interface UserProfile {
   lastName?: string;
   email: string;
   profileType: 'bride' | 'groom';
-  status: 'active' | 'suspended' | 'blocked';
+  status: 'active' | 'suspended' | 'blocked' | 'inactive';
   isApproved: boolean;
   mobileNumber?: string;
   createdAt: any;
+  lastLoginAt?: any;
   photoUrl?: string;
   photoStatus?: 'pending' | 'approved' | 'rejected' | 'none';
   pendingPhotoUrl?: string;
@@ -180,7 +181,7 @@ export default function AdminUserDetailModal({
                   className="flex items-center gap-2 px-4 py-2 bg-gold/10 text-gold border border-gold/20 rounded-xl text-sm font-bold hover:bg-gold/20 transition-all shadow-sm whitespace-nowrap"
                 >
                   <Download className="w-4 h-4" />
-                  Download PDF
+                  Download Bio Data
                 </button>
                 <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-full text-on-surface-variant flex-shrink-0">
                   <XCircle className="w-6 h-6" />

@@ -20,6 +20,13 @@ const cors = require('cors');
 const admin = require('firebase-admin');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const {
+  sendProfilePhotoApprovalEmail,
+  sendProfilePhotoRejectionEmail,
+  sendGalleryPhotoApprovalEmail,
+  sendGalleryPhotoRejectionEmail
+} = require('./config/mailer');
 
 // ─── Firebase Admin Initialization ────────────────────────────────────────────
 // Supports emulator mode (no credentials needed) and production (service account)
@@ -249,6 +256,221 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req, res) => {
     logs,
   });
 });
+
+// ─── Photo Moderation: Approve Photo ──────────────────────────────────────────
+//
+// POST /api/admin/approve-photo
+// Body: { item: object }
+// Auth: Bearer <admin-id-token>
+//
+app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
+  const { item } = req.body;
+  if (!item || !item.uid) {
+    return res.status(400).json({ error: 'Missing required fields.' });
+  }
+
+  const adminId = req.adminUid || 'system';
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      // 1. Create or update photoModeration collection
+      const modRef = item.isSynthesized 
+        ? db.collection('photoModeration').doc()
+        : db.collection('photoModeration').doc(item.id);
+
+      transaction.set(modRef, {
+        uid: item.uid,
+        userName: item.userName,
+        photoURL: item.photoURL,
+        photoType: item.photoType || 'profilePhoto',
+        galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
+        photoStatus: 'approved',
+        status: 'approved',
+        uploadedAt: item.uploadedAt ? new Date(item.uploadedAt) : admin.firestore.FieldValue.serverTimestamp(),
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: adminId
+      }, { merge: true });
+
+      // 2. Update user doc
+      const userRef = db.collection('users').doc(item.uid);
+      const userSnap = await transaction.get(userRef);
+
+      if (userSnap.exists) {
+        const userData = userSnap.data();
+        const targetPhoto = item.pendingPhotoUrl || item.photoURL;
+
+        if (item.photoType === 'profilePhoto') {
+          transaction.update(userRef, {
+            photoUrl: targetPhoto,
+            photoURL: targetPhoto,
+            pendingPhotoUrl: '',
+            photoStatus: 'approved',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            notifications: admin.firestore.FieldValue.arrayUnion({
+              id: crypto.randomUUID(),
+              title: 'Photo Approved',
+              message: 'Your profile photo has been approved.',
+              type: 'success',
+              read: false,
+              createdAt: new Date().toISOString()
+            })
+          });
+        } else {
+          const gallery = userData.gallery || [];
+          const updatedGallery = gallery.map((p) => 
+            p.url === item.photoURL ? { ...p, status: 'approved' } : p
+          );
+          transaction.update(userRef, {
+            gallery: updatedGallery,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            notifications: admin.firestore.FieldValue.arrayUnion({
+              id: crypto.randomUUID(),
+              title: 'Gallery Photo Approved',
+              message: 'Your gallery photo has been approved.',
+              type: 'success',
+              read: false,
+              createdAt: new Date().toISOString()
+            })
+          });
+        }
+      }
+    });
+
+    // 3. Trigger email dispatch securely using Nodemailer SMTP
+    const userRef = db.collection('users').doc(item.uid);
+    const userSnap = await userRef.get();
+    if (userSnap.exists) {
+      const userData = userSnap.data();
+      const userEmail = userData.email;
+      const userDispName = userData.name || userData.fullName || item.userName || 'Member';
+
+      if (userEmail) {
+        try {
+          if (item.photoType === 'profilePhoto') {
+            await sendProfilePhotoApprovalEmail(userEmail, userDispName);
+          } else {
+            await sendGalleryPhotoApprovalEmail(userEmail, userDispName);
+          }
+        } catch (emailErr) {
+          console.error("Failed to send approval email via SMTP:", emailErr);
+        }
+      }
+    }
+
+    return res.status(200).json({ success: true, message: 'Photo approved successfully.' });
+  } catch (error) {
+    console.error('Error approving photo in transaction:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Photo Moderation: Reject Photo ──────────────────────────────────────────
+//
+// POST /api/admin/reject-photo
+// Body: { item: object, reason: string }
+// Auth: Bearer <admin-id-token>
+//
+app.post('/api/admin/reject-photo', requireAdminAuth, async (req, res) => {
+  const { item, reason } = req.body;
+  if (!item || !item.uid || !reason) {
+    return res.status(400).json({ error: 'Missing required fields.' });
+  }
+
+  const adminId = req.adminUid || 'system';
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      // 1. Create or update photoModeration collection
+      const modRef = item.isSynthesized 
+        ? db.collection('photoModeration').doc()
+        : db.collection('photoModeration').doc(item.id);
+
+      transaction.set(modRef, {
+        uid: item.uid,
+        userName: item.userName,
+        photoURL: item.photoURL,
+        photoType: item.photoType || 'profilePhoto',
+        galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
+        photoStatus: 'rejected',
+        status: 'rejected',
+        uploadedAt: item.uploadedAt ? new Date(item.uploadedAt) : admin.firestore.FieldValue.serverTimestamp(),
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: adminId,
+        rejectedReason: reason
+      }, { merge: true });
+
+      // 2. Update user doc
+      const userRef = db.collection('users').doc(item.uid);
+      const userSnap = await transaction.get(userRef);
+
+      if (userSnap.exists) {
+        const userData = userSnap.data();
+
+        if (item.photoType === 'profilePhoto') {
+          transaction.update(userRef, {
+            photoStatus: 'rejected',
+            pendingPhotoUrl: '',
+            rejectedPhotoUrl: item.photoURL,
+            rejectedPhotoReason: reason,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            notifications: admin.firestore.FieldValue.arrayUnion({
+              id: crypto.randomUUID(),
+              title: 'Profile Photo Rejected',
+              message: `Your profile photo was not approved: ${reason}. Please upload a new one.`,
+              type: 'alert',
+              read: false,
+              createdAt: new Date().toISOString()
+            })
+          });
+        } else {
+          const gallery = userData.gallery || [];
+          const updatedGallery = gallery.map((p) => 
+            p.url === item.photoURL ? { ...p, status: 'rejected', rejectionReason: reason } : p
+          );
+          transaction.update(userRef, {
+            gallery: updatedGallery,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            notifications: admin.firestore.FieldValue.arrayUnion({
+              id: crypto.randomUUID(),
+              title: 'Gallery Photo Rejected',
+              message: `Your gallery photo was not approved: ${reason}.`,
+              type: 'alert',
+              read: false,
+              createdAt: new Date().toISOString()
+            })
+          });
+        }
+      }
+    });
+
+    // 3. Trigger email dispatch securely using Nodemailer SMTP
+    const userRef = db.collection('users').doc(item.uid);
+    const userSnap = await userRef.get();
+    if (userSnap.exists) {
+      const userData = userSnap.data();
+      const userEmail = userData.email;
+      const userDispName = userData.name || userData.fullName || item.userName || 'Member';
+
+      if (userEmail) {
+        try {
+          if (item.photoType === 'profilePhoto') {
+            await sendProfilePhotoRejectionEmail(userEmail, userDispName, reason);
+          } else {
+            await sendGalleryPhotoRejectionEmail(userEmail, userDispName, reason);
+          }
+        } catch (emailErr) {
+          console.error("Failed to send rejection email via SMTP:", emailErr);
+        }
+      }
+    }
+
+    return res.status(200).json({ success: true, message: 'Photo rejected successfully.' });
+  } catch (error) {
+    console.error('Error rejecting photo in transaction:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 
 // ─── Start Server ──────────────────────────────────────────────────────────────
 

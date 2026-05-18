@@ -76,7 +76,23 @@ export default function AdminLoginPage() {
         </div>
 
         <div className="bg-surface-container-lowest rounded-[2.5rem] p-8 lg:p-12 border border-outline-variant shadow-2xl space-y-8">
-          <form onSubmit={handleAdminLogin} className="space-y-6">
+          <form onSubmit={handleAdminLogin} className="space-y-6" autoComplete="off">
+            {/* Dummy inputs to deceive browser password managers and prevent auto-fill on page load */}
+            <input 
+              type="text" 
+              name="prevent_autofill_email" 
+              style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }} 
+              tabIndex={-1} 
+              aria-hidden="true" 
+            />
+            <input 
+              type="password" 
+              name="prevent_autofill_password" 
+              style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }} 
+              tabIndex={-1} 
+              aria-hidden="true" 
+            />
+
             <div className="space-y-2">
               <label className="block font-label-sm text-on-surface uppercase tracking-wider">Admin Email</label>
               <div className="relative">
@@ -86,7 +102,8 @@ export default function AdminLoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="md.imranabid@gmail.com"
+                  placeholder=""
+                  autoComplete="off"
                   className="w-full pl-12 pr-4 py-4 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                 />
               </div>
@@ -101,7 +118,8 @@ export default function AdminLoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder=""
+                  autoComplete="new-password"
                   className="w-full pl-12 pr-4 py-4 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                 />
               </div>
