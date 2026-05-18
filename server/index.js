@@ -5,10 +5,10 @@
  * Runs on port 3001, separate from the Vite dev server (port 3000).
  *
  * Emulator mode: set env vars before starting:
- *   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
- *   FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
- *   GCLOUD_PROJECT=kingdom-alliance-v2
- *   npm run dev:emulator
+ * FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+ * FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+ * GCLOUD_PROJECT=kingdom-alliance-v2
+ * npm run dev:emulator
  *
  * Production mode: set GOOGLE_APPLICATION_CREDENTIALS to a service account key path.
  */
@@ -29,38 +29,21 @@ const {
 } = require('./config/mailer');
 
 // ─── Firebase Admin Initialization ────────────────────────────────────────────
-// Supports emulator mode (no credentials needed) and production (service account)
 
 function initializeAdminApp() {
   if (admin.apps.length > 0) return;
 
   const projectId = process.env.GCLOUD_PROJECT || 'kingdom-alliance-v2';
-  const isEmulatorMode =
-    !!process.env.FIRESTORE_EMULATOR_HOST || !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
 
-  if (isEmulatorMode) {
-    console.log('[Admin Server] 🧪 Emulator mode detected.');
-    console.log(`  Auth:      ${process.env.FIREBASE_AUTH_EMULATOR_HOST || '(not set)'}`);
-    console.log(`  Firestore: ${process.env.FIRESTORE_EMULATOR_HOST || '(not set)'}`);
-    // In emulator mode, initializeApp needs no credential
-    admin.initializeApp({ projectId });
-  } else {
-    // Production: use service account key or application default credentials
-    const serviceKeyPath = path.resolve(__dirname, '../serviceAccountKey.json');
-    if (fs.existsSync(serviceKeyPath)) {
-      console.log('[Admin Server] 🔑 Using serviceAccountKey.json for authentication.');
-      const serviceAccount = require(serviceKeyPath);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: serviceAccount.project_id || projectId,
-      });
-    } else {
-      console.log('[Admin Server] ☁️  Using Application Default Credentials.');
-      admin.initializeApp({ projectId });
-    }
-  }
+  // 🔥 BULLETPROOF FIREBASE ADMIN INIT (Looking directly in the server folder)
+  const serviceAccount = require('./serviceAccountKey.json');
 
-  console.log(`[Admin Server] ✅ Firebase Admin SDK initialized for project: ${projectId}`);
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: projectId,
+  });
+
+  console.log('[Admin Server] ✅ Firebase Admin SDK forcefully initialized via local serviceAccountKey.json');
 }
 
 initializeAdminApp();
@@ -273,8 +256,12 @@ app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
 
   try {
     await db.runTransaction(async (transaction) => {
-      // 1. Create or update photoModeration collection
-      const modRef = item.isSynthesized 
+      // 1. READ FIRST
+      const userRef = db.collection('users').doc(item.uid);
+      const userSnap = await transaction.get(userRef);
+
+      // 2. THEN WRITE TO MODERATION COLLECTION
+      const modRef = item.isSynthesized
         ? db.collection('photoModeration').doc()
         : db.collection('photoModeration').doc(item.id);
 
@@ -304,10 +291,7 @@ app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
         reviewedBy: adminId
       }, { merge: true });
 
-      // 2. Update user doc
-      const userRef = db.collection('users').doc(item.uid);
-      const userSnap = await transaction.get(userRef);
-
+      // 3. THEN WRITE TO USER DOC
       if (userSnap.exists) {
         const userData = userSnap.data();
         const targetPhoto = item.pendingPhotoUrl || item.photoURL;
@@ -330,7 +314,7 @@ app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
           });
         } else {
           const gallery = userData.gallery || [];
-          const updatedGallery = gallery.map((p) => 
+          const updatedGallery = gallery.map((p) =>
             p.url === item.photoURL ? { ...p, status: 'approved' } : p
           );
           transaction.update(userRef, {
@@ -393,8 +377,12 @@ app.post('/api/admin/reject-photo', requireAdminAuth, async (req, res) => {
 
   try {
     await db.runTransaction(async (transaction) => {
-      // 1. Create or update photoModeration collection
-      const modRef = item.isSynthesized 
+      // 1. READ FIRST
+      const userRef = db.collection('users').doc(item.uid);
+      const userSnap = await transaction.get(userRef);
+
+      // 2. THEN WRITE TO MODERATION COLLECTION
+      const modRef = item.isSynthesized
         ? db.collection('photoModeration').doc()
         : db.collection('photoModeration').doc(item.id);
 
@@ -425,10 +413,7 @@ app.post('/api/admin/reject-photo', requireAdminAuth, async (req, res) => {
         rejectedReason: reason
       }, { merge: true });
 
-      // 2. Update user doc
-      const userRef = db.collection('users').doc(item.uid);
-      const userSnap = await transaction.get(userRef);
-
+      // 3. THEN WRITE TO USER DOC
       if (userSnap.exists) {
         const userData = userSnap.data();
 
@@ -450,7 +435,7 @@ app.post('/api/admin/reject-photo', requireAdminAuth, async (req, res) => {
           });
         } else {
           const gallery = userData.gallery || [];
-          const updatedGallery = gallery.map((p) => 
+          const updatedGallery = gallery.map((p) =>
             p.url === item.photoURL ? { ...p, status: 'rejected', rejectionReason: reason } : p
           );
           transaction.update(userRef, {

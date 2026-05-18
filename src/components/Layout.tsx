@@ -4,15 +4,15 @@ import { useAuth } from '../lib/AuthContext';
 import { auth, db } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, collectionGroup, query, where, onSnapshot } from 'firebase/firestore';
-import { 
-  Heart, 
-  MessageSquare, 
-  User, 
+import {
+  Heart,
+  MessageSquare,
+  User,
   Bookmark,
   Search,
-  Settings, 
-  LogOut, 
-  LayoutDashboard, 
+  Settings,
+  LogOut,
+  LayoutDashboard,
   ShieldCheck,
   Users,
   Menu,
@@ -23,7 +23,7 @@ import {
   Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, resolveApprovalStatus } from '../lib/utils';
 import { useSettings } from '../lib/SettingsContext';
 import { KingdomCrossIcon } from './KingdomCrossIcon';
 
@@ -60,7 +60,7 @@ export default function Layout() {
       // Play sound for new messages if not initial load
       const docChanges = snapshot.docChanges();
       const hasNew = docChanges.some(change => change.type === 'added');
-      
+
       if (hasNew && !isInitialLoadMessages.current && !snapshot.metadata.hasPendingWrites) {
         const latestDoc = docChanges.find(change => change.type === 'added')?.doc;
         if (latestDoc) {
@@ -94,7 +94,7 @@ export default function Layout() {
       // Play sound for new interest notifications
       const docChanges = snapshot.docChanges();
       const hasNew = docChanges.some(change => change.type === 'added');
-      
+
       if (hasNew && !isInitialLoadNotifications.current && !snapshot.metadata.hasPendingWrites) {
         const latestDoc = docChanges.find(change => change.type === 'added')?.doc;
         if (latestDoc) {
@@ -127,20 +127,25 @@ export default function Layout() {
     if (!user || !isAdmin) return;
 
     // Listen for pending approvals
-    const qApprovals = query(
-      collection(db, 'users'), 
-      where('approvalStatus', '==', 'pending'),
-      where('onboardingComplete', '==', true)
-    );
+    const qApprovals = collection(db, 'users');
     const unsubscribeApprovals = onSnapshot(qApprovals, (snapshot) => {
-      setPendingApprovalsCount(snapshot.size);
+      const usersData = snapshot.docs.map(d => d.data());
+      const pendingCount = usersData.filter(u => {
+        const status = resolveApprovalStatus(u);
+        return status === 'pending' || status === 'incomplete' || status === 'not_approved' || u.isApproved === false;
+      }).length;
+
+      // 🔥 THE TRUTH-TELLER LOG
+      console.log("🔥 FIRESTORE TRUTH -> Total Users:", usersData.length, "| Pending:", pendingCount);
+
+      setPendingApprovalsCount(pendingCount);
     }, (error) => {
       console.error("Error listening for pending approvals:", error);
     });
 
     // Listen for pending photos in the photoModeration collection directly
     const qPhotos = query(
-      collection(db, 'photoModeration'), 
+      collection(db, 'photoModeration'),
       where('photoStatus', '==', 'pending')
     );
     const unsubscribePhotos = onSnapshot(qPhotos, (snapshot) => {
@@ -167,7 +172,7 @@ export default function Layout() {
   if (isAdmin) {
     navItems = [
       { label: 'Admin Panel', path: '/admin', icon: ShieldCheck },
-      { label: 'User Approvals', path: '/admin/approvals', icon: CheckCircle },
+      { label: 'User Approvals', path: '/admin/approvals', icon: CheckCircle, badgeCount: pendingApprovalsCount || undefined },
       { label: 'Photo Moderation', path: '/admin/photos', icon: Camera },
       { label: 'User Management', path: '/admin/users', icon: Users },
       { label: 'Rejected Profiles', path: '/admin/rejected', icon: Ban },
@@ -201,33 +206,33 @@ export default function Layout() {
                 to={isDisabled ? '#' : item.path}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-label-lg",
-                  isActive 
-                    ? "bg-secondary-container text-on-secondary-container shadow-sm" 
+                  isActive
+                    ? "bg-secondary-container text-on-secondary-container shadow-sm"
                     : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
                   isDisabled && "opacity-50 cursor-not-allowed"
                 )}
               >
                 <div className="relative">
                   <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                  {((item.label === 'Messages' && unreadCount > 0) || 
+                  {((item.label === 'Messages' && unreadCount > 0) ||
                     (item.label === 'Interests' && unreadNotificationsCount > 0) ||
                     (item.badgeCount && item.badgeCount > 0)) && (
-                    <motion.span
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className={cn(
-                        "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
-                        item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
-                      )}
-                    >
-                      {item.badgeCount || ""}
-                      <motion.span 
-                        animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                        className="absolute inset-0 bg-error rounded-full -z-10" 
-                      />
-                    </motion.span>
-                  )}
+                      <motion.span
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={cn(
+                          "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
+                          item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
+                        )}
+                      >
+                        {item.badgeCount || ""}
+                        <motion.span
+                          animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+                          transition={{ repeat: Infinity, duration: 2 }}
+                          className="absolute inset-0 bg-error rounded-full -z-10"
+                        />
+                      </motion.span>
+                    )}
                 </div>
                 {item.label}
               </Link>
@@ -251,7 +256,7 @@ export default function Layout() {
         {/* Top Header - Mobile & Action Area */}
         <header className="h-16 bg-surface border-b border-outline-variant flex items-center justify-between px-4 lg:px-8 z-30">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               className="lg:hidden p-2 hover:bg-surface-container rounded-lg"
               onClick={() => setIsMobileMenuOpen(true)}
             >
@@ -266,9 +271,9 @@ export default function Layout() {
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-label-lg text-on-surface">{profile.name}</p>
                 </div>
-                <img 
-                  src={profile.photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`} 
-                  alt="Avatar" 
+                <img
+                  src={profile.photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`}
+                  alt="Avatar"
                   className="w-10 h-10 rounded-full border border-primary-container object-cover"
                 />
               </div>
@@ -324,33 +329,33 @@ export default function Layout() {
                       onClick={() => !isDisabled && setIsMobileMenuOpen(false)}
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-label-lg",
-                        isActive 
-                          ? "bg-secondary-container text-on-secondary-container shadow-sm" 
+                        isActive
+                          ? "bg-secondary-container text-on-secondary-container shadow-sm"
                           : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
                         isDisabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
                       <div className="relative">
                         <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                        {((item.label === 'Messages' && unreadCount > 0) || 
+                        {((item.label === 'Messages' && unreadCount > 0) ||
                           (item.label === 'Interests' && unreadNotificationsCount > 0) ||
                           (item.badgeCount && item.badgeCount > 0)) && (
-                          <motion.span
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className={cn(
-                              "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
-                              item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
-                            )}
-                          >
-                            {item.badgeCount || ""}
-                            <motion.span 
-                              animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
-                              transition={{ repeat: Infinity, duration: 2 }}
-                              className="absolute inset-0 bg-error rounded-full -z-10" 
-                            />
-                          </motion.span>
-                        )}
+                            <motion.span
+                              initial={{ scale: 0.5, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className={cn(
+                                "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
+                                item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
+                              )}
+                            >
+                              {item.badgeCount || ""}
+                              <motion.span
+                                animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                                className="absolute inset-0 bg-error rounded-full -z-10"
+                              />
+                            </motion.span>
+                          )}
                       </div>
                       {item.label}
                     </Link>
@@ -392,7 +397,7 @@ export default function Layout() {
                 <h4 className="text-sm font-semibold text-on-surface truncate">{toast.title}</h4>
                 <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{toast.message}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setToast(null)}
                 className="text-on-surface-variant hover:text-on-surface transition-colors"
               >
