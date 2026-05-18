@@ -278,6 +278,19 @@ app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
         ? db.collection('photoModeration').doc()
         : db.collection('photoModeration').doc(item.id);
 
+      let uploadedAtDate;
+      if (item.uploadedAt) {
+        if (typeof item.uploadedAt.seconds === 'number') {
+          uploadedAtDate = new Date(item.uploadedAt.seconds * 1000);
+        } else if (typeof item.uploadedAt._seconds === 'number') {
+          uploadedAtDate = new Date(item.uploadedAt._seconds * 1000);
+        } else {
+          uploadedAtDate = new Date(item.uploadedAt);
+        }
+      } else {
+        uploadedAtDate = admin.firestore.FieldValue.serverTimestamp();
+      }
+
       transaction.set(modRef, {
         uid: item.uid,
         userName: item.userName,
@@ -286,7 +299,7 @@ app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
         galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
         photoStatus: 'approved',
         status: 'approved',
-        uploadedAt: item.uploadedAt ? new Date(item.uploadedAt) : admin.firestore.FieldValue.serverTimestamp(),
+        uploadedAt: uploadedAtDate,
         reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
         reviewedBy: adminId
       }, { merge: true });
@@ -385,6 +398,19 @@ app.post('/api/admin/reject-photo', requireAdminAuth, async (req, res) => {
         ? db.collection('photoModeration').doc()
         : db.collection('photoModeration').doc(item.id);
 
+      let uploadedAtDate;
+      if (item.uploadedAt) {
+        if (typeof item.uploadedAt.seconds === 'number') {
+          uploadedAtDate = new Date(item.uploadedAt.seconds * 1000);
+        } else if (typeof item.uploadedAt._seconds === 'number') {
+          uploadedAtDate = new Date(item.uploadedAt._seconds * 1000);
+        } else {
+          uploadedAtDate = new Date(item.uploadedAt);
+        }
+      } else {
+        uploadedAtDate = admin.firestore.FieldValue.serverTimestamp();
+      }
+
       transaction.set(modRef, {
         uid: item.uid,
         userName: item.userName,
@@ -393,7 +419,7 @@ app.post('/api/admin/reject-photo', requireAdminAuth, async (req, res) => {
         galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
         photoStatus: 'rejected',
         status: 'rejected',
-        uploadedAt: item.uploadedAt ? new Date(item.uploadedAt) : admin.firestore.FieldValue.serverTimestamp(),
+        uploadedAt: uploadedAtDate,
         reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
         reviewedBy: adminId,
         rejectedReason: reason
