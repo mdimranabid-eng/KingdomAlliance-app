@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, auth } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { multiFactor, TotpMultiFactorGenerator } from 'firebase/auth';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   Save, 
   Palette, 
@@ -26,6 +28,44 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [totpSecret, setTotpSecret] = useState<any>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [mfaMessage, setMfaMessage] = useState('');
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      const enrolled = multiFactor(auth.currentUser).enrolledFactors.length > 0;
+      setIsEnrolled(enrolled);
+    }
+  }, []);
+
+  const startEnrollment = async () => {
+    try {
+      setMfaMessage('');
+      const multiFactorSession = await multiFactor(auth.currentUser!).getSession();
+      const secret = await TotpMultiFactorGenerator.generateSecret(multiFactorSession);
+      setTotpSecret(secret);
+      setQrCodeUrl(secret.generateQrCodeUrl(auth.currentUser!.email!, "Kingdom Alliance Admin"));
+    } catch (err: any) {
+      setMfaMessage("❌ Error starting 2FA: " + err.message);
+    }
+  };
+
+  const verifyAndEnroll = async () => {
+    try {
+      setMfaMessage('');
+      const assertion = TotpMultiFactorGenerator.assertionForEnrollment(totpSecret, verificationCode);
+      await multiFactor(auth.currentUser!).enroll(assertion, "Admin Authenticator");
+      setIsEnrolled(true);
+      setQrCodeUrl('');
+      setMfaMessage("✅ 2FA is Active!");
+    } catch (err: any) {
+      setMfaMessage("❌ Invalid Code: " + err.message);
+    }
+  };
   
   const [settings, setSettings] = useState({
     siteName: CONFIG.siteName,
@@ -325,6 +365,73 @@ export default function AdminSettings() {
           </div>
         </section>
       </form>
+
+      {/* Two-Factor Authentication (2FA) Section */}
+      <section className="bg-surface-container rounded-[2rem] p-8 border border-outline-variant space-y-6">
+        <h3 className="font-headline text-xl flex items-center gap-3 text-on-surface">
+          <ShieldCheck className="w-6 h-6 text-primary" /> Two-Factor Authentication (2FA)
+        </h3>
+        <p className="text-sm text-on-surface-variant -mt-4">
+          Add an extra layer of security to your administrator account by requiring a verification code from an authenticator app.
+        </p>
+
+        <div className="space-y-4">
+          {isEnrolled ? (
+            <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-xl border border-green-200 font-bold text-sm">
+              <span>✅ 2FA is Active</span>
+            </div>
+          ) : (
+            <>
+              {!qrCodeUrl ? (
+                <button
+                  type="button"
+                  onClick={startEnrollment}
+                  className="bg-primary text-on-primary px-6 py-3 rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
+                >
+                  Enable Authenticator 2FA
+                </button>
+              ) : (
+                <div className="space-y-6 max-w-md">
+                  <div className="p-4 bg-surface rounded-2xl border border-outline-variant flex justify-center">
+                    <QRCodeSVG value={qrCodeUrl} size={200} />
+                  </div>
+                  <p className="text-sm text-on-surface-variant">
+                    Scan the QR code above with your Authenticator App (Google Authenticator, Authy, etc.), then enter the 6-digit code below to complete setup.
+                  </p>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Verification Code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="000000"
+                      value={verificationCode}
+                      onChange={e => setVerificationCode(e.target.value)}
+                      className="w-full p-3 bg-surface rounded-xl border border-outline-variant outline-none focus:ring-2 focus:ring-primary text-center font-mono text-xl tracking-widest"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={verifyAndEnroll}
+                    className="w-full bg-primary text-on-primary py-3 rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
+                  >
+                    Verify & Save
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {mfaMessage && (
+            <div className={`p-4 rounded-xl text-sm font-semibold border ${
+              mfaMessage.startsWith('✅') 
+                ? 'bg-green-50 text-green-700 border-green-200' 
+                : 'bg-error/10 text-error border-error/20'
+            }`}>
+              {mfaMessage}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
