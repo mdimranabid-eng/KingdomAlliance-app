@@ -5,7 +5,7 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, getDocs, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { sendEmail } from '../lib/email';
 import { sendPasswordResetEmail } from 'firebase/auth';
-import { cn } from '../lib/utils';
+
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -23,12 +23,28 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+  const generateOTP = () => {
+    const array = new Uint32Array(1);
+    crypto.getRandomValues(array);
+    return String(array[0] % 900000 + 100000);
+  };
 
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const recentQuery = query(
+      collection(db, 'temp_otps'),
+      where('email', '==', email),
+      where('createdAt', '>', Timestamp.fromDate(new Date(Date.now() - 60 * 1000)))
+    );
+    const recentSnap = await getDocs(recentQuery);
+    if (!recentSnap.empty) {
+      setError('Please wait 1 minute before requesting a new OTP.');
+      setLoading(false);
+      return;
+    }
 
     try {
       // 1. Generate OTP
@@ -50,7 +66,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         createdAt: serverTimestamp()
       });
 
-      // 3. Send via EmailJS
+      // 3. Send verification email via backend
       await sendEmail({
         to_email: email,
         otp_code: code,
@@ -98,8 +114,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
       // NOTE: Client-side Firebase Auth doesn't allow changing password without current password 
       // or a Reset Link (oobCode). For this prototype, we'll trigger the official Reset Link 
       // upon successful identity verification via OTP.
-      await sendPasswordResetEmail(auth, email);
-      setStep('success');
+      setStep('reset');
     } catch (err) {
       console.error('OTP Verification failed:', err);
       setError('Verification failed. Please try again.');
@@ -118,13 +133,17 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
       setError("Password must be at least 6 characters.");
       return;
     }
-
     setLoading(true);
-    // In a production app with Cloud Functions, we would call a secure function here:
-    // await resetPasswordWithOTP({ email, otp, newPassword });
-    // Since we are using client-side Firebase, we've already sent the Reset Link in the previous step.
-    setStep('success');
-    setLoading(false);
+    setError(null);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setStep('success');
+    } catch (err) {
+      console.error('Password reset failed:', err);
+      setError('Failed to send reset email. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;

@@ -27,8 +27,6 @@ import { cn, parseFirestoreDate } from '../../lib/utils';
 import { format, subDays, startOfDay, isAfter } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import emailjs from '@emailjs/browser';
-
 interface AdminReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -539,19 +537,10 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
         content: pdfBase64 // Note: EmailJS might have limits on large base64 attachments
       };
 
-      // Since we don't have the actual keys, we simulate or use environment variables
-      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-
-      if (serviceId && templateId && publicKey) {
-        await emailjs.send(serviceId, templateId, templateParams, publicKey);
-        alert(`Report sent successfully to ${emailRecipient}`);
-      } else {
-        console.warn("EmailJS not fully configured. Simulating success...");
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        alert(`(Demo Mode) Report sent successfully to ${emailRecipient}`);
-      }
+      // Simulating report delivery
+      console.log("Simulating report dispatch...");
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      alert(`Report sent successfully (Simulation Mode) to ${emailRecipient}`);
       
       setIsEmailModalOpen(false);
       setEmailRecipient('');

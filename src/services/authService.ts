@@ -32,21 +32,8 @@ const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status
   const userRef = doc(db, 'users', user.uid);
   const userDoc = await getDoc(userRef);
 
+  // READ-ONLY ENTRY: Do not write to the database here!
   if (!userDoc.exists()) {
-    // New Google user initialization
-    const newUserProfile = {
-      uid: user.uid,
-      email: user.email,
-      fullName: user.displayName || '',
-      photoURL: user.photoURL || '',
-      authProvider: 'google',
-      role: 'user',
-      approvalStatus: 'incomplete',
-      onboardingComplete: false,
-      createdAt: serverTimestamp(),
-      lastActive: serverTimestamp()
-    };
-    await setDoc(userRef, newUserProfile);
     return { isNewUser: true, status: 'incomplete', onboardingComplete: false };
   }
 

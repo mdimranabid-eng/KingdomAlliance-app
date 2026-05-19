@@ -31,6 +31,9 @@ import {
 } from 'lucide-react';
 import { cn, formatRelativeTime } from '../../lib/utils';
 
+// Dynamic environment-aware backend URL to prevent Mixed Content errors under HTTPS
+const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
+
 // Legacy email triggers removed; now processed securely on the backend server.
 
 
@@ -181,7 +184,7 @@ export default function AdminPhotos() {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('http://localhost:3001/api/admin/approve-photo', {
+      const response = await fetch(`${BACKEND_URL}/api/admin/approve-photo`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +217,7 @@ export default function AdminPhotos() {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('http://localhost:3001/api/admin/reject-photo', {
+      const response = await fetch(`${BACKEND_URL}/api/admin/reject-photo`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -4,7 +4,8 @@ import { sendEmail } from './src/lib/email';
   try {
     const result = await sendEmail({
       to_email: 'md.imranabid@gmail.com',
-      type: 'welcome',
+      otp_code: '123456',
+      type: 'otp',
     });
     console.log('Email send result:', result);
   } catch (err) {

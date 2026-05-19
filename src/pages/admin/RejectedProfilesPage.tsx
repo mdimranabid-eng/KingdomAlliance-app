@@ -7,6 +7,8 @@ import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 import { deleteFromCloudinary } from '../../lib/cloudinary';
 
+const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
+
 interface UserProfile {
   id: string;
   uid: string;
@@ -189,8 +191,7 @@ export default function RejectedProfilesPage() {
     try {
       console.log(`[Admin Delete] Calling secure Admin SDK cascading delete API for: ${targetUserUid}`);
       const idToken = await auth.currentUser?.getIdToken();
-      
-      const response = await fetch('http://localhost:3001/api/admin/delete-user', {
+      const response = await fetch(`${BACKEND_URL}/api/admin/delete-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

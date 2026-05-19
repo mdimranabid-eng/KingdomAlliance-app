@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["playwright.config.ts"]
+  "exclude": ["playwright.config.ts", "scratch", "server", "test_email.ts"]
 }

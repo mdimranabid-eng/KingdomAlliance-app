@@ -1,330 +1,38 @@
-import emailjs from '@emailjs/browser';
-
-// Initialize EmailJS with Public Key
-const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-if (PUBLIC_KEY && PUBLIC_KEY !== 'your_public_key') {
-  emailjs.init(PUBLIC_KEY);
-}
-
-export interface EmailData {
+interface EmailPayload {
   to_email: string;
-  to_name?: string;
-  otp_code?: string;
-  reset_link?: string;
-  type: 'otp' | 'welcome' | 'interest';
+  otp_code: string;
+  type: 'otp';
 }
 
-export const sendEmail = async (data: EmailData) => {
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = data.type === 'otp' ? import.meta.env.VITE_EMAILJS_OTP_TEMPLATE_ID : import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
-    console.warn('⚠️ EmailJS credentials missing or using default placeholders. Simulating successful email dispatch.', data);
-    return { status: 200, text: 'Simulated success' };
-  }
+export const sendEmail = async (payload: EmailPayload): Promise<void> => {
+  // Use relative path for local Vite proxy, or absolute URL for Firebase production
+  const baseUrl = import.meta.env.MODE === 'development' 
+    ? '/api' 
+    : (import.meta.env.VITE_PRODUCTION_API || '');
 
   try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: data.to_email,
-        to_name: data.to_name || 'User',
-        otp_code: data.otp_code,
-        reset_link: data.reset_link,
+    // The fetch path dynamically adapts based on the environment
+    const response = await fetch(`${baseUrl}/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let serverError = '';
+      try {
+        const errorData = await response.json();
+        serverError = errorData.error || JSON.stringify(errorData);
+      } catch {
+        serverError = await response.text();
       }
-    );
-    return response;
-  } catch (error) {
-    console.error('Failed to send email:', error);
+      throw new Error(`Server Error (${response.status}): ${serverError}`);
+    }
+
+    console.log(`✅ Request successfully handled by backend for ${payload.to_email}`);
+
+  } catch (error: any) {
+    console.error(`🚨 Network / Fetch Failure:`, error.message);
     throw error;
   }
 };
-
-// ─── PROFILE PHOTO PIPELINE ──────────────────────────────────────────────────
-
-/**
- * Sends an email notification when a user's primary profile photo is approved.
- */
-export const sendProfilePhotoApprovalEmail = async (userEmail: string, userName: string) => {
-  const subject = "Kingdom Alliance | Your Profile Photo Has Been Approved! 🎉";
-  
-  const htmlContent = `
-<div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
-  <div style="text-align: center; margin-bottom: 32px;">
-    <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; background-color: rgba(103, 80, 164, 0.1); border-radius: 16px; margin-bottom: 16px; color: #6750A4; font-size: 28px; font-weight: bold; text-align: center;">†</div>
-    <h2 style="font-size: 24px; font-weight: 800; color: #1C1B1F; margin: 0; font-family: 'Outfit', 'Inter', sans-serif;">Kingdom Alliance</h2>
-    <p style="font-size: 13px; color: #958DA5; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Matrimony Rooted in Faith & Values</p>
-  </div>
-  <div style="color: #49454F; line-height: 1.7; font-size: 15px;">
-    <p style="font-size: 17px; font-weight: 700; color: #1C1B1F; margin-top: 0; margin-bottom: 16px;">Dear ${userName},</p>
-    <p style="margin-bottom: 16px;">We are pleased to inform you that your primary Profile Photo has been successfully reviewed and approved by our team.</p>
-    <p style="margin-bottom: 24px; background-color: #F6F4F9; border-left: 4px solid #6750A4; padding: 16px; border-radius: 8px; color: #1C1B1F;">
-      Your profile is now fully visible to other members and is actively appearing in match recommendations.
-    </p>
-    <p style="margin-bottom: 0;">Thank you for maintaining an authentic community profile!</p>
-  </div>
-  <div style="margin-top: 36px; text-align: center;">
-    <a href="http://localhost:3000/dashboard" style="display: inline-block; padding: 14px 32px; background-color: #6750A4; color: #ffffff; text-decoration: none; border-radius: 16px; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(103, 80, 164, 0.2); transition: all 0.2s;">Access My Dashboard</a>
-  </div>
-  <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #E6E1E5; text-align: center; font-size: 12px; color: #958DA5;">
-    <p style="margin: 0;">You received this safety update because you are a registered member of Kingdom Alliance.</p>
-    <p style="margin: 4px 0 0 0;">Riyadh, Saudi Arabia | support@kingdomalliance.com</p>
-  </div>
-</div>
-  `;
-
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
-    console.log(`\n==================================================`);
-    console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
-    console.log(`Subject: ${subject}`);
-    console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nWe are pleased to inform you that your primary Profile Photo has been successfully reviewed and approved by our team. Your profile is now fully visible to other members and is actively appearing in match recommendations. Thank you for maintaining an authentic community profile!`);
-    console.log(`==================================================\n`);
-    return { status: 200, text: 'Simulated success' };
-  }
-
-  try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nWe are pleased to inform you that your primary Profile Photo has been successfully reviewed and approved by our team. Your profile is now fully visible to other members and is actively appearing in match recommendations. Thank you for maintaining an authentic community profile!`
-      }
-    );
-    return response;
-  } catch (error) {
-    console.error('Failed to send profile photo approval email:', error);
-    throw error;
-  }
-};
-
-/**
- * Sends an email notification when a user's primary profile photo is rejected.
- */
-export const sendProfilePhotoRejectionEmail = async (userEmail: string, userName: string, rejectionReason: string) => {
-  const subject = "Action Required: Kingdom Alliance Profile Photo Update ⚠️";
-
-  const htmlContent = `
-<div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
-  <div style="text-align: center; margin-bottom: 32px;">
-    <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; background-color: rgba(179, 38, 30, 0.1); border-radius: 16px; margin-bottom: 16px; color: #B3261E; font-size: 28px; font-weight: bold; text-align: center;">⚠️</div>
-    <h2 style="font-size: 24px; font-weight: 800; color: #1C1B1F; margin: 0; font-family: 'Outfit', 'Inter', sans-serif;">Kingdom Alliance</h2>
-    <p style="font-size: 13px; color: #958DA5; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Action Required: Profile Photo Update</p>
-  </div>
-  <div style="color: #49454F; line-height: 1.7; font-size: 15px;">
-    <p style="font-size: 17px; font-weight: 700; color: #1C1B1F; margin-top: 0; margin-bottom: 16px;">Dear ${userName},</p>
-    <p style="margin-bottom: 16px;">During our routine safety verification, your primary Profile Photo was declined for the following reason:</p>
-    <div style="background-color: #FFF0F0; border-left: 4px solid #B3261E; padding: 18px; border-radius: 12px; color: #B3261E; font-weight: 600; font-size: 15px; margin-bottom: 24px; line-height: 1.5;">
-      "${rejectionReason}"
-    </div>
-    <p style="margin-bottom: 16px; color: #1C1B1F; font-weight: 500;">
-      As a result, your primary photo has been safely blurred on your profile layout.
-    </p>
-    <p style="margin-bottom: 0;">Please log in to your dashboard to upload a conforming profile picture so matches can see you clearly.</p>
-  </div>
-  <div style="margin-top: 36px; text-align: center;">
-    <a href="http://localhost:3000/register" style="display: inline-block; padding: 14px 32px; background-color: #B3261E; color: #ffffff; text-decoration: none; border-radius: 16px; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(179, 38, 30, 0.2); transition: all 0.2s;">Re-upload Profile Photo</a>
-  </div>
-  <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #E6E1E5; text-align: center; font-size: 12px; color: #958DA5;">
-    <p style="margin: 0;">You received this safety update because you are a registered member of Kingdom Alliance.</p>
-    <p style="margin: 4px 0 0 0;">Riyadh, Saudi Arabia | support@kingdomalliance.com</p>
-  </div>
-</div>
-  `;
-
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
-    console.log(`\n==================================================`);
-    console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
-    console.log(`Subject: ${subject}`);
-    console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nDuring our routine safety verification, your primary Profile Photo was declined for the following reason: ${rejectionReason}. As a result, your primary photo has been safely blurred on your profile layout. Please log in to your dashboard to upload a conforming profile picture so matches can see you clearly.`);
-    console.log(`==================================================\n`);
-    return { status: 200, text: 'Simulated success' };
-  }
-
-  try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nDuring our routine safety verification, your primary Profile Photo was declined for the following reason: ${rejectionReason}. As a result, your primary photo has been safely blurred on your profile layout. Please log in to your dashboard to upload a conforming profile picture so matches can see you clearly.`
-      }
-    );
-    return response;
-  } catch (error) {
-    console.error('Failed to send profile photo rejection email:', error);
-    throw error;
-  }
-};
-
-// ─── GALLERY / STORY PHOTO PIPELINE ──────────────────────────────────────────
-
-/**
- * Sends an email notification when a user's gallery photo is approved.
- */
-export const sendGalleryPhotoApprovalEmail = async (userEmail: string, userName: string) => {
-  const subject = "Kingdom Alliance | Your New Gallery Photo Is Live! 📸";
-
-  const htmlContent = `
-<div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
-  <div style="text-align: center; margin-bottom: 32px;">
-    <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; background-color: rgba(103, 80, 164, 0.1); border-radius: 16px; margin-bottom: 16px; color: #6750A4; font-size: 28px; font-weight: bold; text-align: center;">📸</div>
-    <h2 style="font-size: 24px; font-weight: 800; color: #1C1B1F; margin: 0; font-family: 'Outfit', 'Inter', sans-serif;">Kingdom Alliance</h2>
-    <p style="font-size: 13px; color: #958DA5; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Media Gallery Live Update</p>
-  </div>
-  <div style="color: #49454F; line-height: 1.7; font-size: 15px;">
-    <p style="font-size: 17px; font-weight: 700; color: #1C1B1F; margin-top: 0; margin-bottom: 16px;">Dear ${userName},</p>
-    <p style="margin-bottom: 16px;">Great news! The photo you recently uploaded to your personal album/gallery has passed moderation and is now live.</p>
-    <p style="margin-bottom: 24px; background-color: #F6F4F9; border-left: 4px solid #6750A4; padding: 16px; border-radius: 8px; color: #1C1B1F;">
-      Other members visiting your full profile can now view this update in your media gallery.
-    </p>
-    <p style="margin-bottom: 0;">Enhancing your photo album is a wonderful way to tell your story and connect with matching profiles.</p>
-  </div>
-  <div style="margin-top: 36px; text-align: center;">
-    <a href="http://localhost:3000/profile" style="display: inline-block; padding: 14px 32px; background-color: #6750A4; color: #ffffff; text-decoration: none; border-radius: 16px; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(103, 80, 164, 0.2); transition: all 0.2s;">View My Profile</a>
-  </div>
-  <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #E6E1E5; text-align: center; font-size: 12px; color: #958DA5;">
-    <p style="margin: 0;">You received this safety update because you are a registered member of Kingdom Alliance.</p>
-    <p style="margin: 4px 0 0 0;">Riyadh, Saudi Arabia | support@kingdomalliance.com</p>
-  </div>
-</div>
-  `;
-
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
-    console.log(`\n==================================================`);
-    console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
-    console.log(`Subject: ${subject}`);
-    console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nGreat news! The photo you recently uploaded to your personal album/gallery has passed moderation and is now live. Other members visiting your full profile can now view this update in your media gallery.`);
-    console.log(`==================================================\n`);
-    return { status: 200, text: 'Simulated success' };
-  }
-
-  try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nGreat news! The photo you recently uploaded to your personal album/gallery has passed moderation and is now live. Other members visiting your full profile can now view this update in your media gallery.`
-      }
-    );
-    return response;
-  } catch (error) {
-    console.error('Failed to send gallery photo approval email:', error);
-    throw error;
-  }
-};
-
-/**
- * Sends an email notification when a user's gallery photo is rejected.
- */
-export const sendGalleryPhotoRejectionEmail = async (userEmail: string, userName: string, rejectionReason: string) => {
-  const subject = "Update: Kingdom Alliance Gallery Photo Notification ℹ️";
-
-  const htmlContent = `
-<div style="font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #E6E1E5; border-radius: 24px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
-  <div style="text-align: center; margin-bottom: 32px;">
-    <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; background-color: rgba(149, 141, 165, 0.1); border-radius: 16px; margin-bottom: 16px; color: #958DA5; font-size: 28px; font-weight: bold; text-align: center;">ℹ️</div>
-    <h2 style="font-size: 24px; font-weight: 800; color: #1C1B1F; margin: 0; font-family: 'Outfit', 'Inter', sans-serif;">Kingdom Alliance</h2>
-    <p style="font-size: 13px; color: #958DA5; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">Media Gallery Notification</p>
-  </div>
-  <div style="color: #49454F; line-height: 1.7; font-size: 15px;">
-    <p style="font-size: 17px; font-weight: 700; color: #1C1B1F; margin-top: 0; margin-bottom: 16px;">Dear ${userName},</p>
-    <p style="margin-bottom: 16px;">We are writing to let you know that an image uploaded to your personal media gallery/album did not meet our community guidelines and was declined for the following reason:</p>
-    <div style="background-color: #F4F3F6; border-left: 4px solid #958DA5; padding: 18px; border-radius: 12px; color: #49454F; font-weight: 600; font-size: 15px; margin-bottom: 24px; line-height: 1.5;">
-      "${rejectionReason}"
-    </div>
-    <p style="margin-bottom: 16px; color: #1C1B1F;">
-      Please note that your primary profile status and overall visibility remain completely unaffected; only this specific gallery item has been hidden.
-    </p>
-    <p style="margin-bottom: 0;">You are welcome to upload an alternative photo to your album at any time.</p>
-  </div>
-  <div style="margin-top: 36px; text-align: center;">
-    <a href="http://localhost:3000/profile" style="display: inline-block; padding: 14px 32px; background-color: #958DA5; color: #ffffff; text-decoration: none; border-radius: 16px; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(149, 141, 165, 0.2); transition: all 0.2s;">Go to My Album</a>
-  </div>
-  <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #E6E1E5; text-align: center; font-size: 12px; color: #958DA5;">
-    <p style="margin: 0;">You received this safety update because you are a registered member of Kingdom Alliance.</p>
-    <p style="margin: 4px 0 0 0;">Riyadh, Saudi Arabia | support@kingdomalliance.com</p>
-  </div>
-</div>
-  `;
-
-  const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-
-  const isPlaceholder = 
-    !PUBLIC_KEY || PUBLIC_KEY === 'your_public_key' || 
-    !SERVICE_ID || SERVICE_ID === 'your_service_id' || 
-    !TEMPLATE_ID || TEMPLATE_ID.includes('your_');
-
-  if (isPlaceholder) {
-    console.log(`\n==================================================`);
-    console.log(`[SIMULATED EMAIL] To: ${userEmail} (${userName})`);
-    console.log(`Subject: ${subject}`);
-    console.log(`--------------------------------------------------`);
-    console.log(`Content:\nDear ${userName},\nWe are writing to let you know that an image uploaded to your personal media gallery/album did not meet our community guidelines and was declined for the following reason: ${rejectionReason}. Please note that your primary profile status and overall visibility remain completely unaffected; only this specific gallery item has been hidden. You are welcome to upload an alternative photo to your album at any time.`);
-    console.log(`==================================================\n`);
-    return { status: 200, text: 'Simulated success' };
-  }
-
-  try {
-    const response = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      {
-        to_email: userEmail,
-        to_name: userName,
-        subject: subject,
-        message_html: htmlContent,
-        message: `Dear ${userName},\n\nWe are writing to let you know that an image uploaded to your personal media gallery/album did not meet our community guidelines and was declined for the following reason: ${rejectionReason}. Please note that your primary profile status and overall visibility remain completely unaffected; only this specific gallery item has been hidden. You are welcome to upload an alternative photo to your album at any time.`
-      }
-    );
-    return response;
-  } catch (error) {
-    console.error('Failed to send gallery photo rejection email:', error);
-    throw error;
-  }
-};
-

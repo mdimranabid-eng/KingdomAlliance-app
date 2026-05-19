@@ -8,3 +8,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+declare module 'qrcode.react' {
+  export const QRCodeSVG: any;
+  export const QRCodeCanvas: any;
+}

@@ -114,7 +114,7 @@ export default function RegisterPage() {
         type: 'otp'
       });
     } catch (err) {
-      console.warn("⚠️ EmailJS failed to send verification email. Falling back to dev-console OTP:", err);
+      console.error("OTP Dispatch Failed:", err.message);
       // Do not rethrow the error so that local development and registration flow is never blocked
     }
   };

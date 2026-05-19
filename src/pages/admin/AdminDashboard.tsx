@@ -58,8 +58,7 @@ export default function AdminDashboard() {
 
       // Pending Approvals: where the account status is pending/unapproved
       const pendingApprovalsCount = usersData.filter(u => {
-        const status = resolveApprovalStatus(u);
-        return status === 'pending' || status === 'incomplete' || status === 'not_approved' || u.isApproved === false;
+        return u.onboardingComplete === true && u.approvalStatus === 'pending';
       }).length;
 
       // Calculate actual active today count

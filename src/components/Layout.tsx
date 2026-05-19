@@ -143,8 +143,7 @@ export default function Layout() {
             .filter(u => !adminIds.includes(u.id));
 
           const pendingCount = usersData.filter(u => {
-            const status = resolveApprovalStatus(u);
-            return status === 'pending' || status === 'incomplete' || status === 'not_approved' || u.isApproved === false;
+            return u.onboardingComplete === true && u.approvalStatus === 'pending';
           }).length;
 
           // 🔥 THE TRUTH-TELLER LOG

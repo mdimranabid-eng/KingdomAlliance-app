@@ -21,12 +21,59 @@ const admin = require('firebase-admin');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const {
-  sendProfilePhotoApprovalEmail,
-  sendProfilePhotoRejectionEmail,
-  sendGalleryPhotoApprovalEmail,
-  sendGalleryPhotoRejectionEmail
-} = require('./config/mailer');
+const { dispatchEmail } = require('./services/emailProvider');
+
+const sendProfilePhotoApprovalEmail = async (userEmail, userName) => {
+  const subject = "Kingdom Alliance | Your Profile Photo Has Been Approved! 🎉";
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
+      <h2 style="color: #2c3e50;">Kingdom Alliance</h2>
+      <p>Dear ${userName},</p>
+      <p>We are pleased to inform you that your primary Profile Photo has been successfully reviewed and approved by our team.</p>
+      <p>Your profile is now fully visible to other members and is actively appearing in match recommendations.</p>
+    </div>
+  `;
+  return dispatchEmail(userEmail, subject, htmlContent);
+};
+
+const sendProfilePhotoRejectionEmail = async (userEmail, userName, rejectionReason) => {
+  const subject = "Action Required: Kingdom Alliance Profile Photo Update ⚠️";
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
+      <h2 style="color: #c0392b;">Action Required</h2>
+      <p>Dear ${userName},</p>
+      <p>During our routine safety verification, your primary Profile Photo was declined for the following reason:</p>
+      <p style="font-weight: bold; color: #c0392b;">"${rejectionReason}"</p>
+      <p>Please log in to your dashboard to upload a conforming profile picture.</p>
+    </div>
+  `;
+  return dispatchEmail(userEmail, subject, htmlContent);
+};
+
+const sendGalleryPhotoApprovalEmail = async (userEmail, userName) => {
+  const subject = "Kingdom Alliance | Your New Gallery Photo Is Live! 📸";
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
+      <h2 style="color: #2c3e50;">Kingdom Alliance</h2>
+      <p>Dear ${userName},</p>
+      <p>Great news! The photo you recently uploaded to your personal album/gallery has passed moderation and is now live.</p>
+    </div>
+  `;
+  return dispatchEmail(userEmail, subject, htmlContent);
+};
+
+const sendGalleryPhotoRejectionEmail = async (userEmail, userName, rejectionReason) => {
+  const subject = "Update: Kingdom Alliance Gallery Photo Notification ℹ";
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
+      <h2 style="color: #7f8c8d;">Gallery Photo Update</h2>
+      <p>Dear ${userName},</p>
+      <p>An image uploaded to your personal media gallery/album did not meet our community guidelines and was declined for the following reason:</p>
+      <p style="font-weight: bold; color: #7f8c8d;">"${rejectionReason}"</p>
+    </div>
+  `;
+  return dispatchEmail(userEmail, subject, htmlContent);
+};
 
 // ─── Firebase Admin Initialization ────────────────────────────────────────────
 
@@ -56,17 +103,7 @@ const authAdmin = admin.auth();
 const app = express();
 const PORT = process.env.ADMIN_SERVER_PORT || 3001;
 
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-  ],
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
+app.use(cors());
 app.use(express.json());
 
 // ─── Middleware: Verify Admin Token ───────────────────────────────────────────
@@ -102,6 +139,36 @@ async function requireAdminAuth(req, res, next) {
     return res.status(401).json({ error: 'Invalid or expired token.' });
   }
 }
+
+app.post('/api/send-email', async (req, res) => {
+  const { to_email, otp_code, type } = req.body;
+  
+  // Base template setup
+  let subject = "Kingdom Alliance Notification";
+  let html = `<p>You have a new notification from Kingdom Alliance.</p>`;
+
+  // Specific template formatting
+  if (type === 'otp') {
+    subject = "Your Kingdom Alliance Verification Code";
+    html = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; border: 1px solid #eee; border-radius: 8px;">
+        <h2 style="color: #2c3e50;">Verification Required</h2>
+        <p>Your secure Kingdom Alliance registration code is:</p>
+        <h1 style="color: #e74c3c; letter-spacing: 2px;">${otp_code}</h1>
+        <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This code expires in 10 minutes. Do not share it with anyone.</p>
+      </div>
+    `;
+  }
+
+  try {
+    // Hand off to the universal adapter
+    await dispatchEmail(to_email, subject, html);
+    res.status(200).json({ success: true, message: 'Dispatched successfully via adapter' });
+  } catch (error) {
+    console.error('Route level email failure:', error.message);
+    res.status(500).json({ error: 'Mail dispatch failed via provider' });
+  }
+});
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
