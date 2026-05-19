@@ -26,7 +26,7 @@ export default function AdminLoginPage() {
     setError(null);
 
     // Strict email check for admin panel entry
-    const adminEmails = ['md.imranabid@gmail.com', 'admin@kingdomalliance.com', 'gsmtp22@gmail.com'];
+    const adminEmails = ['md.imranabid@gmail.com', 'may@godbless.com', 'gsmtp22@gmail.com'];
     if (!adminEmails.includes(email)) {
       setError("Unauthorized access. Admin credentials required.");
       setLoading(false);
@@ -68,7 +68,7 @@ export default function AdminLoginPage() {
   const handleVerifyMfaCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setIsRedirecting(true); // Freeze layout immediately before async calls fire
+    setIsRedirecting(true);
     try {
       setError('');
       const assertion = TotpMultiFactorGenerator.assertionForSignIn(
@@ -88,12 +88,14 @@ export default function AdminLoginPage() {
         return;
       }
       
+      // CRITICAL: Do NOT clear mfaResolver or set loading to false here.
+      // Let the navigate command tear down the entire component while it's still frozen on the loading screen.
       navigate('/admin');
     } catch (err: any) {
       console.error("MFA Error:", err);
       setError(err.message || "Invalid 2FA Code.");
       setLoading(false);
-      setIsRedirecting(false); // Unfreeze layout so user can retry typing the code
+      setIsRedirecting(false);
     }
   };
 

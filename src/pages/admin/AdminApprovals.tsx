@@ -8,7 +8,8 @@ import {
   serverTimestamp, 
   onSnapshot,
   Timestamp,
-  orderBy
+  orderBy,
+  getDocs
 } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -50,46 +51,66 @@ export default function AdminApprovals() {
   });
 
   useEffect(() => {
-    // 1. Listen for pending users
-    const qPending = query(
-      collection(db, 'users'),
-      where('approvalStatus', '==', 'pending'),
-      where('onboardingComplete', '==', true),
-      orderBy('createdAt', 'desc')
-    );
+    let unsubscribePending: () => void;
+    let unsubscribeStats: () => void;
 
-    const unsubscribePending = onSnapshot(qPending, (snapshot) => {
-      const pendingData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setUsers(pendingData);
-      setStats(prev => ({ ...prev, pending: pendingData.length }));
-      setLoading(false);
-    }, (error) => {
-      console.error("Error listening for pending users:", error);
-      setLoading(false);
-    });
+    const setupListeners = async () => {
+      try {
+        // Fetch the list of authenticated admin UIDs from Firestore
+        const adminSnapshot = await getDocs(collection(db, 'admins'));
+        const adminIds = adminSnapshot.docs.map(doc => doc.id);
 
-    // 2. Listen for stats (Approved/Rejected Today)
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const todayTimestamp = Timestamp.fromDate(startOfToday);
+        // 1. Listen for pending users
+        const pendingUsersQuery = query(
+          collection(db, 'users'),
+          where('onboardingComplete', '==', true),
+          where('approvalStatus', '==', 'pending'),
+          orderBy('createdAt', 'desc')
+        );
 
-    const qStats = query(
-      collection(db, 'users'),
-      where('updatedAt', '>=', todayTimestamp)
-    );
+        unsubscribePending = onSnapshot(pendingUsersQuery, (snapshot) => {
+          const pendingData = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as any))
+            .filter(u => !adminIds.includes(u.id));
+          setUsers(pendingData);
+          setStats(prev => ({ ...prev, pending: pendingData.length }));
+          setLoading(false);
+        }, (error) => {
+          console.error("Error listening for pending users:", error);
+          setLoading(false);
+        });
 
-    const unsubscribeStats = onSnapshot(qStats, (snapshot) => {
-      const data = snapshot.docs.map(d => d.data());
-      const approvedToday = data.filter(u => u.approvalStatus === 'approved').length;
-      const rejectedToday = data.filter(u => u.approvalStatus === 'rejected').length;
-      setStats(prev => ({ ...prev, approvedToday, rejectedToday }));
-    }, (error) => {
-      console.error("Error listening for approval stats:", error);
-    });
+        // 2. Listen for stats (Approved/Rejected Today)
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const todayTimestamp = Timestamp.fromDate(startOfToday);
+
+        const qStats = query(
+          collection(db, 'users'),
+          where('updatedAt', '>=', todayTimestamp)
+        );
+
+        unsubscribeStats = onSnapshot(qStats, (snapshot) => {
+          const data = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as any))
+            .filter(u => !adminIds.includes(u.id));
+          const approvedToday = data.filter(u => u.approvalStatus === 'approved').length;
+          const rejectedToday = data.filter(u => u.approvalStatus === 'rejected').length;
+          setStats(prev => ({ ...prev, approvedToday, rejectedToday }));
+        }, (error) => {
+          console.error("Error listening for approval stats:", error);
+        });
+      } catch (err) {
+        console.error("Failed to load admin list for filtering in AdminApprovals:", err);
+        setLoading(false);
+      }
+    };
+
+    setupListeners();
 
     return () => {
-      unsubscribePending();
-      unsubscribeStats();
+      if (unsubscribePending) unsubscribePending();
+      if (unsubscribeStats) unsubscribeStats();
     };
   }, []);
 

@@ -5,7 +5,7 @@ import { signInWithGoogle, registerWithEmail } from '../services/authService';
 import { useAuth } from '../lib/AuthContext';
 import { Loader2, Eye, EyeOff, CheckCircle2, Heart, Lock as LockIcon, ShieldCheck, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { sendEmail } from '../lib/email';
 
@@ -22,6 +22,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedCredentials, setSavedCredentials] = useState({ email: '', password: '' });
 
   // Email OTP States
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -75,16 +76,11 @@ export default function RegisterPage() {
     setGoogleLoading(true);
     setError(null);
     try {
-      const response = await signInWithGoogle();
-      if (response.onboardingComplete === false || response.status === 'incomplete') {
-        navigate('/onboarding');
-      } else if (response.status === 'pending') {
-        navigate('/pending-approval');
-      } else if (response.status === 'approved') {
-        navigate('/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      // Utilize your central auth service state handler to enforce profile registration properties
+      await signInWithGoogle();
+      
+      // Pass them cleanly into the wizard tracking loop
+      navigate('/onboarding');
     } catch (err: any) {
       setError(err.message || "Google sign-up failed.");
     } finally {
@@ -144,9 +140,10 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const response = await registerWithEmail(email, password, fullName);
-      const uid = response.user.uid;
-      setRegisteredUid(uid);
+      // Save credentials locally and in sessionStorage for deferred creation
+      setSavedCredentials({ email, password });
+      const creds = { email, password, fullName, authProvider: 'email', emailVerified: false };
+      sessionStorage.setItem('saved_credentials', JSON.stringify(creds));
 
       await sendEmailOtp(email);
 
@@ -155,11 +152,7 @@ export default function RegisterPage() {
       setOtpTimer(60);
       setShowOtpModal(true);
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
-        setError("An account with this email already exists. Sign in instead.");
-      } else {
-        setError(err.message || "Registration failed.");
-      }
+      setError(err.message || "Registration failed.");
     } finally {
       setLoading(false);
     }
@@ -194,8 +187,13 @@ export default function RegisterPage() {
 
       await deleteDoc(snap.docs[0].ref);
 
-      const userRef = doc(db, 'users', registeredUid);
-      await updateDoc(userRef, { emailVerified: true });
+      // Defer Firestore user update until final step - just update session credentials to verified
+      const saved = sessionStorage.getItem('saved_credentials');
+      if (saved) {
+        const creds = JSON.parse(saved);
+        creds.emailVerified = true;
+        sessionStorage.setItem('saved_credentials', JSON.stringify(creds));
+      }
 
       setShowOtpModal(false);
       navigate('/onboarding');
@@ -228,6 +226,7 @@ export default function RegisterPage() {
   const handleCancelAndSignOut = async () => {
     try {
       setShowOtpModal(false);
+      sessionStorage.removeItem('saved_credentials');
       await signOut();
       navigate('/login');
     } catch (err) {

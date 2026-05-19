@@ -87,6 +87,10 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   }
 
   if (!user) {
+    const hasSavedCredentials = !!sessionStorage.getItem('saved_credentials');
+    if (location.pathname === '/onboarding' && hasSavedCredentials) {
+      return <>{children}</>;
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

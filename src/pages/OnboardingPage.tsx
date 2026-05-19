@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { db, storage } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { sendEmailVerification, reload, createUserWithEmailAndPassword } from 'firebase/auth';
+import { sendEmailVerification, reload, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'motion/react';
@@ -148,6 +148,8 @@ export default function RegisterPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
   const [emailVerifiedLocal, setEmailVerifiedLocal] = useState(false);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [galleryPhotoFiles, setGalleryPhotoFiles] = useState<{ id: string; file: File }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -251,6 +253,18 @@ export default function RegisterPage() {
   const isGoogleUser = user?.providerData[0]?.providerId === 'google.com';
 
   useEffect(() => {
+    const saved = sessionStorage.getItem('saved_credentials');
+    if (saved) {
+      const creds = JSON.parse(saved);
+      setEmailVerifiedLocal(creds.emailVerified || false);
+      setFormData(prev => ({
+        ...prev,
+        email: creds.email || prev.email,
+        name: creds.fullName?.split(' ')[0] || prev.name,
+        lastName: creds.fullName?.split(' ').slice(1).join(' ') || prev.lastName,
+      }));
+    }
+
     if (user && !formData.email) {
       setFormData(prev => ({
         ...prev,
@@ -358,8 +372,6 @@ export default function RegisterPage() {
 
   const handleMainPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    const currentUser = auth.currentUser;
-    
     if (!file) return;
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -374,54 +386,17 @@ export default function RegisterPage() {
       return;
     }
     
-    if (!currentUser) {
-      console.error("Auth check failed: No authenticated user found during photo upload.");
-      alert("Please sign in or complete the first step to upload photos.");
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const path = `users/${currentUser.uid}/main_photo_${Date.now()}`;
-      const url = await compressAndUpload(file, path);
-      
-      // Get user name for the moderation record
-      const userName = formData.name ? `${formData.name} ${formData.lastName}` : (user?.displayName || 'User');
-      
-      // Create photoModeration document
-      await addDoc(collection(db, 'photoModeration'), {
-        uid: currentUser.uid,
-        userName: userName,
-        photoURL: url,
-        photoType: 'profilePhoto',
-        galleryPosition: null,
-        photoStatus: 'pending',
-        uploadedAt: serverTimestamp(),
-        reviewedAt: null,
-        reviewedBy: null,
-        rejectedReason: null
-      });
-
-      updateFormData('pendingPhotoUrl', url);
-      updateFormData('photoStatus', 'pending');
-    } catch (error: any) {
-      console.error("Photo upload process failed:", error);
-      alert("Failed to upload photo. " + (error.message || "Please try again."));
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setUploading(false);
-    }
+    // Defer the upload: store file and local object URL
+    setProfilePhotoFile(file);
+    const localUrl = URL.createObjectURL(file);
+    updateFormData('pendingPhotoUrl', localUrl);
+    updateFormData('photoStatus', 'pending');
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleGalleryAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    const currentUser = auth.currentUser;
     if (!files || files.length === 0) return;
-    if (!currentUser) {
-      console.error("Auth check failed: No authenticated user found during gallery upload.");
-      alert("Please sign in to upload gallery photos.");
-      return;
-    }
 
     const currentCount = formData.gallery.length;
     const remainingSlots = 3 - currentCount;
@@ -438,79 +413,38 @@ export default function RegisterPage() {
       return;
     }
 
-    setUploading(true);
-    try {
-      const newPhotos = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-          alert("Invalid file format. Please upload JPEG, PNG, or WEBP.");
-          return;
-        }
-        if (file.size >= 10 * 1024 * 1024) {
-          alert("File size must be less than 10MB.");
-          return;
-        }
-        
-        console.log(`Uploading gallery item ${i + 1}/${files.length}...`);
-        const path = `users/${currentUser.uid}/gallery_${Date.now()}_${i}`;
-        const url = await compressAndUpload(file, path);
-        
-        const galleryPos = formData.gallery.length + newPhotos.length + 1;
-        const userName = formData.name ? `${formData.name} ${formData.lastName}` : (user?.displayName || 'User');
-
-        // Create photoModeration document for each gallery photo
-        await addDoc(collection(db, 'photoModeration'), {
-          uid: currentUser.uid,
-          userName: userName,
-          photoURL: url,
-          photoType: 'galleryPhoto',
-          galleryPosition: galleryPos,
-          photoStatus: 'pending',
-          uploadedAt: serverTimestamp(),
-          reviewedAt: null,
-          reviewedBy: null,
-          rejectedReason: null
-        });
-
-        newPhotos.push({
-          id: Math.random().toString(36).substring(7),
-          url,
-          status: 'pending' as const
-        });
+    const newPhotos = [];
+    const newFiles: { id: string; file: File }[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        alert("Invalid file format. Please upload JPEG, PNG, or WEBP.");
+        return;
       }
-      updateFormData('gallery', [...formData.gallery, ...newPhotos]);
-    } catch (error: any) {
-      console.error("Gallery upload failed:", error);
-      alert("Failed to upload gallery photos. " + (error.message || "Please try again."));
-    } finally {
-      if (galleryInputRef.current) galleryInputRef.current.value = "";
-      setUploading(false);
+      if (file.size >= 10 * 1024 * 1024) {
+        alert("File size must be less than 10MB.");
+        return;
+      }
+      
+      const photoId = Math.random().toString(36).substring(7);
+      const localUrl = URL.createObjectURL(file);
+      
+      newFiles.push({ id: photoId, file });
+      newPhotos.push({
+        id: photoId,
+        url: localUrl,
+        status: 'pending' as const
+      });
     }
+
+    setGalleryPhotoFiles(prev => [...prev, ...newFiles]);
+    updateFormData('gallery', [...formData.gallery, ...newPhotos]);
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
 
   const removeGalleryPhoto = async (id: string) => {
-    const targetPhoto = formData.gallery.find(p => p.id === id);
-    if (targetPhoto) {
-      const deletedPhotoUrl = targetPhoto.url;
-      updateFormData('gallery', formData.gallery.filter(p => p.id !== id));
-      
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        try {
-          const q = query(
-            collection(db, 'photoModeration'),
-            where('uid', '==', currentUser.uid),
-            where('photoURL', '==', deletedPhotoUrl)
-          );
-          const querySnapshot = await getDocs(q);
-          const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
-          await Promise.all(deletePromises);
-        } catch (err) {
-          console.error("Failed to delete photo moderation document:", err);
-        }
-      }
-    }
+    updateFormData('gallery', formData.gallery.filter(p => p.id !== id));
+    setGalleryPhotoFiles(prev => prev.filter(f => f.id !== id));
   };
 
   const scrollToFirstError = (errors: string[]) => {
@@ -755,9 +689,7 @@ export default function RegisterPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
-    
-    // Final check for Step 4 (Photo)
+    // Final check for Step 5 (Photo)
     if (!formData.pendingPhotoUrl) {
       setInvalidFields(['pendingPhotoUrl']);
       setErrorMsg("Profile photo is required.");
@@ -768,7 +700,90 @@ export default function RegisterPage() {
     setLoading(true);
     setErrorMsg("");
     try {
-        const profileData = {
+      let activeUser = auth.currentUser;
+      const savedCredsStr = sessionStorage.getItem('saved_credentials');
+      
+      if (!activeUser && savedCredsStr) {
+        const creds = JSON.parse(savedCredsStr);
+        if (creds.authProvider === 'email') {
+          // Perform the Firebase Auth registration
+          const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
+          const userCredential = await createUserWithEmailAndPassword(auth, creds.email, creds.password);
+          activeUser = userCredential.user;
+          
+          if (creds.fullName) {
+            await updateProfile(activeUser, { displayName: creds.fullName });
+          }
+        }
+      }
+      
+      if (!activeUser) {
+        throw new Error("No active user session or registration credentials found. Please sign up again.");
+      }
+
+      // Now we have the activeUser and his UID. Let's upload the deferred photos!
+      let finalProfilePhotoUrl = formData.photoUrl || '';
+      let finalPendingPhotoUrl = formData.pendingPhotoUrl;
+      let finalPhotoStatus = formData.photoStatus;
+      
+      // Get user name for moderation
+      const userName = formData.name ? `${formData.name} ${formData.lastName}` : (activeUser.displayName || 'User');
+      
+      // 1. Upload main profile photo if it was selected locally
+      if (profilePhotoFile) {
+        console.log("Uploading main profile photo...");
+        const path = `users/${activeUser.uid}/main_photo_${Date.now()}`;
+        const url = await compressAndUpload(profilePhotoFile, path);
+        finalPendingPhotoUrl = url;
+        finalPhotoStatus = 'pending';
+        
+        // Create photoModeration document
+        await addDoc(collection(db, 'photoModeration'), {
+          uid: activeUser.uid,
+          userName: userName,
+          photoURL: url,
+          photoType: 'profilePhoto',
+          galleryPosition: null,
+          photoStatus: 'pending',
+          uploadedAt: serverTimestamp(),
+          reviewedAt: null,
+          reviewedBy: null,
+          rejectedReason: null
+        });
+      }
+      
+      // 2. Upload gallery photos if they were selected locally
+      const finalGallery = [...formData.gallery];
+      for (let i = 0; i < finalGallery.length; i++) {
+        const galleryItem = finalGallery[i];
+        const matchingLocalFile = galleryPhotoFiles.find(f => f.id === galleryItem.id);
+        
+        if (matchingLocalFile) {
+          console.log(`Uploading gallery photo ${i + 1}...`);
+          const path = `users/${activeUser.uid}/gallery_${Date.now()}_${galleryItem.id}`;
+          const url = await compressAndUpload(matchingLocalFile.file, path);
+          
+          galleryItem.url = url; // Update with the real URL
+          
+          // Create photoModeration document for each gallery photo
+          await addDoc(collection(db, 'photoModeration'), {
+            uid: activeUser.uid,
+            userName: userName,
+            photoURL: url,
+            photoType: 'galleryPhoto',
+            galleryPosition: i + 1,
+            photoStatus: 'pending',
+            uploadedAt: serverTimestamp(),
+            reviewedAt: null,
+            reviewedBy: null,
+            rejectedReason: null
+          });
+        }
+      }
+
+      const authProvider = savedCredsStr ? JSON.parse(savedCredsStr).authProvider : (activeUser.providerData[0]?.providerId === 'google.com' ? 'google' : 'email');
+
+      const profileData = {
         name: formData.name,
         middleName: formData.middleName,
         lastName: formData.lastName,
@@ -782,7 +797,7 @@ export default function RegisterPage() {
         countryLiving: formData.countryLiving,
         cityLiving: formData.cityLiving,
         maritalStatus: formData.maritalStatus,
-        height: formData.height, // String (e.g. 5'2")
+        height: formData.height,
         weight: formData.weight,
         bodyType: formData.bodyType,
         complexion: formData.complexion,
@@ -812,11 +827,11 @@ export default function RegisterPage() {
         smokingHabits: formData.smokingHabits,
         hobbies: formData.hobbies,
         aboutMe: formData.aboutMe,
-        photoUrl: formData.photoUrl,
+        photoUrl: finalProfilePhotoUrl,
         photoPrivacy: formData.photoPrivacy,
-        pendingPhotoUrl: formData.pendingPhotoUrl,
-        photoStatus: formData.photoStatus,
-        gallery: formData.gallery,
+        pendingPhotoUrl: finalPendingPhotoUrl,
+        photoStatus: finalPhotoStatus,
+        gallery: finalGallery,
         partnerPreferences: {
           ageMin: formData.partnerPreferences.ageMin,
           ageMax: formData.partnerPreferences.ageMax,
@@ -834,21 +849,35 @@ export default function RegisterPage() {
           city: formData.partnerPreferences.city,
           relocationPreference: formData.partnerPreferences.relocationPreference
         },
-        uid: user.uid,
-        email: formData.email || user.email || '',
+        uid: activeUser.uid,
+        email: formData.email || activeUser.email || '',
         emailVerified: emailVerifiedLocal,
+        authProvider: authProvider,
+        role: 'user',
+        isSuspended: false,
+        isBanned: false,
         onboardingComplete: true,
         approvalStatus: 'pending',
         submittedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        lastActive: serverTimestamp()
       };
 
-      await setDoc(doc(db, 'users', user.uid), profileData, { merge: true });
+      await setDoc(doc(db, 'users', activeUser.uid), {
+        ...profileData,             // Preserves all collected matrimonial info
+        onboardingComplete: true,   // 🔥 Set to true to confirm form completion
+        approvalStatus: 'pending',   // 🔥 Advance status to alert the admin panel
+        updatedAt: new Date()
+      }, { merge: true });
+      
+      // Clean up temporary registration session details on success
+      sessionStorage.removeItem('saved_credentials');
       
       setSubmissionSuccess(true);
     } catch (error: any) {
       console.error("Registration submission error:", error);
-      setErrorMsg(error.message || "An error occurred while saving your profile. Please try again.");
+      setErrorMsg(error.message || "Failed to submit profile. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -870,7 +899,7 @@ export default function RegisterPage() {
                 </div>
                 <h2 className="font-headline text-3xl text-on-surface">Submission Successful</h2>
                 <p className="text-on-surface-variant text-base">
-                    Thank you, <span className="font-bold">{user?.email}</span>. Your profile has been submitted for review and approval.
+                    Thank you, <span className="font-bold">{formData.email}</span>. Your profile has been submitted for review and approval.
                 </p>
                 <div className="p-4 bg-primary/5 rounded-2xl text-sm text-on-surface-variant text-left">
                     We'll notify you via your email once your profile is approved.

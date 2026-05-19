@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { auth, db } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, collectionGroup, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import {
   Heart,
   MessageSquare,
@@ -126,37 +126,55 @@ export default function Layout() {
   React.useEffect(() => {
     if (!user || !isAdmin) return;
 
-    // Listen for pending approvals
-    const qApprovals = collection(db, 'users');
-    const unsubscribeApprovals = onSnapshot(qApprovals, (snapshot) => {
-      const usersData = snapshot.docs.map(d => d.data());
-      const pendingCount = usersData.filter(u => {
-        const status = resolveApprovalStatus(u);
-        return status === 'pending' || status === 'incomplete' || status === 'not_approved' || u.isApproved === false;
-      }).length;
+    let unsubscribeApprovals: () => void;
+    let unsubscribePhotos: () => void;
 
-      // 🔥 THE TRUTH-TELLER LOG
-      console.log("🔥 FIRESTORE TRUTH -> Total Users:", usersData.length, "| Pending:", pendingCount);
+    const setupListeners = async () => {
+      try {
+        // Fetch the list of authenticated admin UIDs from Firestore
+        const adminSnapshot = await getDocs(collection(db, 'admins'));
+        const adminIds = adminSnapshot.docs.map(doc => doc.id);
 
-      setPendingApprovalsCount(pendingCount);
-    }, (error) => {
-      console.error("Error listening for pending approvals:", error);
-    });
+        // Listen for pending approvals
+        const qApprovals = collection(db, 'users');
+        unsubscribeApprovals = onSnapshot(qApprovals, (snapshot) => {
+          const usersData = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as any))
+            .filter(u => !adminIds.includes(u.id));
+
+          const pendingCount = usersData.filter(u => {
+            const status = resolveApprovalStatus(u);
+            return status === 'pending' || status === 'incomplete' || status === 'not_approved' || u.isApproved === false;
+          }).length;
+
+          // 🔥 THE TRUTH-TELLER LOG
+          console.log(`🔥 FIRESTORE TRUTH -> Total Raw Accounts: ${snapshot.size} | True Pending Clients: ${pendingCount}`);
+
+          setPendingApprovalsCount(pendingCount);
+        }, (error) => {
+          console.error("Error listening for pending approvals:", error);
+        });
+      } catch (err) {
+        console.error("Failed to load admin list for filtering:", err);
+      }
+    };
+
+    setupListeners();
 
     // Listen for pending photos in the photoModeration collection directly
     const qPhotos = query(
       collection(db, 'photoModeration'),
       where('photoStatus', '==', 'pending')
     );
-    const unsubscribePhotos = onSnapshot(qPhotos, (snapshot) => {
+    unsubscribePhotos = onSnapshot(qPhotos, (snapshot) => {
       setPendingPhotosCount(snapshot.size);
     }, (error) => {
       console.error("Error listening for pending photos:", error);
     });
 
     return () => {
-      unsubscribeApprovals();
-      unsubscribePhotos();
+      if (unsubscribeApprovals) unsubscribeApprovals();
+      if (unsubscribePhotos) unsubscribePhotos();
     };
   }, [user, isAdmin]);
 
