@@ -1,3 +1,5 @@
+import imageCompression from 'browser-image-compression';
+
 /**
  * CLOUDINARY UPLOAD UTILITY
  * 
@@ -18,8 +20,25 @@ export async function uploadToCloudinary(
     throw new Error("Cloudinary configuration missing. Check .env file.");
   }
 
+  let fileToUpload = file;
+  try {
+    const options = {
+      maxSizeMB: 3,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: 'image/webp'
+    };
+    const compressedFile = await imageCompression(file, options);
+    const originalName = file.name || 'image';
+    const dotIdx = originalName.lastIndexOf('.');
+    const baseName = dotIdx !== -1 ? originalName.substring(0, dotIdx) : originalName;
+    fileToUpload = new File([compressedFile], `${baseName}.webp`, { type: 'image/webp' });
+  } catch (err) {
+    console.error('[Cloudinary] Compression error, using original file:', err);
+  }
+
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', fileToUpload);
   formData.append('upload_preset', finalPreset);
 
   const MAX_RETRIES = 2;

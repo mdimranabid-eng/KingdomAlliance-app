@@ -362,14 +362,14 @@ export default function RegisterPage() {
     
     if (!file) return;
 
-    if (!file.type.match('image/jp.*')) {
-      alert("Please upload .Jpg files only.");
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert("Invalid file format. Please upload JPEG, PNG, or WEBP.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
-    if (file.size > 3 * 1024 * 1024) {
-      alert("File size must not exceed 3 MB.");
+    if (file.size >= 10 * 1024 * 1024) {
+      alert("File size must be less than 10MB.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -443,13 +443,13 @@ export default function RegisterPage() {
       const newPhotos = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.type.match('image/jp.*')) {
-          console.warn(`Skipping ${file.name}: Only .jpg files allowed.`);
-          continue;
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+          alert("Invalid file format. Please upload JPEG, PNG, or WEBP.");
+          return;
         }
-        if (file.size > 3 * 1024 * 1024) {
-          console.warn(`Skipping ${file.name}: Size exceeds 3 MB.`);
-          continue;
+        if (file.size >= 10 * 1024 * 1024) {
+          alert("File size must be less than 10MB.");
+          return;
         }
         
         console.log(`Uploading gallery item ${i + 1}/${files.length}...`);

@@ -204,8 +204,14 @@ export default function ProfilePage() {
       return;
     }
 
-    if (file.size > 3 * 1024 * 1024) {
-      setGalleryError("File size exceeds 3MB limit.");
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert("Invalid file format. Please upload JPEG, PNG, or WEBP.");
+      setShowUploadModal(false);
+      return;
+    }
+
+    if (file.size >= 10 * 1024 * 1024) {
+      alert("File size must be less than 10MB.");
       setShowUploadModal(false);
       return;
     }
