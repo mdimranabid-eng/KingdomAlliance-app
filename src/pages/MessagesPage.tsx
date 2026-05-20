@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { sendEmail } from '../lib/email';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, User, ChevronLeft, Phone, Video, Info, Search, Heart, MessageCircle } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
@@ -147,6 +148,16 @@ export default function MessagesPage() {
     setNewMessage('');
     try {
       await addDoc(collection(db, `chats/${chatId}/messages`), msgData);
+
+      // Fetch recipient email to dispatch notification
+      const recipientSnap = await getDoc(doc(db, 'users', activeChatUserId));
+      if (recipientSnap.exists() && recipientSnap.data()?.email) {
+          await sendEmail({
+              to_email: recipientSnap.data().email,
+              type: 'new_message',
+              senderName: currentUser.displayName || 'A member'
+          });
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `chats/${chatId}/messages`);
     }

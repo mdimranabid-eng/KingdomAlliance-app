@@ -8,9 +8,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { sendEmail } from '../lib/email';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
 export default function RegisterPage() {
   const { user, profile, signOut } = useAuth();
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [step, setStep] = useState(1);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -89,6 +91,25 @@ export default function RegisterPage() {
   };
 
   const sendEmailOtp = async (targetEmail: string) => {
+    if (!executeRecaptcha) {
+      console.error("reCAPTCHA not loaded yet");
+      alert("Security check loading, please try again in a second.");
+      return;
+    }
+
+    // Generate the invisible token
+    const token = await executeRecaptcha('otp_request');
+
+    // Check if the email belongs to an Admin
+    const adminQuery = query(collection(db, 'admins'), where('email', '==', targetEmail.toLowerCase()));
+    const adminSnap = await getDocs(adminQuery);
+
+    if (!adminSnap.empty) {
+      setError("Admin accounts cannot create standard matrimonial profiles. Please log in via the Admin Portal.");
+      setLoading(false);
+      throw new Error("Admin accounts cannot create standard matrimonial profiles. Please log in via the Admin Portal.");
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Log to developer console for easy local testing & fallback
@@ -111,9 +132,10 @@ export default function RegisterPage() {
       await sendEmail({
         to_email: targetEmail,
         otp_code: code,
-        type: 'otp'
+        type: 'otp',
+        captchaToken: token
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("OTP Dispatch Failed:", err.message);
       // Do not rethrow the error so that local development and registration flow is never blocked
     }

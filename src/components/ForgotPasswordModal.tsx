@@ -1,27 +1,27 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Mail, Lock, Key, X, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
-import { db, auth } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { collection, addDoc, query, where, getDocs, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { sendEmail } from '../lib/email';
-import { sendPasswordResetEmail } from 'firebase/auth';
-
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type Step = 'email' | 'otp' | 'reset' | 'success';
-
 export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProps) {
-  const [step, setStep] = useState<Step>('email');
+  const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   const generateOTP = () => {
     const array = new Uint32Array(1);
@@ -34,31 +34,39 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
     setLoading(true);
     setError(null);
 
-    const recentQuery = query(
-      collection(db, 'temp_otps'),
-      where('email', '==', email),
-      where('createdAt', '>', Timestamp.fromDate(new Date(Date.now() - 60 * 1000)))
-    );
-    const recentSnap = await getDocs(recentQuery);
-    if (!recentSnap.empty) {
-      setError('Please wait 1 minute before requesting a new OTP.');
+    if (!executeRecaptcha) {
+      setError("Security check loading, please try again in a second.");
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Generate OTP
+      // 1. Validate the reCAPTCHA token
+      const token = await executeRecaptcha('forgot_password');
+
+      // 2. Check if the user exists in Firestore users collection
+      const userQuery = query(collection(db, 'users'), where('email', '==', email));
+      const userSnap = await getDocs(userQuery);
+      if (userSnap.empty) {
+        setError("User does not exist.");
+        setLoading(false);
+        return;
+      }
+
+      // 3. Generate a 6-digit numeric OTP
       const code = generateOTP();
-      
-      // 2. Store in Firestore with 10 min expiry
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      
-      // Clean up old OTPs for this email first
+
+      // Log OTP in local dev console
+      console.log(`🔑 [DEV ONLY] Generated Password Reset OTP for ${email}: ${code}`);
+
+      // 4. Delete any old OTPs for this email in Firestore temp_otps collection
       const oldOtpsQuery = query(collection(db, 'temp_otps'), where('email', '==', email));
       const oldOtpsSnap = await getDocs(oldOtpsQuery);
       const deletePromises = oldOtpsSnap.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(deletePromises);
 
+      // 5. Save the new OTP to temp_otps with a 10-minute expiration (expiresAt)
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
       await addDoc(collection(db, 'temp_otps'), {
         email,
         otp: code,
@@ -66,58 +74,19 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         createdAt: serverTimestamp()
       });
 
-      // 3. Send verification email via backend
+      // 6. Call the existing sendEmail function from src/lib/email.ts
       await sendEmail({
         to_email: email,
         otp_code: code,
-        type: 'otp'
-      });
+        type: 'password_reset',
+        captchaToken: token
+      } as any);
 
-      setStep('otp');
+      // 7. Change step state to 2
+      setStep(2);
     } catch (err: any) {
       console.error('OTP Request failed:', err);
-      setError('Failed to send OTP. Please check your email or try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const q = query(
-        collection(db, 'temp_otps'), 
-        where('email', '==', email),
-        where('otp', '==', otp)
-      );
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
-        setError('Invalid OTP code. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      const otpData = snap.docs[0].data();
-      if (otpData.expiresAt.toDate() < new Date()) {
-        setError('OTP has expired. Please request a new one.');
-        setLoading(false);
-        return;
-      }
-
-      // Success - delete OTP
-      await deleteDoc(snap.docs[0].ref);
-      
-      // NOTE: Client-side Firebase Auth doesn't allow changing password without current password 
-      // or a Reset Link (oobCode). For this prototype, we'll trigger the official Reset Link 
-      // upon successful identity verification via OTP.
-      setStep('reset');
-    } catch (err) {
-      console.error('OTP Verification failed:', err);
-      setError('Verification failed. Please try again.');
+      setError(err.message || 'Failed to request OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -125,25 +94,54 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    // 1. Verify newPassword === confirmPassword
     if (newPassword !== confirmPassword) {
       setError("Passwords don't match.");
       return;
     }
+
     if (newPassword.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
     }
+
     setLoading(true);
-    setError(null);
     try {
-      await sendPasswordResetEmail(auth, email);
-      setStep('success');
-    } catch (err) {
+      // 2. Send POST request to VITE_BACKEND_URL + '/api/reset-password'
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/api/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to reset password.');
+      }
+
+      // 3. Show success message
+      setSuccessMessage("Password updated successfully. You may now log in.");
+    } catch (err: any) {
       console.error('Password reset failed:', err);
-      setError('Failed to send reset email. Please try again.');
+      setError(err.message || 'Verification or password reset failed.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClose = () => {
+    // Reset states when closed
+    setStep(1);
+    setEmail('');
+    setOtp('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setError(null);
+    setSuccessMessage(null);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -154,7 +152,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onClick={handleClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
       />
       
@@ -164,7 +162,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         className="relative w-full max-w-md bg-surface rounded-[2.5rem] shadow-2xl border border-outline-variant overflow-hidden"
       >
         <button 
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-6 right-6 p-2 hover:bg-surface-container rounded-full transition-colors text-on-surface-variant"
         >
           <X className="w-5 h-5" />
@@ -173,23 +171,24 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         <div className="p-8 md:p-10">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-primary">
-              {step === 'email' && <Mail className="w-8 h-8" />}
-              {step === 'otp' && <Key className="w-8 h-8" />}
-              {step === 'reset' && <Lock className="w-8 h-8" />}
-              {step === 'success' && <CheckCircle2 className="w-8 h-8" />}
+              {successMessage ? (
+                <CheckCircle2 className="w-8 h-8" />
+              ) : step === 1 ? (
+                <Mail className="w-8 h-8" />
+              ) : (
+                <Lock className="w-8 h-8" />
+              )}
             </div>
             
             <h2 className="font-headline text-3xl text-on-surface mb-2 font-bold">
-              {step === 'email' && "Forgot Password?"}
-              {step === 'otp' && "Check Your Email"}
-              {step === 'reset' && "New Password"}
-              {step === 'success' && "Check Your Inbox"}
+              {successMessage ? "Success" : step === 1 ? "Forgot Password?" : "Reset Password"}
             </h2>
             <p className="text-on-surface-variant text-sm px-4">
-              {step === 'email' && "Enter your email address and we'll send you an OTP to verify your identity."}
-              {step === 'otp' && `We've sent a 6-digit code to ${email}. It expires in 10 minutes.`}
-              {step === 'reset' && "Create a secure new password for your account."}
-              {step === 'success' && `For security, we've sent a final confirmation link to ${email}. Please click it to complete your password reset.`}
+              {successMessage 
+                ? successMessage 
+                : step === 1 
+                  ? "Enter your email address and we'll send you an OTP to verify your identity." 
+                  : "Enter the OTP sent to your email and your new password."}
             </p>
           </div>
 
@@ -200,7 +199,16 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
             </div>
           )}
 
-          {step === 'email' && (
+          {successMessage ? (
+            <div className="space-y-6">
+              <button
+                onClick={handleClose}
+                className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold hover:bg-primary-hover transition-all"
+              >
+                Close
+              </button>
+            </div>
+          ) : step === 1 ? (
             <form onSubmit={handleRequestOTP} className="space-y-4">
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
@@ -210,7 +218,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
                   required
-                  className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all"
+                  className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all text-on-surface"
                 />
               </div>
               <button
@@ -221,42 +229,20 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Request OTP <ArrowRight className="w-5 h-5" /></>}
               </button>
             </form>
-          )}
-
-          {step === 'otp' && (
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
-              <div className="flex justify-center gap-2">
+          ) : (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="relative flex justify-center gap-2 mb-2">
+                <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
                 <input
                   type="text"
                   maxLength={6}
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="000000"
+                  placeholder="OTP Code"
                   required
-                  className="w-full max-w-[200px] text-center text-3xl font-black tracking-[0.5em] py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all placeholder:text-outline"
+                  className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all text-on-surface placeholder:text-outline"
                 />
               </div>
-              <div className="space-y-3">
-                <button
-                  type="submit"
-                  disabled={loading || otp.length < 6}
-                  className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-primary-hover transition-all disabled:opacity-50"
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify Code"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep('email')}
-                  className="w-full text-sm text-on-surface-variant font-medium hover:text-primary transition-colors"
-                >
-                  Didn't get the code? Try again
-                </button>
-              </div>
-            </form>
-          )}
-
-          {step === 'reset' && (
-            <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
                 <input
@@ -265,7 +251,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="New Password"
                   required
-                  className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all"
+                  className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all text-on-surface"
                 />
               </div>
               <div className="relative">
@@ -276,33 +262,26 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm New Password"
                   required
-                  className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all"
+                  className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all text-on-surface"
                 />
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-primary-hover transition-all disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Reset Password"}
-              </button>
-            </form>
-          )}
-
-          {step === 'success' && (
-            <div className="space-y-6">
-              <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                <p className="text-sm text-on-surface-variant leading-relaxed">
-                  We've verified your identity using the OTP. For security, Firebase requires you to use the link sent to your email to finally update your password.
-                </p>
+              <div className="space-y-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-primary-hover transition-all disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Reset Password"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="w-full text-sm text-on-surface-variant font-medium hover:text-primary transition-colors"
+                >
+                  Back to Email
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold hover:bg-primary-hover transition-all"
-              >
-                Done
-              </button>
-            </div>
+            </form>
           )}
         </div>
       </motion.div>

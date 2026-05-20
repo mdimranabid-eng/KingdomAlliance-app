@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, addDoc, serverTimestamp, setDoc, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { sendEmail } from '../lib/email';
 import { useSettings } from '../lib/SettingsContext';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import imageCompression from 'browser-image-compression';
@@ -371,6 +372,17 @@ export default function ProfilePage() {
         read: false,
         createdAt: serverTimestamp()
       });
+
+      // Fetch target user email to dispatch notification
+      const targetUserId = id;
+      const targetUserSnap = await getDoc(doc(db, 'users', targetUserId));
+      if (targetUserSnap.exists() && targetUserSnap.data()?.email) {
+          await sendEmail({
+              to_email: targetUserSnap.data().email,
+              type: 'connection_request',
+              senderName: currentUser.displayName || 'A member'
+          });
+      }
 
       setInterestSent(true);
       alert(`Interest successfully sent to ${profile.name}! They will be notified via email.`);

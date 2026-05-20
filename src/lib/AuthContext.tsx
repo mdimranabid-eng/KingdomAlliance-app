@@ -18,9 +18,9 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   isAdmin: false,
-  refreshProfile: async () => {},
-  signIn: async () => {},
-  signOut: async () => {},
+  refreshProfile: async () => { },
+  signIn: async () => { },
+  signOut: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (uid: string, email: string) => {
     try {
       // Bootstrap first admin if email matches developer
-      const allowedAdmins = ["md.imranabid@gmail.com", "admin@kingdomalliance.com", "gsmtp22@gmail.com"];
+      const allowedAdmins = ["md.imranabid@gmail.com", "admin@kingdomalliance.com"];
       if (email && allowedAdmins.includes(email)) {
         try {
           await withTimeout(setDoc(doc(db, 'admins', uid), { uid, email }, { merge: true }));
@@ -132,11 +132,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      profile, 
-      loading, 
-      isAdmin, 
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      loading,
+      isAdmin,
       refreshProfile,
       signIn,
       signOut: signOutUser

@@ -141,8 +141,8 @@ async function requireAdminAuth(req, res, next) {
 }
 
 app.post('/api/send-email', async (req, res) => {
-  const { to_email, otp_code, type } = req.body;
-  
+  const { to_email, otp_code, type, captchaToken, reason, senderName } = req.body;
+
   // Base template setup
   let subject = "Kingdom Alliance Notification";
   let html = `<p>You have a new notification from Kingdom Alliance.</p>`;
@@ -162,11 +162,41 @@ app.post('/api/send-email', async (req, res) => {
 
   try {
     // Hand off to the universal adapter
-    await dispatchEmail(to_email, subject, html);
+    await dispatchEmail(to_email, otp_code, type, reason, senderName);
     res.status(200).json({ success: true, message: 'Dispatched successfully via adapter' });
   } catch (error) {
     console.error('Route level email failure:', error.message);
     res.status(500).json({ error: 'Mail dispatch failed via provider' });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  const { email, password, captchaToken } = req.body;
+
+  try {
+    const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`;
+
+    const captchaResponse = await fetch(verifyUrl, { method: 'POST' });
+    const captchaData = await captchaResponse.json();
+
+    // Enforce a minimum score of 0.5 (Human threshold)
+    if (!captchaData.success || captchaData.score < 0.5) {
+      console.warn(`🚨 Bot blocked at login! Email: ${email} | Score: ${captchaData.score}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Security check failed. Automated bots are not allowed.'
+      });
+    }
+
+    console.log(`✅ Human verified at login! Score: ${captchaData.score}`);
+
+    // PROCEED WITH EXISTING FIREBASE/FIRESTORE LOGIN LOGIC HERE
+
+    res.status(200).json({ success: true, message: 'Login successful' });
+
+  } catch (error) {
+    console.error("Login Route Error:", error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
@@ -400,27 +430,6 @@ app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
       }
     });
 
-    // 3. Trigger email dispatch securely using Nodemailer SMTP
-    const userRef = db.collection('users').doc(item.uid);
-    const userSnap = await userRef.get();
-    if (userSnap.exists) {
-      const userData = userSnap.data();
-      const userEmail = userData.email;
-      const userDispName = userData.name || userData.fullName || item.userName || 'Member';
-
-      if (userEmail) {
-        try {
-          if (item.photoType === 'profilePhoto') {
-            await sendProfilePhotoApprovalEmail(userEmail, userDispName);
-          } else {
-            await sendGalleryPhotoApprovalEmail(userEmail, userDispName);
-          }
-        } catch (emailErr) {
-          console.error("Failed to send approval email via SMTP:", emailErr);
-        }
-      }
-    }
-
     return res.status(200).json({ success: true, message: 'Photo approved successfully.' });
   } catch (error) {
     console.error('Error approving photo in transaction:', error);
@@ -521,31 +530,70 @@ app.post('/api/admin/reject-photo', requireAdminAuth, async (req, res) => {
       }
     });
 
-    // 3. Trigger email dispatch securely using Nodemailer SMTP
-    const userRef = db.collection('users').doc(item.uid);
-    const userSnap = await userRef.get();
-    if (userSnap.exists) {
-      const userData = userSnap.data();
-      const userEmail = userData.email;
-      const userDispName = userData.name || userData.fullName || item.userName || 'Member';
-
-      if (userEmail) {
-        try {
-          if (item.photoType === 'profilePhoto') {
-            await sendProfilePhotoRejectionEmail(userEmail, userDispName, reason);
-          } else {
-            await sendGalleryPhotoRejectionEmail(userEmail, userDispName, reason);
-          }
-        } catch (emailErr) {
-          console.error("Failed to send rejection email via SMTP:", emailErr);
-        }
-      }
-    }
-
     return res.status(200).json({ success: true, message: 'Photo rejected successfully.' });
   } catch (error) {
     console.error('Error rejecting photo in transaction:', error);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.post('/api/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+
+  try {
+    // 1. Verify OTP in Firestore
+    const tempOtpsRef = admin.firestore().collection('temp_otps');
+    const snapshot = await tempOtpsRef
+      .where('email', '==', email)
+      .where('otp', '==', otp)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(400).json({ success: false, message: 'Invalid or incorrect OTP.' });
+    }
+
+    const otpDoc = snapshot.docs[0];
+    const otpData = otpDoc.data();
+
+    // 2. Check Expiration
+    const now = admin.firestore.Timestamp.now();
+    if (otpData.expiresAt.toMillis() < now.toMillis()) {
+      await otpDoc.ref.delete(); // Cleanup expired OTP
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    // 3. Forcefully Update Password in Firebase Auth Vault
+    const userRecord = await admin.auth().getUserByEmail(email);
+    await admin.auth().updateUser(userRecord.uid, {
+      password: newPassword
+    });
+
+    // 4. Cleanup OTP Document
+    await otpDoc.ref.delete();
+
+    // 5. Send Professional Confirmation Email
+    try {
+      await dispatchEmail(email, null, 'password_reset_success');
+    } catch (emailErr) {
+      console.error("Warning: Password reset succeeded, but confirmation email failed to send.", emailErr);
+    }
+
+    res.status(200).json({ success: true, message: 'Password updated successfully.' });
+
+  } catch (error) {
+    console.error("Password Reset Error:", error);
+
+    // Handle case where user doesn't exist in Auth despite being in the request
+    if (error.code === 'auth/user-not-found') {
+      return res.status(404).json({ success: false, message: 'User account not found.' });
+    }
+
+    res.status(500).json({ success: false, message: 'Internal server error during password reset.' });
   }
 });
 

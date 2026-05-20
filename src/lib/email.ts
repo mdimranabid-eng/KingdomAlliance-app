@@ -1,7 +1,10 @@
 interface EmailPayload {
   to_email: string;
-  otp_code: string;
-  type: 'otp';
+  otp_code?: string | null;
+  type: 'otp' | 'password_reset' | 'password_reset_success' | 'profile_approved' | 'profile_rejected' | 'photo_approved' | 'photo_rejected' | 'connection_request' | 'connection_accepted' | 'new_message';
+  captchaToken?: string;
+  reason?: string;
+  senderName?: string;
 }
 
 export const sendEmail = async (payload: EmailPayload): Promise<void> => {

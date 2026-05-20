@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { signInWithGoogle, signInWithEmail } from '../services/authService';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { Loader2, Eye, EyeOff, CheckCircle2, Heart, Lock as LockIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { resolveApprovalStatus } from '../lib/utils';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -16,6 +18,8 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { executeRecaptcha } = useGoogleReCaptcha();
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
   const enforceGatekeeperRouting = async (uid: string) => {
     try {
@@ -86,9 +90,38 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    if (!executeRecaptcha) {
+      setError("Security check loading, please try again in a second.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await signInWithEmail(email, password);
-      await enforceGatekeeperRouting(response.user.uid);
+      // Generate the invisible token
+      const token = await executeRecaptcha('login_attempt');
+
+      // Send credentials AND the invisible token to the Express server running on port 3001
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: email, 
+          password: password, 
+          captchaToken: token 
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Security check failed. Automated bots are not allowed.');
+      }
+
+      // Proceed with existing client-side Firebase Auth check
+      const responseAuth = await signInWithEmail(email, password);
+      await enforceGatekeeperRouting(responseAuth.user.uid);
     } catch (err: any) {
       setError(formatError(err));
       setLoading(false);
@@ -238,7 +271,11 @@ export default function LoginPage() {
               </div>
 
               <div className="flex justify-end">
-                <button type="button" className="text-sm font-semibold text-[#d4af37] hover:underline">
+                <button 
+                  type="button" 
+                  onClick={() => setIsForgotModalOpen(true)} 
+                  className="text-sm font-semibold text-[#d4af37] hover:underline"
+                >
                   Forgot Password?
                 </button>
               </div>
@@ -261,6 +298,7 @@ export default function LoginPage() {
           </div>
         </motion.div>
       </div>
+      <ForgotPasswordModal isOpen={isForgotModalOpen} onClose={() => setIsForgotModalOpen(false)} />
     </div>
   );
 }

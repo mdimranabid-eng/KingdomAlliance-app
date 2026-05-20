@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { cn, formatRelativeTime } from '../../lib/utils';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
+import { sendEmail } from '../../lib/email';
 
 export default function AdminApprovals() {
   const [users, setUsers] = useState<any[]>([]);
@@ -139,6 +140,15 @@ export default function AdminApprovals() {
           }
         ]
       });
+
+      const userToApprove = users.find(u => u.id === userId) || selectedUser;
+      if (userToApprove?.email) {
+        await sendEmail({
+          to_email: userToApprove.email,
+          type: 'profile_approved'
+        });
+      }
+
       setConfirmModal({ isOpen: false, userId: null, name: '' });
     } catch (error) {
       console.error("Error approving user:", error);
@@ -176,6 +186,16 @@ export default function AdminApprovals() {
           }
         ]
       });
+
+      const userToReject = users.find(u => u.id === targetUserId) || selectedUser;
+      if (userToReject?.email) {
+        await sendEmail({
+          to_email: userToReject.email,
+          type: 'profile_rejected',
+          reason: rejectionModal.reason
+        });
+      }
+
       setRejectionModal({ isOpen: false, userId: null, reason: '' });
     } catch (error) {
       console.error("Error rejecting user:", error);

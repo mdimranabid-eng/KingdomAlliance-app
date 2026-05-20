@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { sendEmail } from '../lib/email';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Heart, 
@@ -74,6 +75,23 @@ export default function InterestsPage() {
         status,
         updatedAt: serverTimestamp()
       });
+
+      if (status === 'accepted') {
+        const request = interests.find(i => i.id === interestId);
+        if (request) {
+          const currentUser = authUser;
+          // Fetch the original sender's email to notify them of acceptance
+          const senderSnap = await getDoc(doc(db, 'users', request.fromId));
+          if (senderSnap.exists() && senderSnap.data()?.email) {
+              await sendEmail({
+                  to_email: senderSnap.data().email,
+                  type: 'connection_accepted',
+                  senderName: currentUser?.displayName || 'A member'
+              });
+          }
+        }
+      }
+
       setInterests(prev => prev.map(i => i.id === interestId ? { ...i, status } : i));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `interests/${interestId}`);

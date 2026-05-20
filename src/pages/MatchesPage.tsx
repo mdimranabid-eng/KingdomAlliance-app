@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy, limit, addDoc, serverTimestamp, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { sendEmail } from '../lib/email';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Heart, 
@@ -453,6 +454,17 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
         read: false,
         createdAt: serverTimestamp()
       });
+
+      // Fetch target user email to dispatch notification
+      const targetUserId = user.id;
+      const targetUserSnap = await getDoc(doc(db, 'users', targetUserId));
+      if (targetUserSnap.exists() && targetUserSnap.data()?.email) {
+          await sendEmail({
+              to_email: targetUserSnap.data().email,
+              type: 'connection_request',
+              senderName: currentUser.displayName || 'A member'
+          });
+      }
 
       setInterestSent(true);
       // Success pop message (alert for now, could be a toast)

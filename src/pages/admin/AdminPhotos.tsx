@@ -30,6 +30,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { cn, formatRelativeTime } from '../../lib/utils';
+import { sendEmail } from '../../lib/email';
 
 // Dynamic environment-aware backend URL to prevent Mixed Content errors under HTTPS
 const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
@@ -199,6 +200,17 @@ export default function AdminPhotos() {
       }
 
       console.log("Photo approved successfully via backend.");
+
+      const userSnap = await getDoc(doc(db, 'users', item.uid));
+      const targetUserEmail = userSnap.exists() ? userSnap.data()?.email : null;
+      console.log("TESTING EMAIL DISPATCH:");
+      console.log("Target Email is:", targetUserEmail);
+      if (targetUserEmail) {
+          await sendEmail({
+              to_email: targetUserEmail,
+              type: 'photo_approved'
+          });
+      }
     } catch (err) {
       console.error("Error approving photo:", err);
       alert(err instanceof Error ? err.message : "Error approving photo");
@@ -232,6 +244,19 @@ export default function AdminPhotos() {
       }
 
       console.log("Photo rejected successfully via backend.");
+
+      const userSnap = await getDoc(doc(db, 'users', item.uid));
+      const targetUserEmail = userSnap.exists() ? userSnap.data()?.email : null;
+      const rejectionReason = finalReason;
+      console.log("TESTING EMAIL DISPATCH:");
+      console.log("Target Email is:", targetUserEmail);
+      if (targetUserEmail) {
+          await sendEmail({
+              to_email: targetUserEmail,
+              type: 'photo_rejected',
+              reason: rejectionReason
+          });
+      }
       
       // Close rejection dialog
       setRejectionStates(prev => ({
