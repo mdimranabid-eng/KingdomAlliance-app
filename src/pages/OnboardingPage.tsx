@@ -1949,7 +1949,7 @@ export default function RegisterPage() {
                               ref={fileInputRef} 
                               onChange={handleMainPhotoChange} 
                               className="hidden" 
-                              accept=".jpg,.jpeg" 
+                              accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp" 
                               disabled={uploading}
                             />
                           </label>
@@ -2028,7 +2028,7 @@ export default function RegisterPage() {
                               ref={galleryInputRef} 
                               onChange={handleGalleryAdd} 
                               className="hidden" 
-                              accept=".jpg,.jpeg" 
+                              accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp" 
                               multiple 
                               disabled={uploading}
                             />

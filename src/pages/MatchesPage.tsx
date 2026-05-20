@@ -26,7 +26,8 @@ import {
   Ruler
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus, calculateAge } from '../lib/utils';
+import toast from 'react-hot-toast';
 
 const getOptimizedImageUrl = (url: string) => {
   if (!url) return '';
@@ -92,10 +93,15 @@ export default function MatchesPage() {
       const querySnapshot = await getDocs(q);
       const currentUserUid = profile?.uid || profile?.id;
       let docs = querySnapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }) as any)
+        .map(doc => {
+          const data = doc.data();
+          const age = calculateAge(data.dob, data.age);
+          return {
+            id: doc.id,
+            ...data,
+            age
+          } as any;
+        })
         .filter(u => {
           const uStatus = resolveApprovalStatus(u);
           const isApprovedUser = u.isApproved === true || uStatus === 'approved';
@@ -467,8 +473,7 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
       }
 
       setInterestSent(true);
-      // Success pop message (alert for now, could be a toast)
-      alert(`Interest successfully sent to ${user.name}! They will be notified via email.`);
+      toast.success(`Interest successfully sent to ${user.name}!`);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'interests');
     } finally {

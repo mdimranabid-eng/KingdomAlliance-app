@@ -52,7 +52,9 @@ import {
   Quote,
   Share2
 } from 'lucide-react';
-import { cn, handleFirestoreError, OperationType, calculateMatchScore } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge } from '../lib/utils';
+import BlockedUsersList from '../components/BlockedUsersList';
+import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
   const { id } = useParams();
@@ -109,7 +111,8 @@ export default function ProfilePage() {
         const docSnap = await getDoc(doc(db, 'users', id));
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setProfile({ id: docSnap.id, ...data });
+          const age = calculateAge(data.dob, data.age);
+          setProfile({ id: docSnap.id, ...data, age });
           setAboutMeDraft(data.aboutMe || '');
 
           if (currentUser) {
@@ -348,7 +351,7 @@ export default function ProfilePage() {
 
     if (currentProfile && profile) {
       if (currentProfile.gender === profile.gender) {
-        alert(`As a ${currentProfile.gender}, you can only express interest to ${currentProfile.gender === 'Bride' ? 'Grooms' : 'Brides'}.`);
+        toast.error(`As a ${currentProfile.gender}, you can only express interest to ${currentProfile.gender === 'Bride' ? 'Grooms' : 'Brides'}.`);
         return;
       }
     }
@@ -385,9 +388,37 @@ export default function ProfilePage() {
       }
 
       setInterestSent(true);
-      alert(`Interest successfully sent to ${profile.name}! They will be notified via email.`);
+      toast.success(`Interest successfully sent to ${profile.name}!`);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'interests');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleWithdrawInterest = async () => {
+    if (!currentUser || !id || sendingInterest) return;
+    setSendingInterest(true);
+    try {
+      // 1. Delete Interest document
+      const interestsRef = collection(db, 'interests');
+      const q = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+
+      // 2. Delete notification document
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'interest'), where('fromId', '==', currentUser.uid), where('userId', '==', id));
+      const snapNotif = await getDocs(qNotif);
+      await Promise.all(snapNotif.docs.map(d => deleteDoc(d.ref)));
+
+      // 3. Update UI state
+      setInterestSent(false);
+      
+      // 4. Toast notification
+      toast.success('Interest withdrawn');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, 'interests');
     } finally {
       setSendingInterest(false);
     }
@@ -399,6 +430,7 @@ export default function ProfilePage() {
     { id: 'about', label: 'About Me', icon: User },
     { id: 'lifestyle', label: 'Lifestyle', icon: Activity },
     { id: 'faith', label: 'Faith Journey', icon: Church },
+    ...(isOwnProfile ? [{ id: 'privacy', label: 'Privacy / Blocked', icon: ShieldAlert }] : [])
   ];
 
   if (loading) return (
@@ -559,17 +591,17 @@ export default function ProfilePage() {
                   {!isOwnProfile && !isAdmin && (
                     <div className="flex items-center gap-4 w-full md:w-auto">
                       <button
-                        onClick={handleSendInterest}
-                        disabled={interestSent || sendingInterest}
+                        onClick={interestSent ? handleWithdrawInterest : handleSendInterest}
+                        disabled={sendingInterest}
                         className={cn(
                           "flex-1 md:flex-none px-10 py-5 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg",
                           interestSent
-                            ? "bg-slate-100 text-slate-500 cursor-default"
+                            ? "bg-error/10 text-error hover:bg-error/25 hover:-translate-y-1 active:translate-y-0"
                             : "bg-primary text-white hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
                         )}
                       >
                         {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <Heart className={cn("w-6 h-6", interestSent && "fill-current")} />}
-                        {interestSent ? "Interest Sent" : "Send Interest"}
+                        {interestSent ? "Withdraw Interest" : "Send Interest"}
                       </button>
 
                       <button
@@ -800,6 +832,10 @@ export default function ProfilePage() {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'privacy' && isOwnProfile && (
+                <BlockedUsersList />
+              )}
             </motion.div>
           </div>
 
@@ -994,7 +1030,7 @@ export default function ProfilePage() {
       <input
         id="photo-upload"
         type="file"
-        accept="image/*"
+        accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp"
         className="hidden"
         onChange={handlePhotoUpload}
       />

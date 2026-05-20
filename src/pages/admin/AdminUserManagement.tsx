@@ -3,7 +3,7 @@ import { db, auth } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, where, orderBy, limit, deleteDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Eye, UserX, UserCheck } from 'lucide-react';
-import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateAge } from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import { seedTestData } from '../../lib/seeder';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
@@ -151,7 +151,11 @@ export default function AdminUserManagement() {
       // For now we fetch all, or we could add search/filter query
       const q = query(usersRef, orderBy('createdAt', 'desc'), limit(100));
       const snap = await getDocs(q);
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserProfile));
+      const docs = snap.docs.map(d => {
+        const data = d.data();
+        const age = String(calculateAge(data.dob, data.age));
+        return { id: d.id, ...data, age } as UserProfile;
+      });
       setUsers(docs);
     } catch (err) {
       console.error("Error fetching users:", err);

@@ -185,4 +185,26 @@ export function parseFirestoreDate(field: any): Date | null {
   return isNaN(date.getTime()) ? null : date;
 }
 
+export function calculateAge(dob: any, fallbackAge?: number | string): number {
+  if (!dob) {
+    const fallback = Number(fallbackAge);
+    return isNaN(fallback) ? 0 : fallback;
+  }
+  
+  const birthDate = parseFirestoreDate(dob);
+  if (!birthDate) {
+    const fallback = Number(fallbackAge);
+    return isNaN(fallback) ? 0 : fallback;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+  }
+  return age > 0 ? age : 0;
+}
+
+
 

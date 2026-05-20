@@ -3,7 +3,7 @@ import { db, auth } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, getDoc, deleteDoc, where, orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin } from 'lucide-react';
-import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateAge } from '../../lib/utils';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 import { deleteFromCloudinary } from '../../lib/cloudinary';
 
@@ -115,7 +115,11 @@ export default function RejectedProfilesPage() {
       // Retrieve the last 200 users, filter client-side for absolute reliability
       const q = query(usersRef, orderBy('createdAt', 'desc'), limit(200));
       const snap = await getDocs(q);
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserProfile));
+      const docs = snap.docs.map(d => {
+        const data = d.data();
+        const age = String(calculateAge(data.dob, data.age));
+        return { id: d.id, ...data, age } as UserProfile;
+      });
       
       // Filter for suspended or rejected profiles
       const filtered = docs.filter(u => 

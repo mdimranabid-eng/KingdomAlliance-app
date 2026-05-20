@@ -24,7 +24,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, calculateMatchScore, resolveApprovalStatus } from '../lib/utils';
+import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge } from '../lib/utils';
 
 const getOptimizedImageUrl = (url: string) => {
   if (!url) return '';
@@ -62,10 +62,15 @@ export default function DashboardPage() {
         const snap = await getDocs(q);
         const currentUserUid = profile.uid || profile.id;
         const docs = snap.docs
-          .map(d => ({
-            id: d.id,
-            ...d.data()
-          }) as any)
+          .map(d => {
+            const data = d.data();
+            const age = calculateAge(data.dob, data.age);
+            return {
+              id: d.id,
+              ...data,
+              age
+            } as any;
+          })
           .filter(u => {
             const uStatus = resolveApprovalStatus(u);
             const isApprovedUser = u.isApproved === true || uStatus === 'approved';

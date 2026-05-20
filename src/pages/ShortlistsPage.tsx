@@ -17,7 +17,7 @@ import {
   Church
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, handleFirestoreError, OperationType, calculateMatchScore } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge } from '../lib/utils';
 
 export default function ShortlistsPage() {
   const { profile, user: authUser } = useAuth();
@@ -36,10 +36,12 @@ export default function ShortlistsPage() {
         const userSnap = await getDoc(doc(db, 'users', item.targetId));
         if (userSnap.exists()) {
           const userData = userSnap.data();
+          const age = calculateAge(userData.dob, userData.age);
           return {
             id: userSnap.id,
             shortlistDocId: item.id,
             ...userData,
+            age,
             matchScore: calculateMatchScore(profile, userData)
           };
         }

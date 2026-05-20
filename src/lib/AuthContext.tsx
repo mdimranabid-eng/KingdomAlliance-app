@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { calculateAge } from './utils';
 
 interface AuthContextType {
   user: User | null;
@@ -61,7 +62,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profileDoc?.exists()) {
         const data = profileDoc.data();
-        setProfile(data);
+        const age = calculateAge(data.dob, data.age);
+        setProfile({ ...data, age });
 
         // Update login stats if lastLoginAt is blank, >40 days ago, or status is currently 'inactive'
         const lastLogin = data.lastLoginAt?.toDate?.() || (data.lastLoginAt ? new Date(data.lastLoginAt) : null);

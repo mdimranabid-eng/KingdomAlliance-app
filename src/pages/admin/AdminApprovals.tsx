@@ -26,7 +26,7 @@ import {
   ChevronRight,
   Loader2
 } from 'lucide-react';
-import { cn, formatRelativeTime } from '../../lib/utils';
+import { cn, formatRelativeTime, calculateAge } from '../../lib/utils';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 import { sendEmail } from '../../lib/email';
 
@@ -71,7 +71,11 @@ export default function AdminApprovals() {
 
         unsubscribePending = onSnapshot(pendingUsersQuery, (snapshot) => {
           const pendingData = snapshot.docs
-            .map(d => ({ id: d.id, ...d.data() } as any))
+            .map(d => {
+              const data = d.data();
+              const age = calculateAge(data.dob, data.age);
+              return { id: d.id, ...data, age } as any;
+            })
             .filter(u => !adminIds.includes(u.id));
           setUsers(pendingData);
           setStats(prev => ({ ...prev, pending: pendingData.length }));

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Heart, 
@@ -17,11 +18,11 @@ import {
   Mail
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, handleFirestoreError, OperationType } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateAge } from '../lib/utils';
 
 export default function InterestsPage() {
   const { user: authUser } = useAuth();
-  const [tab, setTab] = useState<'received' | 'sent'>('received');
+  const [tab, setTab] = useState<'received' | 'sent' | 'declined'>('received');
   const [interests, setInterests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export default function InterestsPage() {
     try {
       const q = query(
         collection(db, 'interests'), 
-        where(tab === 'received' ? 'toId' : 'fromId', '==', authUser.uid)
+        where(tab === 'sent' ? 'fromId' : 'toId', '==', authUser.uid)
       );
       
       const snap = await getDocs(q);
@@ -48,15 +49,27 @@ export default function InterestsPage() {
       
       // Fetch user profiles
       const enrichedInterests = await Promise.all(interestDocs.map(async (interest: any) => {
-        const targetId = tab === 'received' ? interest.fromId : interest.toId;
+        const targetId = tab === 'sent' ? interest.toId : interest.fromId;
         const userSnap = await getDoc(doc(db, 'users', targetId));
+        let userData = null;
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          const age = calculateAge(data.dob, data.age);
+          userData = { id: userSnap.id, ...data, age };
+        }
         return {
           ...interest,
-          user: userSnap.exists() ? { id: userSnap.id, ...userSnap.data() } : null
+          user: userData
         };
       }));
 
-      setInterests(enrichedInterests.filter(i => i.user));
+      let filtered = enrichedInterests.filter(i => i.user);
+      if (tab === 'received') {
+        filtered = filtered.filter(i => i.status !== 'declined');
+      } else if (tab === 'declined') {
+        filtered = filtered.filter(i => i.status === 'declined');
+      }
+      setInterests(filtered);
     } catch (err) {
       console.error(err);
     } finally {
@@ -92,12 +105,67 @@ export default function InterestsPage() {
         }
       }
 
-      setInterests(prev => prev.map(i => i.id === interestId ? { ...i, status } : i));
+      setInterests(prev => 
+        prev
+          .map(i => i.id === interestId ? { ...i, status } : i)
+          .filter(i => tab !== 'declined' || i.status === 'declined')
+      );
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `interests/${interestId}`);
     } finally {
       setProcessingId(interestId);
       setTimeout(() => setProcessingId(null), 500);
+    }
+  };
+
+  const handleWithdrawInterest = async (targetUserId: string, interestId: string) => {
+    if (!authUser) return;
+    setProcessingId(interestId);
+    try {
+      // 1. Delete the specific interest document
+      await deleteDoc(doc(db, 'interests', interestId));
+
+      // 2. Query and delete corresponding notifications to reset recipient bell counter
+      const qNotif = query(
+        collection(db, 'notifications'),
+        where('type', '==', 'interest'),
+        where('fromId', '==', authUser.uid),
+        where('userId', '==', targetUserId)
+      );
+      const snapNotif = await getDocs(qNotif);
+      await Promise.all(snapNotif.docs.map(d => deleteDoc(d.ref)));
+
+      // 3. UI Update: remove from the local state
+      setInterests(prev => prev.filter(i => i.id !== interestId));
+
+      toast.success('Interest withdrawn');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `interests/${interestId}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDeclineInterest = async (interestId: string) => {
+    await handleUpdateStatus(interestId, 'declined');
+    toast.success('Interest declined');
+  };
+
+  const handleAcceptInterest = async (interestId: string) => {
+    await handleUpdateStatus(interestId, 'accepted');
+    toast.success('Interest accepted');
+  };
+
+  const handleDeletePermanently = async (interestId: string) => {
+    setProcessingId(interestId);
+    try {
+      await deleteDoc(doc(db, 'interests', interestId));
+      setInterests(prev => prev.filter(i => i.id !== interestId));
+      toast.success('Interest deleted permanently');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `interests/${interestId}`);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -109,7 +177,7 @@ export default function InterestsPage() {
           <p className="text-on-surface-variant">Connect with members who share your vision</p>
         </div>
 
-        <div className="flex p-1 bg-surface-container rounded-2xl border border-outline-variant">
+        <div className="flex p-1 bg-surface-container rounded-2xl border border-outline-variant flex-wrap gap-1 md:gap-0">
           <button 
             onClick={() => setTab('received')}
             className={cn(
@@ -127,6 +195,15 @@ export default function InterestsPage() {
             )}
           >
             Sent
+          </button>
+          <button 
+            onClick={() => setTab('declined')}
+            className={cn(
+              "px-6 py-2.5 rounded-xl font-label-lg transition-all",
+              tab === 'declined' ? "bg-primary text-on-primary shadow-lg" : "text-on-surface-variant hover:bg-surface-variant"
+            )}
+          >
+            Declined
           </button>
         </div>
       </div>
@@ -158,9 +235,12 @@ export default function InterestsPage() {
                 key={interest.id} 
                 interest={interest} 
                 isReceived={tab === 'received'}
+                isDeclinedView={tab === 'declined'}
                 isProcessing={processingId === interest.id}
-                onAccept={() => handleUpdateStatus(interest.id, 'accepted')}
-                onDecline={() => handleUpdateStatus(interest.id, 'declined')}
+                onAccept={() => handleAcceptInterest(interest.id)}
+                onDecline={() => handleDeclineInterest(interest.id)}
+                onWithdraw={() => handleWithdrawInterest(interest.toId, interest.id)}
+                onDelete={() => handleDeletePermanently(interest.id)}
               />
             ))}
           </AnimatePresence>
@@ -170,7 +250,7 @@ export default function InterestsPage() {
   );
 }
 
-function InterestCard({ interest, isReceived, isProcessing, onAccept, onDecline }: any) {
+function InterestCard({ interest, isReceived, isDeclinedView, isProcessing, onAccept, onDecline, onWithdraw, onDelete }: any) {
   const { user } = interest;
 
   return (
@@ -200,7 +280,24 @@ function InterestCard({ interest, isReceived, isProcessing, onAccept, onDecline 
           <MapPin className="w-3 h-3" /> {user.location}
         </p>
         
-        {isReceived && interest.status === 'pending' ? (
+        {isDeclinedView ? (
+          <div className="flex gap-2">
+            <button 
+              disabled={isProcessing}
+              onClick={onAccept}
+              className="flex-1 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1.5"
+            >
+              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3.5 h-3.5" /> Accept</>}
+            </button>
+            <button 
+              disabled={isProcessing}
+              onClick={onDelete}
+              className="px-4 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-xl text-xs font-bold transition-all"
+            >
+              Delete
+            </button>
+          </div>
+        ) : isReceived && interest.status === 'pending' ? (
           <div className="flex gap-2">
             <button 
               disabled={isProcessing}
@@ -225,9 +322,20 @@ function InterestCard({ interest, isReceived, isProcessing, onAccept, onDecline 
             <MessageCircle className="w-4 h-4" /> Start Conversation
           </Link>
         ) : (
-          <p className="text-xs text-on-surface-variant italic">
-            {interest.status === 'pending' ? "Waiting for response..." : interest.status === 'declined' ? "Interest declined." : ""}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-on-surface-variant italic">
+              {interest.status === 'pending' ? "Waiting for response..." : interest.status === 'declined' ? "Interest declined." : ""}
+            </p>
+            {!isReceived && interest.status === 'pending' && (
+              <button
+                disabled={isProcessing}
+                onClick={onWithdraw}
+                className="self-start px-3 py-1 bg-error/10 text-error hover:bg-error/20 rounded-lg text-[11px] font-bold transition-all"
+              >
+                Withdraw
+              </button>
+            )}
+          </div>
         )}
       </div>
     </motion.div>
