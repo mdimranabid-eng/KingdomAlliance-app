@@ -149,6 +149,17 @@ export default function MessagesPage() {
     try {
       await addDoc(collection(db, `chats/${chatId}/messages`), msgData);
 
+      // Create a real-time alert for the recipient
+      await addDoc(collection(db, 'notifications'), {
+          userId: activeChatUserId,
+          fromId: currentUser.uid,
+          type: 'message',
+          title: 'New Message',
+          message: `You have a new message from ${currentUser.displayName || 'a member'}`,
+          read: false,
+          createdAt: serverTimestamp()
+      });
+
       // Fetch recipient email to dispatch notification
       const recipientSnap = await getDoc(doc(db, 'users', activeChatUserId));
       if (recipientSnap.exists() && recipientSnap.data()?.email) {

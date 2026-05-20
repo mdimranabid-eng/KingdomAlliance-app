@@ -5,6 +5,8 @@
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
+import { Toaster } from 'react-hot-toast';
+import NotificationListener from './components/NotificationListener';
 import { AuthGuard } from './components/AuthGuard';
 import Layout from './components/Layout';
 import LandingPage from './pages/LandingPage';
@@ -52,6 +54,8 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
+        <Toaster position="bottom-right" />
+        <NotificationListener />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
