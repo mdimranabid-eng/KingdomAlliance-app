@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, addDoc, serverTimestamp, setDoc, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, addDoc, serverTimestamp, setDoc, getDocs, deleteDoc, updateDoc, runTransaction, deleteField, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
@@ -13,7 +13,9 @@ import {
   Heart,
   User,
   MessageSquare,
+  MessageCircle,
   MapPin,
+  Check,
   Church,
   Briefcase,
   GraduationCap,
@@ -63,7 +65,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [sendingInterest, setSendingInterest] = useState(false);
-  const [interestSent, setInterestSent] = useState(false);
+  const [connectionState, setConnectionState] = useState<any | null>(null);
   const [isShortlisted, setIsShortlisted] = useState(false);
   const [shortlistId, setShortlistId] = useState<string | null>(null);
   const [togglingShortlist, setTogglingShortlist] = useState(false);
@@ -117,9 +119,14 @@ export default function ProfilePage() {
 
           if (currentUser) {
             const interestsRef = collection(db, 'interests');
-            const qInterest = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
-            const interestsSnap = await getDocs(qInterest);
-            if (!interestsSnap.empty) setInterestSent(true);
+            const q1 = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
+            const q2 = query(interestsRef, where('fromId', '==', id), where('toId', '==', currentUser.uid));
+            const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+            if (!snap1.empty) {
+              setConnectionState({ id: snap1.docs[0].id, ...snap1.docs[0].data() });
+            } else if (!snap2.empty) {
+              setConnectionState({ id: snap2.docs[0].id, ...snap2.docs[0].data() });
+            }
 
             const shortlistRef = collection(db, 'shortlists');
             const qShortlist = query(shortlistRef, where('userId', '==', currentUser.uid), where('targetId', '==', id));
@@ -347,7 +354,7 @@ export default function ProfilePage() {
   };
 
   const handleSendInterest = async () => {
-    if (!currentUser || !id || sendingInterest || interestSent) return;
+    if (!currentUser || !id || sendingInterest || connectionState) return;
 
     if (currentProfile && profile) {
       if (currentProfile.gender === profile.gender) {
@@ -358,7 +365,7 @@ export default function ProfilePage() {
 
     setSendingInterest(true);
     try {
-      await addDoc(collection(db, 'interests'), {
+      const docRef = await addDoc(collection(db, 'interests'), {
         fromId: currentUser.uid,
         toId: id,
         status: 'pending',
@@ -387,7 +394,7 @@ export default function ProfilePage() {
           });
       }
 
-      setInterestSent(true);
+      setConnectionState({ id: docRef.id, fromId: currentUser.uid, toId: id, status: 'pending' });
       toast.success(`Interest successfully sent to ${profile.name}!`);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'interests');
@@ -397,28 +404,132 @@ export default function ProfilePage() {
   };
 
   const handleWithdrawInterest = async () => {
-    if (!currentUser || !id || sendingInterest) return;
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
     setSendingInterest(true);
     try {
-      // 1. Delete Interest document
-      const interestsRef = collection(db, 'interests');
-      const q = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
-      const snap = await getDocs(q);
-      await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+      await runTransaction(db, async (transaction) => {
+        const docRef = doc(db, 'interests', connectionState.id);
+        const docSnap = await transaction.get(docRef);
+        if (!docSnap.exists() || docSnap.data().status !== 'pending') {
+          throw new Error('Connection no longer exists or is not pending');
+        }
+        transaction.delete(docRef);
+      });
 
-      // 2. Delete notification document
       const notifRef = collection(db, 'notifications');
       const qNotif = query(notifRef, where('type', '==', 'interest'), where('fromId', '==', currentUser.uid), where('userId', '==', id));
       const snapNotif = await getDocs(qNotif);
-      await Promise.all(snapNotif.docs.map(d => deleteDoc(d.ref)));
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
 
-      // 3. Update UI state
-      setInterestSent(false);
-      
-      // 4. Toast notification
+      setConnectionState(null);
       toast.success('Interest withdrawn');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'interests');
+      console.error(err);
+      toast.error('Failed to withdraw interest. State may have changed.');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleDeclineInterest = async () => {
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
+    setSendingInterest(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'declined',
+        declinedBy: currentUser.uid
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'interest'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif = await getDocs(qNotif);
+      
+      const qNotif2 = query(notifRef, where('type', '==', 'accepted'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif2 = await getDocs(qNotif2);
+      
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      snapNotif2.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setConnectionState({ ...connectionState, status: 'declined', declinedBy: currentUser.uid });
+      toast.success('Connection declined');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to decline connection.');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleAcceptInterest = async () => {
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
+    setSendingInterest(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'accepted'
+      });
+
+      await addDoc(collection(db, 'notifications'), {
+        userId: id,
+        fromId: currentUser.uid,
+        type: 'accepted',
+        title: 'Connection Accepted',
+        message: `${currentUser.displayName || 'Someone'} has accepted your interest!`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'interest'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif = await getDocs(qNotif);
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setConnectionState({ ...connectionState, status: 'accepted' });
+      toast.success('Interest accepted');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to accept connection.');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleUnblockAndAccept = async () => {
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
+    setSendingInterest(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'accepted',
+        declinedBy: deleteField()
+      });
+
+      await addDoc(collection(db, 'notifications'), {
+        userId: id,
+        fromId: currentUser.uid,
+        type: 'accepted',
+        title: 'Connection Accepted',
+        message: `${currentUser.displayName || 'Someone'} has accepted your connection!`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'declined'), where('userId', '==', id), where('fromId', '==', currentUser.uid));
+      const snapNotif = await getDocs(qNotif);
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setConnectionState({ ...connectionState, status: 'accepted', declinedBy: null });
+      toast.success('Connection unblocked and accepted');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to unblock connection.');
     } finally {
       setSendingInterest(false);
     }
@@ -492,7 +603,7 @@ export default function ProfilePage() {
                         )}
                         alt={profile.name}
                         className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
-                          (isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl) ? 'blur-md scale-95' : ''
+                          ((isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl) || connectionState?.status === 'declined') ? 'blur-md scale-95' : ''
                         }`}
                       />
                     </PhotoProtector>
@@ -589,20 +700,89 @@ export default function ProfilePage() {
                   </div>
 
                   {!isOwnProfile && !isAdmin && (
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                      <button
-                        onClick={interestSent ? handleWithdrawInterest : handleSendInterest}
-                        disabled={sendingInterest}
-                        className={cn(
-                          "flex-1 md:flex-none px-10 py-5 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg",
-                          interestSent
-                            ? "bg-error/10 text-error hover:bg-error/25 hover:-translate-y-1 active:translate-y-0"
-                            : "bg-primary text-white hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
-                        )}
-                      >
-                        {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <Heart className={cn("w-6 h-6", interestSent && "fill-current")} />}
-                        {interestSent ? "Withdraw Interest" : "Send Interest"}
-                      </button>
+                    <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                      {(!connectionState || connectionState.status === 'none') && (
+                        <button
+                          onClick={handleSendInterest}
+                          disabled={sendingInterest}
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg bg-primary text-white hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                        >
+                          {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <Heart className="w-6 h-6" />}
+                          Send Interest
+                        </button>
+                      )}
+
+                      {connectionState?.status === 'pending' && connectionState?.fromId === currentUser?.uid && (
+                        <button
+                          onClick={handleWithdrawInterest}
+                          disabled={sendingInterest}
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg bg-error/10 text-error hover:bg-error/25 hover:-translate-y-1 active:translate-y-0"
+                        >
+                          {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <X className="w-6 h-6" />}
+                          Withdraw
+                        </button>
+                      )}
+
+                      {connectionState?.status === 'pending' && connectionState?.toId === currentUser?.uid && (
+                        <>
+                          <button
+                            onClick={handleAcceptInterest}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-primary text-on-primary hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
+                            Accept
+                          </button>
+                          <button
+                            onClick={handleDeclineInterest}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-surface-container-high text-on-surface-variant hover:bg-surface-variant hover:-translate-y-1 active:translate-y-0 border border-outline-variant"
+                          >
+                            Decline
+                          </button>
+                        </>
+                      )}
+
+                      {connectionState?.status === 'accepted' && (
+                        <>
+                          <button
+                            onClick={() => navigate(`/messages?chatWith=${id}`)}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-primary text-on-primary hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            <MessageCircle className="w-6 h-6" />
+                            Message
+                          </button>
+                          <button
+                            onClick={handleDeclineInterest}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-6 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-error/10 text-error hover:bg-error/20 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Withdraw & Decline'}
+                          </button>
+                        </>
+                      )}
+
+                      {connectionState?.status === 'declined' && connectionState?.declinedBy !== currentUser?.uid && (
+                        <button
+                          disabled
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 bg-surface-container-high text-on-surface-variant opacity-50 cursor-not-allowed border border-outline-variant"
+                        >
+                          <X className="w-6 h-6" />
+                          Declined
+                        </button>
+                      )}
+
+                      {connectionState?.status === 'declined' && connectionState?.declinedBy === currentUser?.uid && (
+                        <button
+                          onClick={handleUnblockAndAccept}
+                          disabled={sendingInterest}
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg bg-primary text-on-primary hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                        >
+                          {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <HeartHandshake className="w-6 h-6" />}
+                          Unblock & Accept
+                        </button>
+                      )}
 
                       <button
                         onClick={handleToggleShortlist}

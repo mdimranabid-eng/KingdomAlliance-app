@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy, deleteDoc, writeBatch, runTransaction, deleteField, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
@@ -15,7 +15,8 @@ import {
   MapPin, 
   ArrowRight,
   Loader2,
-  Mail
+  Mail,
+  HeartHandshake
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType, calculateAge } from '../lib/utils';
@@ -32,9 +33,9 @@ export default function InterestsPage() {
     setLoading(true);
     try {
       let interestDocs: any[] = [];
-      if (tab === 'accepted') {
-        const q1 = query(collection(db, 'interests'), where('fromId', '==', authUser.uid), where('status', '==', 'accepted'));
-        const q2 = query(collection(db, 'interests'), where('toId', '==', authUser.uid), where('status', '==', 'accepted'));
+      if (tab === 'accepted' || tab === 'declined') {
+        const q1 = query(collection(db, 'interests'), where('fromId', '==', authUser.uid), where('status', '==', tab));
+        const q2 = query(collection(db, 'interests'), where('toId', '==', authUser.uid), where('status', '==', tab));
         const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
         interestDocs = [...snap1.docs, ...snap2.docs].map(d => ({ id: d.id, ...d.data() }));
       } else {
@@ -72,11 +73,13 @@ export default function InterestsPage() {
 
       let filtered = enrichedInterests.filter(i => i.user);
       if (tab === 'received') {
-        filtered = filtered.filter(i => i.status !== 'declined');
-      } else if (tab === 'declined') {
-        filtered = filtered.filter(i => i.status === 'declined');
+        filtered = filtered.filter(i => i.toId === authUser.uid && i.status === 'pending');
+      } else if (tab === 'sent') {
+        filtered = filtered.filter(i => i.fromId === authUser.uid && i.status === 'pending');
       } else if (tab === 'accepted') {
         filtered = filtered.filter(i => i.status === 'accepted');
+      } else if (tab === 'declined') {
+        filtered = filtered.filter(i => i.status === 'declined' && (i.declinedBy === authUser.uid || i.toId === authUser.uid));
       }
       setInterests(filtered);
     } catch (err) {
@@ -157,10 +160,15 @@ export default function InterestsPage() {
     if (!authUser) return;
     setProcessingId(interestId);
     try {
-      // 1. Delete the specific interest document
-      await deleteDoc(doc(db, 'interests', interestId));
+      await runTransaction(db, async (transaction) => {
+        const docRef = doc(db, 'interests', interestId);
+        const docSnap = await transaction.get(docRef);
+        if (!docSnap.exists() || docSnap.data().status !== 'pending') {
+          throw new Error('Connection no longer exists or is not pending');
+        }
+        transaction.delete(docRef);
+      });
 
-      // 2. Query and delete corresponding notifications to reset recipient bell counter
       const qNotif = query(
         collection(db, 'notifications'),
         where('type', '==', 'interest'),
@@ -168,14 +176,15 @@ export default function InterestsPage() {
         where('userId', '==', targetUserId)
       );
       const snapNotif = await getDocs(qNotif);
-      await Promise.all(snapNotif.docs.map(d => deleteDoc(d.ref)));
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
 
-      // 3. UI Update: remove from the local state
       setInterests(prev => prev.filter(i => i.id !== interestId));
-
       toast.success('Interest withdrawn');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `interests/${interestId}`);
+      console.error(err);
+      toast.error('Failed to withdraw interest. State may have changed.');
     } finally {
       setProcessingId(null);
     }
@@ -238,6 +247,43 @@ export default function InterestsPage() {
 
       setInterests(prev => prev.filter(i => i.id !== interestId));
       toast.success('Connection withdrawn and declined');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `interests/${interestId}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUnblockAndAccept = async (interestId: string, targetUserId: string) => {
+    if (!authUser) return;
+    setProcessingId(interestId);
+    try {
+      await updateDoc(doc(db, 'interests', interestId), {
+        status: 'accepted',
+        declinedBy: deleteField()
+      });
+
+      await addDoc(collection(db, 'notifications'), {
+        userId: targetUserId,
+        fromId: authUser.uid,
+        type: 'accepted',
+        title: 'Connection Accepted',
+        message: `${authUser.displayName || 'Someone'} has accepted your connection!`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'declined'), where('userId', '==', targetUserId), where('fromId', '==', authUser.uid));
+      const snapNotif = await getDocs(qNotif);
+      if (!snapNotif.empty) {
+        const batch = writeBatch(db);
+        snapNotif.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      setInterests(prev => prev.filter(i => i.id !== interestId));
+      toast.success('Connection unblocked and accepted');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `interests/${interestId}`);
     } finally {
@@ -328,6 +374,7 @@ export default function InterestsPage() {
                 onWithdraw={() => handleWithdrawInterest(interest.toId === authUser?.uid ? interest.fromId : interest.toId, interest.id)}
                 onDelete={() => handleDeletePermanently(interest.id)}
                 onWithdrawAndDecline={() => handleWithdrawAndDecline(interest.id, interest.toId === authUser?.uid ? interest.fromId : interest.toId)}
+                onUnblockAndAccept={() => handleUnblockAndAccept(interest.id, interest.toId === authUser?.uid ? interest.fromId : interest.toId)}
               />
             ))}
           </AnimatePresence>
@@ -337,7 +384,7 @@ export default function InterestsPage() {
   );
 }
 
-function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, isProcessing, onAccept, onDecline, onWithdraw, onDelete, onWithdrawAndDecline }: any) {
+function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, isProcessing, onAccept, onDecline, onWithdraw, onDelete, onWithdrawAndDecline, onUnblockAndAccept }: any) {
   const { user } = interest;
 
   return (
@@ -371,10 +418,10 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
           <div className="flex gap-2">
             <button 
               disabled={isProcessing}
-              onClick={onAccept}
+              onClick={onUnblockAndAccept}
               className="flex-1 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1.5"
             >
-              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3.5 h-3.5" /> Accept</>}
+              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><HeartHandshake className="w-3.5 h-3.5" /> Unblock & Accept</>}
             </button>
             <button 
               disabled={isProcessing}
