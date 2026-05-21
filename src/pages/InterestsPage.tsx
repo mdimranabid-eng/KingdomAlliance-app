@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
@@ -22,7 +22,7 @@ import { cn, handleFirestoreError, OperationType, calculateAge } from '../lib/ut
 
 export default function InterestsPage() {
   const { user: authUser } = useAuth();
-  const [tab, setTab] = useState<'received' | 'sent' | 'declined'>('received');
+  const [tab, setTab] = useState<'received' | 'sent' | 'declined' | 'accepted'>('received');
   const [interests, setInterests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -31,13 +31,20 @@ export default function InterestsPage() {
     if (!authUser) return;
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'interests'), 
-        where(tab === 'sent' ? 'fromId' : 'toId', '==', authUser.uid)
-      );
-      
-      const snap = await getDocs(q);
-      let interestDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      let interestDocs: any[] = [];
+      if (tab === 'accepted') {
+        const q1 = query(collection(db, 'interests'), where('fromId', '==', authUser.uid), where('status', '==', 'accepted'));
+        const q2 = query(collection(db, 'interests'), where('toId', '==', authUser.uid), where('status', '==', 'accepted'));
+        const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+        interestDocs = [...snap1.docs, ...snap2.docs].map(d => ({ id: d.id, ...d.data() }));
+      } else {
+        const q = query(
+          collection(db, 'interests'), 
+          where(tab === 'sent' ? 'fromId' : 'toId', '==', authUser.uid)
+        );
+        const snap = await getDocs(q);
+        interestDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
 
       // Sort in-memory to resolve "missing index" error immediately
       // We still recommend creating the index for better performance with large datasets
@@ -49,7 +56,7 @@ export default function InterestsPage() {
       
       // Fetch user profiles
       const enrichedInterests = await Promise.all(interestDocs.map(async (interest: any) => {
-        const targetId = tab === 'sent' ? interest.toId : interest.fromId;
+        const targetId = interest.fromId === authUser.uid ? interest.toId : interest.fromId;
         const userSnap = await getDoc(doc(db, 'users', targetId));
         let userData = null;
         if (userSnap.exists()) {
@@ -68,6 +75,8 @@ export default function InterestsPage() {
         filtered = filtered.filter(i => i.status !== 'declined');
       } else if (tab === 'declined') {
         filtered = filtered.filter(i => i.status === 'declined');
+      } else if (tab === 'accepted') {
+        filtered = filtered.filter(i => i.status === 'accepted');
       }
       setInterests(filtered);
     } catch (err) {
@@ -80,6 +89,32 @@ export default function InterestsPage() {
   useEffect(() => {
     fetchInterests();
   }, [authUser, tab]);
+
+  // Auto-clear interests notifications
+  useEffect(() => {
+    if (!authUser) return;
+    const clearNotifications = async () => {
+      try {
+        const q = query(
+          collection(db, 'notifications'),
+          where('userId', '==', authUser.uid),
+          where('read', '==', false),
+          where('type', 'in', ['interest', 'accepted'])
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(docSnap => {
+            batch.update(docSnap.ref, { read: true });
+          });
+          await batch.commit();
+        }
+      } catch (err) {
+        console.error("Error clearing interest notifications:", err);
+      }
+    };
+    clearNotifications();
+  }, [authUser]);
 
   const handleUpdateStatus = async (interestId: string, status: 'accepted' | 'declined') => {
     setProcessingId(interestId);
@@ -169,6 +204,47 @@ export default function InterestsPage() {
     }
   };
 
+  const handleWithdrawAndDecline = async (interestId: string, targetUserId: string) => {
+    if (!authUser) return;
+    setProcessingId(interestId);
+    try {
+      await updateDoc(doc(db, 'interests', interestId), {
+        status: 'declined',
+        declinedBy: authUser.uid
+      });
+
+      const qNotif = query(
+        collection(db, 'notifications'),
+        where('type', '==', 'interest'),
+        where('userId', '==', targetUserId),
+        where('fromId', '==', authUser.uid)
+      );
+      const snapNotif = await getDocs(qNotif);
+      
+      const qNotif2 = query(
+        collection(db, 'notifications'),
+        where('type', '==', 'accepted'),
+        where('userId', '==', targetUserId),
+        where('fromId', '==', authUser.uid)
+      );
+      const snapNotif2 = await getDocs(qNotif2);
+
+      if (!snapNotif.empty || !snapNotif2.empty) {
+        const batch = writeBatch(db);
+        snapNotif.docs.forEach(d => batch.delete(d.ref));
+        snapNotif2.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      setInterests(prev => prev.filter(i => i.id !== interestId));
+      toast.success('Connection withdrawn and declined');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `interests/${interestId}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -205,6 +281,15 @@ export default function InterestsPage() {
           >
             Declined
           </button>
+          <button 
+            onClick={() => setTab('accepted')}
+            className={cn(
+              "px-6 py-2.5 rounded-xl font-label-lg transition-all",
+              tab === 'accepted' ? "bg-primary text-on-primary shadow-lg" : "text-on-surface-variant hover:bg-surface-variant"
+            )}
+          >
+            Accepted
+          </button>
         </div>
       </div>
 
@@ -236,11 +321,13 @@ export default function InterestsPage() {
                 interest={interest} 
                 isReceived={tab === 'received'}
                 isDeclinedView={tab === 'declined'}
+                isAcceptedView={tab === 'accepted'}
                 isProcessing={processingId === interest.id}
                 onAccept={() => handleAcceptInterest(interest.id)}
                 onDecline={() => handleDeclineInterest(interest.id)}
-                onWithdraw={() => handleWithdrawInterest(interest.toId, interest.id)}
+                onWithdraw={() => handleWithdrawInterest(interest.toId === authUser?.uid ? interest.fromId : interest.toId, interest.id)}
                 onDelete={() => handleDeletePermanently(interest.id)}
+                onWithdrawAndDecline={() => handleWithdrawAndDecline(interest.id, interest.toId === authUser?.uid ? interest.fromId : interest.toId)}
               />
             ))}
           </AnimatePresence>
@@ -250,7 +337,7 @@ export default function InterestsPage() {
   );
 }
 
-function InterestCard({ interest, isReceived, isDeclinedView, isProcessing, onAccept, onDecline, onWithdraw, onDelete }: any) {
+function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, isProcessing, onAccept, onDecline, onWithdraw, onDelete, onWithdrawAndDecline }: any) {
   const { user } = interest;
 
   return (
@@ -312,6 +399,22 @@ function InterestCard({ interest, isReceived, isDeclinedView, isProcessing, onAc
               className="px-4 py-1.5 bg-surface-container-high text-on-surface-variant rounded-xl text-xs font-bold border border-outline-variant hover:bg-surface-variant transition-all"
             >
               Decline
+            </button>
+          </div>
+        ) : isAcceptedView ? (
+          <div className="flex flex-col gap-3">
+            <Link 
+              to={`/messages?chatWith=${user.id}`}
+              className="flex-1 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1.5 w-full"
+            >
+              <MessageCircle className="w-4 h-4" /> Send Message
+            </Link>
+            <button
+              disabled={isProcessing}
+              onClick={onWithdrawAndDecline}
+              className="px-4 py-1.5 bg-surface-container-high text-on-surface-variant rounded-xl text-xs font-bold border border-outline-variant hover:bg-error/10 hover:text-error transition-all"
+            >
+              Withdraw & Decline
             </button>
           </div>
         ) : interest.status === 'accepted' ? (

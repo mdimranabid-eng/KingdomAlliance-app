@@ -34,7 +34,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = React.useState(0);
+  const [unreadInterestCount, setUnreadInterestCount] = React.useState(0);
+  const [unreadMessageNotifCount, setUnreadMessageNotifCount] = React.useState(0);
   const [pendingApprovalsCount, setPendingApprovalsCount] = React.useState(0);
   const [pendingPhotosCount, setPendingPhotosCount] = React.useState(0);
   const [toast, setToast] = React.useState<{ title: string; message: string; type: 'message' | 'interest' } | null>(null);
@@ -83,14 +84,15 @@ export default function Layout() {
       console.error("Unread count listener failed:", error);
     });
 
-    // Listen for unread interest notifications
-    const nq = query(
+    // Listen for unread INTEREST notifications (type: interest | accepted)
+    const nqInterests = query(
       collection(db, 'notifications'),
       where('userId', '==', user.uid),
-      where('read', '==', false)
+      where('read', '==', false),
+      where('type', 'in', ['interest', 'accepted'])
     );
 
-    const unsubscribeNotifications = onSnapshot(nq, (snapshot) => {
+    const unsubscribeInterestNotifications = onSnapshot(nqInterests, (snapshot) => {
       // Play sound for new interest notifications
       const docChanges = snapshot.docChanges();
       const hasNew = docChanges.some(change => change.type === 'added');
@@ -111,15 +113,30 @@ export default function Layout() {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
         audio.play().catch(e => console.warn('Global audio blocked:', e));
       }
-      setUnreadNotificationsCount(snapshot.size);
+      setUnreadInterestCount(snapshot.size);
       isInitialLoadNotifications.current = false;
     }, (error) => {
-      console.error("Unread notifications listener failed:", error);
+      console.error("Unread interest notifications listener failed:", error);
+    });
+
+    // Listen for unread MESSAGE notifications
+    const nqMessages = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('read', '==', false),
+      where('type', '==', 'message')
+    );
+
+    const unsubscribeMessageNotifications = onSnapshot(nqMessages, (snapshot) => {
+      setUnreadMessageNotifCount(snapshot.size);
+    }, (error) => {
+      console.error("Unread message notifications listener failed:", error);
     });
 
     return () => {
       unsubscribeMessages();
-      unsubscribeNotifications();
+      unsubscribeInterestNotifications();
+      unsubscribeMessageNotifications();
     };
   }, [user]);
 
@@ -231,8 +248,8 @@ export default function Layout() {
               >
                 <div className="relative">
                   <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                  {((item.label === 'Messages' && unreadCount > 0) ||
-                    (item.label === 'Interests' && unreadNotificationsCount > 0) ||
+                  {((item.label === 'Messages' && (unreadCount > 0 || unreadMessageNotifCount > 0)) ||
+                    (item.label === 'Interests' && unreadInterestCount > 0) ||
                     (item.badgeCount && item.badgeCount > 0)) && (
                       <motion.span
                         initial={{ scale: 0.5, opacity: 0 }}
@@ -354,8 +371,8 @@ export default function Layout() {
                     >
                       <div className="relative">
                         <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                        {((item.label === 'Messages' && unreadCount > 0) ||
-                          (item.label === 'Interests' && unreadNotificationsCount > 0) ||
+                        {((item.label === 'Messages' && (unreadCount > 0 || unreadMessageNotifCount > 0)) ||
+                          (item.label === 'Interests' && unreadInterestCount > 0) ||
                           (item.badgeCount && item.badgeCount > 0)) && (
                             <motion.span
                               initial={{ scale: 0.5, opacity: 0 }}

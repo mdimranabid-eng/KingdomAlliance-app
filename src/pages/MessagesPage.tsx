@@ -13,13 +13,14 @@ import {
   getDocs,
   limit,
   setDoc,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, User, ChevronLeft, Phone, Video, Info, Search, Heart, MessageCircle } from 'lucide-react';
+import { Send, User, ChevronLeft, Info, Search, Heart, MessageCircle } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 
 export default function MessagesPage() {
@@ -42,6 +43,32 @@ export default function MessagesPage() {
       navigate(`/messages/${chatWithQuery}`, { replace: true });
     }
   }, [chatWithQuery, navigate]);
+
+  // Auto-clear message notifications
+  useEffect(() => {
+    if (!currentUser) return;
+    const clearMessageNotifications = async () => {
+      try {
+        const q = query(
+          collection(db, 'notifications'),
+          where('userId', '==', currentUser.uid),
+          where('read', '==', false),
+          where('type', '==', 'message')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(docSnap => {
+            batch.update(docSnap.ref, { read: true });
+          });
+          await batch.commit();
+        }
+      } catch (err) {
+        console.error("Error clearing message notifications:", err);
+      }
+    };
+    clearMessageNotifications();
+  }, [currentUser]);
 
   // Fetch all chats/matches
   useEffect(() => {
@@ -266,8 +293,6 @@ export default function MessagesPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-surface-container rounded-xl text-on-surface-variant"><Phone className="w-5 h-5" /></button>
-                <button className="p-2 hover:bg-surface-container rounded-xl text-on-surface-variant"><Video className="w-5 h-5" /></button>
                 <button className="p-2 hover:bg-surface-container rounded-xl text-on-surface-variant"><Info className="w-5 h-5" /></button>
               </div>
             </header>
