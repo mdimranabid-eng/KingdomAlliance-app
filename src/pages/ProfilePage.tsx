@@ -58,6 +58,7 @@ import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculate
 import BlockedUsersList from '../components/BlockedUsersList';
 import toast from 'react-hot-toast';
 
+
 export default function ProfilePage() {
   const { id } = useParams();
   const { user: currentUser, profile: currentProfile, isAdmin } = useAuth();
@@ -365,7 +366,8 @@ export default function ProfilePage() {
 
     setSendingInterest(true);
     try {
-      const docRef = await addDoc(collection(db, 'interests'), {
+      const connectionId = [currentUser.uid, id].sort().join('_');
+      await setDoc(doc(db, 'interests', connectionId), {
         fromId: currentUser.uid,
         toId: id,
         status: 'pending',
@@ -394,7 +396,7 @@ export default function ProfilePage() {
           });
       }
 
-      setConnectionState({ id: docRef.id, fromId: currentUser.uid, toId: id, status: 'pending' });
+      setConnectionState({ id: connectionId, fromId: currentUser.uid, toId: id, status: 'pending' });
       toast.success(`Interest successfully sent to ${profile.name}!`);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'interests');
@@ -405,6 +407,7 @@ export default function ProfilePage() {
 
   const handleWithdrawInterest = async () => {
     if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.fromId) return;
     setSendingInterest(true);
     try {
       await runTransaction(db, async (transaction) => {
@@ -435,6 +438,7 @@ export default function ProfilePage() {
 
   const handleDeclineInterest = async () => {
     if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.fromId && currentUser.uid !== connectionState.toId) return;
     setSendingInterest(true);
     try {
       await updateDoc(doc(db, 'interests', connectionState.id), {
@@ -448,10 +452,14 @@ export default function ProfilePage() {
       
       const qNotif2 = query(notifRef, where('type', '==', 'accepted'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
       const snapNotif2 = await getDocs(qNotif2);
+
+      const qNotif3 = query(notifRef, where('type', '==', 'message'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif3 = await getDocs(qNotif3);
       
       const batch = writeBatch(db);
       snapNotif.docs.forEach(d => batch.delete(d.ref));
       snapNotif2.docs.forEach(d => batch.delete(d.ref));
+      snapNotif3.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
 
       setConnectionState({ ...connectionState, status: 'declined', declinedBy: currentUser.uid });
@@ -466,6 +474,7 @@ export default function ProfilePage() {
 
   const handleAcceptInterest = async () => {
     if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.toId) return;
     setSendingInterest(true);
     try {
       await updateDoc(doc(db, 'interests', connectionState.id), {
@@ -501,6 +510,7 @@ export default function ProfilePage() {
 
   const handleUnblockAndAccept = async () => {
     if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.declinedBy) return;
     setSendingInterest(true);
     try {
       await updateDoc(doc(db, 'interests', connectionState.id), {
@@ -563,10 +573,13 @@ export default function ProfilePage() {
     </div>
   );
 
-  const fullName = [profile.name, profile.middleName, profile.lastName]
+  const isDeclinedPrivacy = connectionState?.status === 'declined';
+  const rawFullName = [profile.name, profile.middleName, profile.lastName]
     .filter(Boolean)
     .map(name => name.trim())
     .join(' ');
+  const fullName = isDeclinedPrivacy ? 'Profile Unavailable' : rawFullName;
+  const defaultName = isDeclinedPrivacy ? 'Profile Unavailable' : (profile.name || 'Unnamed Member');
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20">
@@ -646,9 +659,10 @@ export default function ProfilePage() {
                   <div className="text-center md:text-left space-y-4">
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
                       <h1 className="font-headline text-4xl md:text-5xl text-slate-900 font-bold tracking-tight">
-                        {fullName || profile.name || 'Unnamed Member'}, {profile.age}
+                        {fullName || defaultName}{!isDeclinedPrivacy && `, ${profile.age}`}
                       </h1>
-                      <div className="flex gap-2">
+
+                      <div className="flex gap-2 mt-2">
                         {profile.isApproved ? (
                           <div className="group relative flex items-center">
                             <div className="flex items-center gap-2.5 px-5 py-2 bg-gradient-to-r from-[#BF953F] via-[#FCF6BA] to-[#B38728] text-[#5d4037] rounded-full text-xs font-bold shadow-[0_2px_15px_rgba(184,134,11,0.4)] border border-[#AA8232]/30 relative overflow-hidden animate-shine-slow">
@@ -884,14 +898,42 @@ export default function ProfilePage() {
                   <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-sm border border-slate-100">
                     <h2 className="text-2xl font-bold text-slate-900 mb-8">Personal Details</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                      <InfoRow label="Profile ID" value={profile.profileId || id?.substring(0, 8).toUpperCase()} />
-                      <InfoRow label="Full Name" value={fullName || profile.name} />
-                      <InfoRow label="Location" value={profile.cityLiving || profile.city ? `${profile.cityLiving || profile.city}, ${profile.countryLiving || profile.state || ''}` : 'Not Specified'} />
+                      <InfoRow label="Profile ID" value={isDeclinedPrivacy ? 'HIDDEN' : (profile.profileId || id?.substring(0, 8).toUpperCase())} />
+                      <InfoRow label="Full Name" value={fullName || defaultName} />
+                      <InfoRow label="Location" value={isDeclinedPrivacy ? 'Hidden' : (profile.cityLiving || profile.city ? `${profile.cityLiving || profile.city}, ${profile.countryLiving || profile.state || ''}` : 'Not Specified')} />
                       <InfoRow label="Religion" value={profile.denomination ? `Christian (${profile.denomination})` : 'Christian'} />
                       <InfoRow label="Age / Height" value={`${profile.age} Yrs, ${profile.height || 'N/A'}`} />
                       <InfoRow label="Mother Tongue" value={profile.motherTongue || 'English'} />
                       <InfoRow label="Marital Status" value={profile.maritalStatus} />
                       <InfoRow label="Eating Habits" value={profile.diet || 'N/A'} />
+                      {/* --- EXACT INSERTION STARTS HERE --- */}
+                      {profile.familyBackground && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Family Background</span>
+                          <p className="text-base text-gray-800 whitespace-pre-wrap">{profile.familyBackground}</p>
+                        </div>
+                      )}
+                      {/* --- EXACT INSERTION ENDS HERE --- */}
+                      {/* --- EXACT INSERTION STARTS HERE --- */}
+                      {profile.fathersOccupation && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Father's Profession</span>
+                          <p className="text-base text-gray-800">{profile.fathersOccupation}</p>
+                        </div>
+                      )}
+                      {profile.mothersOccupation && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Mother's Profession</span>
+                          <p className="text-base text-gray-800">{profile.mothersOccupation}</p>
+                        </div>
+                      )}
+                      {profile.numberOfSiblings && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Siblings</span>
+                          <p className="text-base text-gray-800">{profile.numberOfSiblings}</p>
+                        </div>
+                      )}
+                      {/* --- EXACT INSERTION ENDS HERE --- */}
                     </div>
                   </div>
 
@@ -926,10 +968,10 @@ export default function ProfilePage() {
                               src={getSecureImageUrl(photo.url)}
                               alt="Gallery"
                               className={`w-full h-full object-cover cursor-pointer transition-transform duration-500 group-hover:scale-110 ${
-                                photo.status === 'rejected' ? 'blur-md scale-95' : ''
+                                (photo.status === 'rejected' || isDeclinedPrivacy) ? 'blur-md scale-95 pointer-events-none' : ''
                               }`}
                               onClick={() => {
-                                if (photo.status === 'rejected') return;
+                                if (photo.status === 'rejected' || isDeclinedPrivacy) return;
                                 const mainPhoto = profile.photoUrl || profile.pendingPhotoUrl;
                                 const gallery = (profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile);
                                 openLightbox(index + 1, [mainPhoto, ...gallery.map((p: any) => p.url)]);

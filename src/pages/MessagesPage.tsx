@@ -16,7 +16,8 @@ import {
   updateDoc,
   writeBatch
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, rtdb } from '../lib/firebase';
+import { ref, set, onValue, onDisconnect, remove } from 'firebase/database';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
 import { motion, AnimatePresence } from 'motion/react';
@@ -35,7 +36,11 @@ export default function MessagesPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [connectionState, setConnectionState] = useState<any | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
 
   // If chatWith query param exists, redirect to the actual channel if allowed
   useEffect(() => {
@@ -129,7 +134,7 @@ export default function MessagesPage() {
       orderBy('createdAt', 'asc')
     );
 
-    const unsubscribe = onSnapshot(msgsQuery, (snapshot) => {
+    const unsubscribeMessages = onSnapshot(msgsQuery, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
       
       setMessages(msgs);
@@ -137,12 +142,59 @@ export default function MessagesPage() {
       handleFirestoreError(err, OperationType.LIST, `chats/${chatId}/messages`);
     });
 
-    return unsubscribe;
+    // Real-Time Connection Listener & Memory Management
+    const q = query(
+      collection(db, 'interests'),
+      where('fromId', 'in', [currentUser?.uid, activeChatUserId]),
+      where('toId', 'in', [currentUser?.uid, activeChatUserId])
+    );
+    const unsubConnection = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const docSnap = snapshot.docs[0];
+        setConnectionState({ id: docSnap.id, ...docSnap.data() });
+      } else {
+        setConnectionState({ status: 'none' });
+      }
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubConnection();
+    };
   }, [activeChatUserId, currentUser]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (!activeChatUserId || !currentUser?.uid) return;
+    const sharedChatId = [currentUser.uid, activeChatUserId].sort().join('_');
+
+    // Register disconnect cleanup ONCE when chat opens
+    const typingRef = ref(rtdb, `typingStatus/${sharedChatId}/${currentUser.uid}`);
+    onDisconnect(typingRef).remove();
+
+    // Listen for other person typing
+    const chatTypingRef = ref(rtdb, `typingStatus/${sharedChatId}`);
+    const unsubscribe = onValue(chatTypingRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        setIsOtherTyping(false);
+        return;
+      }
+      const otherIsTyping = Object.entries(data).some(
+        ([uid, value]) => uid !== currentUser.uid && value === true
+      );
+      setIsOtherTyping(otherIsTyping);
+    });
+
+    // Cleanup on unmount or chat change
+    return () => {
+      unsubscribe();
+      set(typingRef, false);
+    };
+  }, [activeChatUserId, currentUser?.uid]);
 
   // Mark messages as read when viewing a chat
   useEffect(() => {
@@ -158,9 +210,26 @@ export default function MessagesPage() {
     }
   }, [messages, activeChatUserId, currentUser]);
 
+  useEffect(() => {
+    if (!activeChatUser?.id) return;
+    
+    const statusRef = ref(rtdb, `status/${activeChatUser.id}`);
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const data = snapshot.val();
+      setIsOnline(data?.state === 'online');
+    });
+
+    return () => unsubscribe();
+  }, [activeChatUser?.id]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !currentUser || !activeChatUserId) return;
+
+    // Hard Database Gate: Abort immediately if connection state isn't accepted locally
+    if (!connectionState || connectionState.status !== 'accepted') {
+      return;
+    }
 
     const chatId = [currentUser.uid, activeChatUserId].sort().join('_');
     const msgData = {
@@ -231,13 +300,17 @@ export default function MessagesPage() {
             </div>
           ) : (
             <div className="divide-y divide-outline-variant/30">
-              {chats.map((chat) => (
+              {chats.map((chat) => {
+                const isActive = connectionState?.status === 'accepted';
+                const isLocked = activeChatUserId === chat.id && !isActive;
+                return (
                 <Link
                   key={chat.id}
                   to={`/messages/${chat.id}`}
                   className={cn(
                     "flex items-center gap-4 p-4 hover:bg-surface-variant transition-colors",
-                    activeChatUserId === chat.id && "bg-primary/5"
+                    activeChatUserId === chat.id && "bg-primary/5",
+                    isLocked && "opacity-50 grayscale pointer-events-none"
                   )}
                 >
                   <div className="w-12 h-12 rounded-full border border-primary-container overflow-hidden flex-shrink-0">
@@ -251,7 +324,8 @@ export default function MessagesPage() {
                     <p className="text-xs text-on-surface-variant truncate">Click to start chatting</p>
                   </div>
                 </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -286,8 +360,20 @@ export default function MessagesPage() {
                       <img src={activeChatUser.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeChatUser.id}`} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors">{activeChatUser.name}</h4>
-                      <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest">Active Now</p>
+                      <div className="flex items-center">
+                        <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors">{activeChatUser.name}</h4>
+                        {isOnline && (
+                          <span className="relative flex h-2.5 w-2.5 ml-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"/>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"/>
+                          </span>
+                        )}
+                      </div>
+                      {isOnline && (
+                        <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest">
+                          Active Now
+                        </p>
+                      )}
                     </div>
                   </Link>
                 )}
@@ -331,34 +417,69 @@ export default function MessagesPage() {
                   </motion.div>
                 );
               })}
+              {isOtherTyping && (
+                <div className="text-sm text-gray-400 italic mb-2 px-4">
+                  {activeChatUser?.name || 'Someone'} is typing...
+                </div>
+              )}
               <div ref={scrollRef} />
             </div>
-
             {/* Message Input */}
             <div className="p-6 bg-surface border-t border-outline-variant">
-              <form 
-                onSubmit={handleSendMessage}
-                className="flex items-center gap-3 bg-surface-container-low p-2 pr-2 h-14 rounded-2xl border border-outline-variant focus-within:ring-2 focus-within:ring-primary shadow-inner"
-              >
-                <button type="button" className="p-2 hover:bg-surface-container h-10 w-10 flex items-center justify-center rounded-xl text-on-surface-variant">
-                  <Info className="w-5 h-5" />
-                </button>
-                <input 
-                  type="text" 
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a blessing..."
-                  className="flex-1 bg-transparent border-none outline-none text-sm px-2 font-inter"
-                />
-                <button 
-                  type="submit"
-                  disabled={!newMessage.trim()}
-                  className="bg-primary text-on-primary h-10 px-6 rounded-xl font-label-lg hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+              {connectionState?.status === 'accepted' ? (
+                <form 
+                  onSubmit={handleSendMessage}
+                  className="flex items-center gap-3 bg-surface-container-low p-2 pr-2 h-14 rounded-2xl border border-outline-variant focus-within:ring-2 focus-within:ring-primary shadow-inner"
                 >
-                  <span className="hidden sm:inline">Send</span>
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
+                  <button type="button" className="p-2 hover:bg-surface-container h-10 w-10 flex items-center justify-center rounded-xl text-on-surface-variant">
+                    <Info className="w-5 h-5" />
+                  </button>
+                  <input 
+                    type="text" 
+                    value={newMessage}
+                    onChange={(e) => {
+                      // --- TYPING INDICATOR START ---
+                      const sharedChatId = [currentUser.uid, activeChatUserId].sort().join('_');
+                      const typingRef = ref(rtdb, `typingStatus/${sharedChatId}/${currentUser.uid}`);
+                      if (e.target.value.trim().length > 0) {
+                        if (!typingTimeoutRef.current) {
+                          set(typingRef, true);
+                        }
+                        if (typingTimeoutRef.current) {
+                          clearTimeout(typingTimeoutRef.current);
+                        }
+                        typingTimeoutRef.current = setTimeout(() => {
+                          set(typingRef, false);
+                          typingTimeoutRef.current = null;
+                        }, 2000);
+                      } else {
+                        // Input cleared — instantly turn off typing indicator
+                        set(typingRef, false);
+                        if (typingTimeoutRef.current) {
+                          clearTimeout(typingTimeoutRef.current);
+                          typingTimeoutRef.current = null;
+                        }
+                      }
+                      // --- TYPING INDICATOR END ---
+                      setNewMessage(e.target.value);
+                    }}
+                    placeholder="Type a blessing..."
+                    className="flex-1 bg-transparent border-none outline-none text-sm px-2 font-inter"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={!newMessage.trim()}
+                    className="bg-primary text-on-primary h-10 px-6 rounded-xl font-label-lg hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <span className="hidden sm:inline">Send</span>
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              ) : (
+                <div className="p-4 bg-error/10 text-error rounded-xl text-center font-bold text-sm border border-error/20">
+                  This chat is no longer active.
+                </div>
+              )}
             </div>
           </>
         )}

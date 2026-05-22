@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { usePresence } from '../hooks/usePresence';
 import { useAuth } from '../lib/AuthContext';
-import { auth, db } from '../lib/firebase';
+import { auth, db, rtdb } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
+import { ref, set, serverTimestamp } from 'firebase/database';
 import { collection, collectionGroup, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import {
   Heart,
@@ -30,6 +32,7 @@ import { KingdomCrossIcon } from './KingdomCrossIcon';
 export default function Layout() {
   const { settings } = useSettings();
   const { user, profile, isAdmin } = useAuth();
+  usePresence(user?.uid);
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -43,6 +46,19 @@ export default function Layout() {
   const isInitialLoadNotifications = React.useRef(true);
 
   const handleLogout = async () => {
+      // --- EXPLICIT OFFLINE ON LOGOUT START ---
+      try {
+        if (user?.uid) {
+          const userStatusRef = ref(rtdb, `/status/${user.uid}`);
+          await set(userStatusRef, {
+            state: 'offline',
+            last_changed: serverTimestamp(),
+          });
+        }
+      } catch (error) {
+        console.error("Failed to set offline status on logout:", error);
+      }
+      // --- EXPLICIT OFFLINE ON LOGOUT END ---
     await signOut(auth);
     navigate('/');
   };

@@ -72,6 +72,10 @@ export default function InterestsPage() {
       }));
 
       let filtered = enrichedInterests.filter(i => i.user);
+      
+      // The Exclusion Rule: Profiles where status === 'declined' AND declinedBy !== currentUser.uid MUST NOT appear in ANY tab.
+      filtered = filtered.filter(i => !(i.status === 'declined' && i.declinedBy !== authUser.uid));
+
       if (tab === 'received') {
         filtered = filtered.filter(i => i.toId === authUser.uid && i.status === 'pending');
       } else if (tab === 'sent') {
@@ -79,7 +83,7 @@ export default function InterestsPage() {
       } else if (tab === 'accepted') {
         filtered = filtered.filter(i => i.status === 'accepted');
       } else if (tab === 'declined') {
-        filtered = filtered.filter(i => i.status === 'declined' && (i.declinedBy === authUser.uid || i.toId === authUser.uid));
+        filtered = filtered.filter(i => i.status === 'declined' && i.declinedBy === authUser.uid);
       }
       setInterests(filtered);
     } catch (err) {
@@ -122,10 +126,18 @@ export default function InterestsPage() {
   const handleUpdateStatus = async (interestId: string, status: 'accepted' | 'declined') => {
     setProcessingId(interestId);
     try {
-      await updateDoc(doc(db, 'interests', interestId), {
+      // --- EXACT INSERTION STARTS HERE ---
+      const updatePayload: any = {
         status,
         updatedAt: serverTimestamp()
-      });
+      };
+
+      if (status === 'declined') {
+        updatePayload.declinedBy = authUser.uid; 
+      }
+
+      await updateDoc(doc(db, 'interests', interestId), updatePayload);
+      // --- EXACT INSERTION ENDS HERE ---
 
       if (status === 'accepted') {
         const request = interests.find(i => i.id === interestId);
@@ -238,10 +250,19 @@ export default function InterestsPage() {
       );
       const snapNotif2 = await getDocs(qNotif2);
 
-      if (!snapNotif.empty || !snapNotif2.empty) {
+      const qNotif3 = query(
+        collection(db, 'notifications'),
+        where('type', '==', 'message'),
+        where('userId', '==', targetUserId),
+        where('fromId', '==', authUser.uid)
+      );
+      const snapNotif3 = await getDocs(qNotif3);
+
+      if (!snapNotif.empty || !snapNotif2.empty || !snapNotif3.empty) {
         const batch = writeBatch(db);
         snapNotif.docs.forEach(d => batch.delete(d.ref));
         snapNotif2.docs.forEach(d => batch.delete(d.ref));
+        snapNotif3.docs.forEach(d => batch.delete(d.ref));
         await batch.commit();
       }
 
@@ -284,6 +305,7 @@ export default function InterestsPage() {
 
       setInterests(prev => prev.filter(i => i.id !== interestId));
       toast.success('Connection unblocked and accepted');
+      console.log("Unblock success, DB updated to accepted");
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `interests/${interestId}`);
     } finally {

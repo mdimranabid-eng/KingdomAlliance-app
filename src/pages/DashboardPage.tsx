@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { motion } from 'motion/react';
-import { collection, query, where, getDocs, limit, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, serverTimestamp, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
   AlertCircle, 
@@ -24,7 +24,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge } from '../lib/utils';
+import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge, generateUniqueProfileId, isUserOnline } from '../lib/utils';
 
 const getOptimizedImageUrl = (url: string) => {
   if (!url) return '';
@@ -43,49 +43,151 @@ export default function DashboardPage() {
     const fetchSuggestions = async () => {
       if (!profile) return;
       try {
-        const userRole = (profile.profileType || '').toLowerCase();
-        let oppositeRole = 'bride';
-        if (userRole === 'groom') {
-          oppositeRole = 'bride';
-        } else if (userRole === 'bride') {
-          oppositeRole = 'groom';
-        } else {
-          oppositeRole = profile.gender === 'male' ? 'bride' : 'groom';
+        if (!profile.profileId) {
+          const newId = await generateUniqueProfileId();
+          await updateDoc(doc(db, 'users', profile.uid || profile.id), { profileId: newId });
         }
+        setMatchLoading(true);
 
-        const q = query(
-          collection(db, 'users'),
-          where('profileType', '==', oppositeRole),
-          where('isApproved', '==', true),
-          limit(100)
-        );
-        const snap = await getDocs(q);
-        const currentUserUid = profile.uid || profile.id;
-        const docs = snap.docs
-          .map(d => {
-            const data = d.data();
-            const age = calculateAge(data.dob, data.age);
-            return {
-              id: d.id,
-              ...data,
-              age
-            } as any;
-          })
-          .filter(u => {
-            const uStatus = resolveApprovalStatus(u);
-            const isApprovedUser = u.isApproved === true || uStatus === 'approved';
-            const isNotSelf = u.uid !== currentUserUid && u.id !== currentUserUid;
-            const isNotBannedOrPending = uStatus !== 'banned' && uStatus !== 'pending' && uStatus !== 'suspended' && !u.isBanned && !u.isSuspended;
-            return isApprovedUser && isNotSelf && isNotBannedOrPending;
-          })
-          .map(u => ({
-            ...u,
-            matchScore: calculateMatchScore(profile, u)
-          }))
-          .sort((a, b) => b.matchScore - a.matchScore)
-          .slice(0, 2);
+        // Task 1: The 24-Hour Cache Check (localStorage)
+        const cachedStr = localStorage.getItem('kingdomAlliance_dailyMatches');
+        if (cachedStr) {
+          try {
+            const cached = JSON.parse(cachedStr);
+            const now = Date.now();
+            const ageHours = (now - cached.generatedAt) / (1000 * 60 * 60);
+            
+            if (ageHours < 24 && Array.isArray(cached.profiles) && cached.profiles.length > 0) {
+              setSuggestedMatches(cached.profiles);
+              return; // Return early, do not run the engine
+            }
+          } catch(e) {
+            console.error("Failed to parse cached matches", e);
+          }
+        }
         
-        setSuggestedMatches(docs);
+        // TODO: Migrate this cache to the user's Firestore document (or a Cloud Function) once the platform scales, to ensure the daily batch remains consistent across multiple devices.
+
+        // Force Cache Invalidation to purge legacy/unfiltered matches
+        localStorage.removeItem('kingdomAlliance_dailyMatches');
+
+        const currentUserUid = profile.uid || profile.id;
+
+        // Task 2: The Ultimate Privacy Shield (Exclusion Set)
+        const excludedUids = new Set<string>();
+        excludedUids.add(currentUserUid);
+
+        const [snapSent, snapReceived] = await Promise.all([
+          getDocs(query(collection(db, 'interests'), where('fromId', '==', currentUserUid))),
+          getDocs(query(collection(db, 'interests'), where('toId', '==', currentUserUid)))
+        ]);
+
+        snapSent.docs.forEach(doc => excludedUids.add(doc.data().toId));
+        snapReceived.docs.forEach(doc => excludedUids.add(doc.data().fromId));
+
+        // If there are blocked/reports collections, we would query them here:
+        // const snapBlocks = await getDocs(query(collection(db, 'blocked'), where('blockerId', '==', currentUserUid)));
+        // snapBlocks.docs.forEach(doc => excludedUids.add(doc.data().blockedId));
+
+        // Task 3: The Mutual Hard Gates (Base Fetch)
+        const myGender = profile.gender?.toLowerCase() || '';
+        const myPreference = profile.partnerPreferences?.gender?.toLowerCase() || 
+          (profile.profileType === 'bride' ? 'male' : 'female');
+
+        const qCandidates = query(
+          collection(db, 'users'),
+          where('gender', '==', myPreference),
+          where('isApproved', '==', true),
+          limit(200)
+        );
+        const snapCandidates = await getDocs(qCandidates);
+        
+        let candidates = snapCandidates.docs.map(d => {
+          const data = d.data();
+          return { id: d.id, ...data, age: calculateAge(data.dob, data.age) } as any;
+        });
+
+        candidates = candidates.filter(u => {
+          // 1. Mutual Gender Preference
+          const uPreference = u.partnerPreferences?.gender?.toLowerCase() || 
+            (u.profileType === 'bride' ? 'male' : 'female');
+          if (uPreference !== myGender) return false;
+
+          // 2. Age Range
+          const uAge = u.age;
+          const myMinAge = profile.partnerPreferences?.ageMin || 18;
+          const myMaxAge = profile.partnerPreferences?.ageMax || 100;
+          if (uAge < myMinAge || uAge > myMaxAge) return false;
+
+          // Sanity check for account validity
+          const uStatus = resolveApprovalStatus(u);
+          if (uStatus === 'banned' || uStatus === 'pending' || uStatus === 'suspended' || u.isBanned || u.isSuspended) return false;
+
+          return true;
+        });
+
+        // PRIVACY SHIELD: Strictly enforced on Dashboard to ensure Daily Matches only surface fresh, un-interacted profiles.
+        const filteredCandidates = candidates.filter(user => !excludedUids.has(user.uid || user.id));
+        console.log('Privacy Shield active. Candidates remaining:', filteredCandidates.length, '| Excluded UIDs:', excludedUids.size);
+        candidates = filteredCandidates;
+
+        // Task 4: The 90-Point Scoring Engine & Tiebreakers
+        candidates = candidates.map(u => {
+          let score = 0;
+
+          // 1. Core Values (Max 40)
+          if (u.denomination && profile.denomination && u.denomination === profile.denomination) {
+            score += 40;
+          }
+
+          // 2. Location (Max 30)
+          const myCity = (profile.cityLiving || profile.city || '').toLowerCase().trim();
+          const myCountry = (profile.countryLiving || profile.country || '').toLowerCase().trim();
+          const uCity = (u.cityLiving || u.city || '').toLowerCase().trim();
+          const uCountry = (u.countryLiving || u.country || '').toLowerCase().trim();
+
+          if (myCity && uCity && myCity === uCity) {
+            score += 30;
+          } else if (myCountry && uCountry && myCountry === uCountry) {
+            score += 15;
+          }
+
+          // 3. Interests (Max 20)
+          const myInterests = Array.isArray(profile.hobbies) ? profile.hobbies : [];
+          const uInterests = Array.isArray(u.hobbies) ? u.hobbies : [];
+          let interestMatchCount = 0;
+          for (const myInterest of myInterests) {
+            if (typeof myInterest === 'string' && uInterests.some(i => typeof i === 'string' && i.toLowerCase().trim() === myInterest.toLowerCase().trim())) {
+              interestMatchCount++;
+            }
+          }
+          score += Math.min(interestMatchCount * 5, 20);
+
+          // Task 5.2 Compatibility Badge Percentage
+          const matchPercentage = Math.round((score / 90) * 100);
+
+          return { ...u, engineMatchScore: score, matchScore: matchPercentage };
+        });
+
+        // 4. Tiebreaker Optimization
+        candidates.sort((a, b) => {
+          if (b.engineMatchScore !== a.engineMatchScore) {
+            return b.engineMatchScore - a.engineMatchScore;
+          }
+          const aActive = a.lastActive?.seconds || 0;
+          const bActive = b.lastActive?.seconds || 0;
+          return bActive - aActive;
+        });
+
+        // Task 5: State Save & UI Rendering
+        const topCandidates = candidates.slice(0, 10);
+        
+        localStorage.setItem('kingdomAlliance_dailyMatches', JSON.stringify({
+          profiles: topCandidates,
+          generatedAt: Date.now()
+        }));
+
+        setSuggestedMatches(topCandidates);
       } catch (err) {
         console.error(err);
       } finally {
@@ -269,6 +371,7 @@ export default function DashboardPage() {
                       denomination={match.denomination}
                       matchScore={match.matchScore}
                       imageUrl={getOptimizedImageUrl(match.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.id}`}
+                      lastActive={match.lastActive}
                     />
                   ))
                 )}
@@ -346,7 +449,7 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
   );
 }
 
-function MatchCard({ id, name, age, location, denomination, matchScore, imageUrl }: any) {
+function MatchCard({ id, name, age, location, denomination, matchScore, imageUrl, lastActive }: any) {
   return (
     <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-outline-variant hover:-translate-y-1 transition-all duration-300 group">
       <div className="aspect-[4/3] overflow-hidden relative">
@@ -365,7 +468,15 @@ function MatchCard({ id, name, age, location, denomination, matchScore, imageUrl
       </div>
       <div className="p-6 space-y-4">
         <div>
-          <h3 className="font-headline text-xl text-on-surface">{name}, {age}</h3>
+          <div className="flex items-center">
+            <h3 className="font-headline text-xl text-on-surface">{name}, {age}</h3>
+            {isUserOnline(lastActive) && (
+              <div className="relative flex h-3 w-3 ml-2" title="Online Now">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+              </div>
+            )}
+          </div>
           <p className="text-xs text-on-surface-variant flex items-center gap-1">
             <MapPin className="w-3 h-3" /> {location}
           </p>

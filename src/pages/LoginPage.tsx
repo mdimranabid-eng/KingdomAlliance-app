@@ -99,25 +99,7 @@ export default function LoginPage() {
 
     try {
       // Generate the invisible token
-      const token = await executeRecaptcha('login_attempt');
-
-      // Send credentials AND the invisible token to the Express server running on port 3001
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-      const response = await fetch(`${backendUrl}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: email, 
-          password: password, 
-          captchaToken: token 
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.message || 'Security check failed. Automated bots are not allowed.');
-      }
+      await executeRecaptcha('login_attempt');
 
       // Proceed with existing client-side Firebase Auth check
       const responseAuth = await signInWithEmail(email, password);

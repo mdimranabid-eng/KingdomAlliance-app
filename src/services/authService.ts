@@ -92,7 +92,61 @@ export const registerWithEmail = async (email: string, pass: string, fullName: s
     isSuspended: false,
     isBanned: false,
     createdAt: serverTimestamp(),
-    lastActive: serverTimestamp()
+    lastActive: serverTimestamp(),
+
+    // Personal Details
+    dob: "",
+    age: 0,
+    gender: "",
+    height: "",
+    weight: "",
+    complexion: "",
+    motherTongue: "",
+    nationality: "",
+    maritalStatus: "",
+    
+    // Faith & Ministry
+    denomination: "",
+    churchName: "",
+    ministryRole: "",
+    
+    // Contact Details
+    mobileNumber: "",
+    
+    // About Me
+    aboutMe: "",
+    
+    // Education & Career
+    education: "",
+    fieldOfStudy: "",
+    college: "", 
+    profession: "",
+    employmentType: "",
+    annualIncome: "",
+    
+    // Family Background
+    fathersName: "",
+    fathersOccupation: "",
+    mothersName: "",
+    mothersOccupation: "",
+    numberOfSiblings: "",
+    familyType: "",
+    familyFaithBackground: "",
+    
+    // Lifestyle & Interests
+    hobbies: [], 
+    languagesKnown: [],
+    dietaryHabits: "",
+    drinkingHabits: "",
+    smokingHabits: "",
+    
+    // Partner Preferences
+    partnerPreferences: {
+      ageRange: "",
+      heightRange: "",
+      education: "",
+      location: ""
+    }
   });
 
   await sendEmailVerification(result.user);

@@ -9,7 +9,7 @@ import { auth } from '../lib/firebase';
 import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ArrowLeft, CheckCircle2, Upload, Camera, Scale, MapPin, Church, GraduationCap, Briefcase, Ruler, ShieldCheck, X, Plus, Mail, Phone, Loader2, Lock, Eye, EyeOff, Globe, MapPinHouse, Hourglass } from 'lucide-react';
-import { cn, formatAuthError } from '../lib/utils';
+import { cn, formatAuthError, generateUniqueProfileId } from '../lib/utils';
 import { useSettings } from '../lib/SettingsContext';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { uploadToCloudinary } from '../lib/cloudinary';
@@ -861,7 +861,8 @@ export default function RegisterPage() {
         submittedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
-        lastActive: serverTimestamp()
+        lastActive: serverTimestamp(),
+        profileId: await generateUniqueProfileId()
       };
 
       await setDoc(doc(db, 'users', activeUser.uid), {

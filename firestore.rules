@@ -136,15 +136,17 @@ service cloud.firestore {
                     exists(/databases/$(database)/documents/users/$(incoming().toId));
 
       allow update: if isValidId(interestId) && isSignedIn() && (
-        // Recipient can change status (accept/decline)
-        (isOwner(existing().toId) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
-         incoming().status in ['accepted', 'declined']
-        ) ||
+        (request.resource.data.status == 'accepted' && resource.data.toId == request.auth.uid && resource.data.status == 'pending') ||
+        (request.resource.data.status == 'declined' && resource.data.toId == request.auth.uid && resource.data.status == 'pending') ||
+        (request.resource.data.status == 'declined' && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid) && resource.data.status == 'accepted') ||
+        (request.resource.data.status == 'accepted' && resource.data.declinedBy == request.auth.uid) ||
         isAdmin()
       );
 
-      allow delete: if isValidId(interestId) && isSignedIn() && (isOwner(existing().fromId) || isAdmin());
+      allow delete: if isValidId(interestId) && isSignedIn() && (
+        (resource.data.fromId == request.auth.uid && resource.data.status == 'pending') ||
+        isAdmin()
+      );
     }
 
     match /shortlists/{shortlistId} {
@@ -165,7 +167,8 @@ service cloud.firestore {
         
         allow create: if isValidId(messageId) && isSignedIn() && isParticipant() && 
                       isValidMessage(incoming()) &&
-                      incoming().chatId == chatId;
+                      incoming().chatId == chatId &&
+                      get(/databases/$(database)/documents/interests/$(chatId)).data.status == 'accepted';
       }
     }
 

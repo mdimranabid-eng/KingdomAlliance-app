@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { auth } from './firebase';
-
+import { auth, db } from './firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -206,5 +206,30 @@ export function calculateAge(dob: any, fallbackAge?: number | string): number {
   return age > 0 ? age : 0;
 }
 
+export const generateProfileId = () => {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  const getLetter = () => letters[Math.floor(Math.random() * 26)];
+  const getNumber = () => numbers[Math.floor(Math.random() * 10)];
+  return `${getLetter()}${getLetter()}${getLetter()}${getNumber()}${getLetter()}${getLetter()}${getLetter()}${getNumber()}`;
+};
 
+export const generateUniqueProfileId = async () => {
+  let isUnique = false;
+  let newId = '';
+  while (!isUnique) {
+    newId = generateProfileId();
+    const q = query(collection(db, 'users'), where('profileId', '==', newId));
+    const snap = await getDocs(q);
+    if (snap.empty) { isUnique = true; }
+  }
+  return newId;
+};
 
+export const isUserOnline = (lastActive: any) => {
+  if (!lastActive) return false;
+  // Handle Firebase timestamp conversion gracefully
+  const lastActiveDate = lastActive.toDate ? lastActive.toDate() : new Date(lastActive);
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  return lastActiveDate > fiveMinutesAgo;
+};

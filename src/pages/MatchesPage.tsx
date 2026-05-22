@@ -26,7 +26,7 @@ import {
   Ruler
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus, calculateAge } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus, calculateAge, isUserOnline } from '../lib/utils';
 import toast from 'react-hot-toast';
 
 const getOptimizedImageUrl = (url: string) => {
@@ -55,9 +55,10 @@ export default function MatchesPage() {
     maritalStatus: 'All',
     verifiedOnly: false,
     recentlyActive: false,
-    profileId: '',
     searchTerm: ''
   });
+  const [profileIdSearch, setProfileIdSearch] = useState('');
+  const [searchToast, setSearchToast] = useState<{message: string, type: 'error'|'success'} | null>(null);
 
   const fetchShortlists = async () => {
     if (!authUser) return;
@@ -70,9 +71,84 @@ export default function MatchesPage() {
     }
   };
 
-  const fetchMatches = async () => {
+  const fetchMatches = async (isDirectSearch = false) => {
     setLoading(true);
+    setSearchToast(null);
     try {
+      const currentUserUid = profile?.uid || profile?.id;
+      
+      const excludedUids = new Set<string>();
+      excludedUids.add(currentUserUid);
+      const [snapSent, snapReceived] = await Promise.all([
+        getDocs(query(collection(db, 'interests'), where('fromId', '==', currentUserUid))),
+        getDocs(query(collection(db, 'interests'), where('toId', '==', currentUserUid)))
+      ]);
+      snapSent.docs.forEach(doc => excludedUids.add(doc.data().toId));
+      snapReceived.docs.forEach(doc => excludedUids.add(doc.data().fromId));
+
+      const interests = [
+        ...snapSent.docs.map(doc => doc.data()),
+        ...snapReceived.docs.map(doc => doc.data())
+      ];
+
+      // Users the current user has explicitly declined/blocked
+      const blockedUids = new Set(
+        interests
+          .filter(i => i.status === 'declined' && i.declinedBy === currentUserUid)
+          .map(i => i.fromId === currentUserUid ? i.toId : i.fromId)
+      );
+
+      // Users who have explicitly declined/blocked the current user
+      const blockedByOthers = new Set(
+        interests
+          .filter(i => i.status === 'declined' && i.declinedBy !== currentUserUid)
+          .map(i => i.fromId === currentUserUid ? i.toId : i.fromId)
+      );
+
+      if (isDirectSearch && profileIdSearch) {
+        if (profileIdSearch.trim().length < 6) {
+          setSearchToast({ message: "Profile ID must be at least 6 characters", type: 'error' });
+          setLoading(false);
+          return;
+        }
+        
+        const normalizedId = profileIdSearch.trim().toUpperCase();
+        const q = query(collection(db, 'users'), where('profileId', '==', normalizedId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const docData = snap.docs[0].data();
+          const searchedUser = { id: snap.docs[0].id, ...docData, age: calculateAge(docData.dob, docData.age) } as any;
+          searchedUser.matchScore = calculateMatchScore(profile, searchedUser);
+          
+          // 1. STRICT PRIVACY SHIELD: Do not allow bypassed searches for blocked/excluded users
+          if (
+            searchedUser.id === currentUserUid || 
+            searchedUser.uid === currentUserUid ||
+            blockedUids.has(searchedUser.id) || blockedUids.has(searchedUser.uid) ||
+            blockedByOthers.has(searchedUser.id) || blockedByOthers.has(searchedUser.uid)
+          ) {
+            toast.error('This profile is unavailable.');
+            setLoading(false);
+            return; 
+          }
+          
+          // 2. FORCE UI UPDATE: Update the grid with ONLY this user.
+          setMatches([searchedUser]); 
+          
+          // 3. SUCCESS UX
+          toast.success('Profile Found!');
+          
+          // 4. CRITICAL HALT: Stop execution immediately so the standard fetch doesn't run and overwrite the state.
+          setLoading(false);
+          return; 
+        } else {
+          toast.error('No Profile Found');
+          setMatches([]);
+          setLoading(false);
+          return;
+        }
+      }
+
       const userRole = (profile?.profileType || '').toLowerCase();
       let oppositeRole = 'bride';
       if (userRole === 'groom') {
@@ -87,11 +163,10 @@ export default function MatchesPage() {
         collection(db, 'users'), 
         where('profileType', '==', oppositeRole),
         where('isApproved', '==', true),
-        limit(100) // Fetch more to filter locally if needed, or refine queries
+        limit(100)
       );
       
       const querySnapshot = await getDocs(q);
-      const currentUserUid = profile?.uid || profile?.id;
       let docs = querySnapshot.docs
         .map(doc => {
           const data = doc.data();
@@ -120,16 +195,9 @@ export default function MatchesPage() {
         const profMatch = !filters.profession || u.profession?.toLowerCase().includes(filters.profession.toLowerCase());
         const heightMatch = u.height >= filters.minHeight && u.height <= filters.maxHeight;
         const verifyMatch = !filters.verifiedOnly || u.emailVerified;
-        
         // Search Term (Name or Profession)
         const nameMatch = !filters.searchTerm || u.name?.toLowerCase().includes(filters.searchTerm.toLowerCase());
         
-        // Profile ID Match (Check UID or custom profileId if exists)
-        const idMatch = !filters.profileId || 
-                        u.id?.toLowerCase().includes(filters.profileId.toLowerCase()) || 
-                        u.uid?.toLowerCase().includes(filters.profileId.toLowerCase()) ||
-                        (u.profileId && u.profileId.toLowerCase().includes(filters.profileId.toLowerCase()));
-
         // Recently active (last 7 days)
         let activeMatch = true;
         if (filters.recentlyActive && u.updatedAt) {
@@ -138,7 +206,7 @@ export default function MatchesPage() {
           activeMatch = u.updatedAt.toDate() >= sevenDaysAgo;
         }
 
-        return ageMatch && denomMatch && locMatch && eduMatch && martMatch && profMatch && heightMatch && verifyMatch && activeMatch && nameMatch && idMatch;
+        return ageMatch && denomMatch && locMatch && eduMatch && martMatch && profMatch && heightMatch && verifyMatch && activeMatch && nameMatch && !excludedUids.has(u.uid || u.id);
       });
 
 
@@ -303,13 +371,27 @@ export default function MatchesPage() {
                 {/* Profile ID Filter */}
                 <div className="space-y-3">
                   <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Profile ID</label>
-                  <input 
-                    type="text" 
-                    value={filters.profileId}
-                    onChange={(e) => setFilters({...filters, profileId: e.target.value})}
-                    placeholder="e.g. AB1234"
-                    className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none" 
-                  />
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={profileIdSearch}
+                      onChange={(e) => setProfileIdSearch(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && fetchMatches(true)}
+                      placeholder="e.g. AB1234"
+                      className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none uppercase" 
+                    />
+                    <button 
+                      onClick={() => fetchMatches(true)}
+                      className="px-4 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors"
+                    >
+                      Find
+                    </button>
+                  </div>
+                  {searchToast && (
+                    <p className={`text-xs font-bold ${searchToast.type === 'error' ? 'text-error' : 'text-primary'}`}>
+                      {searchToast.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -519,7 +601,15 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
         <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-headline text-2xl">{user.name}, {user.age}</h3>
+            <div className="flex items-center">
+              <h3 className="font-headline text-2xl">{user.name}, {user.age}</h3>
+              {isUserOnline(user.lastActive) && (
+                <div className="relative flex h-3 w-3 ml-2" title="Online Now">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </div>
+              )}
+            </div>
             {user.emailVerified && (
               <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center border border-white/20" title="Verified Member">
                 <Check className="w-3 h-3 text-on-primary" />
