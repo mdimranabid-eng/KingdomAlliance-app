@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType, calculateAge } from '../lib/utils';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 export default function InterestsPage() {
   const { user: authUser } = useAuth();
@@ -27,6 +28,12 @@ export default function InterestsPage() {
   const [interests, setInterests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [showWithdrawDeclineConfirm, setShowWithdrawDeclineConfirm] = useState(false);
+  const [pendingWithdrawId, setPendingWithdrawId] = useState<string | null>(null);
+  const [pendingTargetUserId, setPendingTargetUserId] = useState<string | null>(null);
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [pendingWithdrawInterestId, setPendingWithdrawInterestId] = useState<string | null>(null);
+  const [pendingWithdrawTargetId, setPendingWithdrawTargetId] = useState<string | null>(null);
 
   const fetchInterests = async () => {
     if (!authUser) return;
@@ -313,6 +320,28 @@ export default function InterestsPage() {
     }
   };
 
+  const handleWithdrawDeclineConfirmed = () => {
+    if (pendingWithdrawId && pendingTargetUserId) {
+      handleWithdrawAndDecline(
+        pendingWithdrawId,
+        pendingTargetUserId
+      );
+    }
+    setPendingWithdrawId(null);
+    setPendingTargetUserId(null);
+  };
+
+  const handleWithdrawConfirmed = () => {
+    if (pendingWithdrawTargetId && pendingWithdrawInterestId) {
+      handleWithdrawInterest(
+        pendingWithdrawTargetId,
+        pendingWithdrawInterestId
+      );
+    }
+    setPendingWithdrawTargetId(null);
+    setPendingWithdrawInterestId(null);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -393,15 +422,61 @@ export default function InterestsPage() {
                 isProcessing={processingId === interest.id}
                 onAccept={() => handleAcceptInterest(interest.id)}
                 onDecline={() => handleDeclineInterest(interest.id)}
-                onWithdraw={() => handleWithdrawInterest(interest.toId === authUser?.uid ? interest.fromId : interest.toId, interest.id)}
+                onWithdraw={() => {
+                  setPendingWithdrawTargetId(
+                    interest.toId === authUser?.uid
+                      ? interest.fromId
+                      : interest.toId
+                  );
+                  setPendingWithdrawInterestId(interest.id);
+                  setShowWithdrawConfirm(true);
+                }}
                 onDelete={() => handleDeletePermanently(interest.id)}
-                onWithdrawAndDecline={() => handleWithdrawAndDecline(interest.id, interest.toId === authUser?.uid ? interest.fromId : interest.toId)}
+                onWithdrawAndDecline={() => {
+                  setPendingWithdrawId(interest.id);
+                  setPendingTargetUserId(
+                    interest.toId === authUser?.uid 
+                      ? interest.fromId 
+                      : interest.toId
+                  );
+                  setShowWithdrawDeclineConfirm(true);
+                }}
                 onUnblockAndAccept={() => handleUnblockAndAccept(interest.id, interest.toId === authUser?.uid ? interest.fromId : interest.toId)}
               />
             ))}
           </AnimatePresence>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={showWithdrawDeclineConfirm}
+        onClose={() => {
+          setShowWithdrawDeclineConfirm(false);
+          setPendingWithdrawId(null);
+          setPendingTargetUserId(null);
+        }}
+        onConfirm={handleWithdrawDeclineConfirmed}
+        title="Withdraw & Decline"
+        message="Are you sure you want to withdraw and decline this connection? This will remove the accepted connection and cannot be undone."
+        confirmText="Yes, Withdraw & Decline"
+        cancelText="No, Keep Connection"
+        isDestructive={true}
+      />
+
+      <ConfirmationModal
+        isOpen={showWithdrawConfirm}
+        onClose={() => {
+          setShowWithdrawConfirm(false);
+          setPendingWithdrawInterestId(null);
+          setPendingWithdrawTargetId(null);
+        }}
+        onConfirm={handleWithdrawConfirmed}
+        title="Withdraw Interest"
+        message="Are you sure you want to withdraw this interest request? This action cannot be undone."
+        confirmText="Yes, Withdraw"
+        cancelText="No, Keep It"
+        isDestructive={true}
+      />
     </div>
   );
 }

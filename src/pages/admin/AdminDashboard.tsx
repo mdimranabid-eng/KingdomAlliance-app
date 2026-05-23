@@ -20,7 +20,7 @@ import {
 import { Link } from 'react-router-dom';
 import AdminReportModal from '../../components/admin/AdminReportModal';
 import { parseFirestoreDate, resolveApprovalStatus } from '../../lib/utils';
-import { TemporaryMigrationButton } from '../../components/TemporaryMigrationButton';
+
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      <TemporaryMigrationButton />
+
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

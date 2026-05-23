@@ -76,6 +76,8 @@ export default function ProfilePage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<'profile' | 'gallery'>('gallery');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
   const [showLimitAlert, setShowLimitAlert] = useState(false);
   const [activeTab, setActiveTab] = useState('about');
@@ -117,6 +119,22 @@ export default function ProfilePage() {
           const age = calculateAge(data.dob, data.age);
           setProfile({ id: docSnap.id, ...data, age });
           setAboutMeDraft(data.aboutMe || '');
+
+          // --- PROFILE VIEW TRACKING START ---
+          // Only track if viewer is not viewing own profile
+          if (currentUser?.uid && currentUser.uid !== id) {
+            const viewDocId = `${currentUser.uid}_${id}`;
+            await setDoc(
+              doc(db, 'profileViews', viewDocId),
+              {
+                viewerId: currentUser.uid,
+                profileId: id,
+                viewedAt: serverTimestamp()
+              },
+              { merge: true }
+            );
+          }
+          // --- PROFILE VIEW TRACKING END ---
 
           if (currentUser) {
             const interestsRef = collection(db, 'interests');
@@ -728,7 +746,7 @@ export default function ProfilePage() {
 
                       {connectionState?.status === 'pending' && connectionState?.fromId === currentUser?.uid && (
                         <button
-                          onClick={handleWithdrawInterest}
+                          onClick={() => setShowWithdrawConfirm(true)}
                           disabled={sendingInterest}
                           className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg bg-error/10 text-error hover:bg-error/25 hover:-translate-y-1 active:translate-y-0"
                         >
@@ -748,7 +766,7 @@ export default function ProfilePage() {
                             Accept
                           </button>
                           <button
-                            onClick={handleDeclineInterest}
+                            onClick={() => setShowDeclineConfirm(true)}
                             disabled={sendingInterest}
                             className="flex-1 md:flex-none px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-surface-container-high text-on-surface-variant hover:bg-surface-variant hover:-translate-y-1 active:translate-y-0 border border-outline-variant"
                           >
@@ -768,7 +786,7 @@ export default function ProfilePage() {
                             Message
                           </button>
                           <button
-                            onClick={handleDeclineInterest}
+                            onClick={() => setShowDeclineConfirm(true)}
                             disabled={sendingInterest}
                             className="flex-1 md:flex-none px-6 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-error/10 text-error hover:bg-error/20 hover:-translate-y-1 active:translate-y-0"
                           >
@@ -1279,6 +1297,28 @@ export default function ProfilePage() {
         confirmText="OK"
         isDestructive={false}
         singleButton={true}
+      />
+
+      <ConfirmationModal
+        isOpen={showWithdrawConfirm}
+        onClose={() => setShowWithdrawConfirm(false)}
+        onConfirm={handleWithdrawInterest}
+        title="Withdraw Interest"
+        message="Are you sure you want to withdraw your interest? This action cannot be undone."
+        confirmText="Yes, Withdraw"
+        cancelText="No, Keep It"
+        isDestructive={true}
+      />
+
+      <ConfirmationModal
+        isOpen={showDeclineConfirm}
+        onClose={() => setShowDeclineConfirm(false)}
+        onConfirm={handleDeclineInterest}
+        title="Decline Interest"
+        message="Are you sure you want to decline this interest? You can change your mind later from the Declined tab."
+        confirmText="Yes, Decline"
+        cancelText="No, Keep It"
+        isDestructive={true}
       />
     </div>
   );

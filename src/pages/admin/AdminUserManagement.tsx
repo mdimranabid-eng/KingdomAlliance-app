@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { seedTestData } from '../../lib/seeder';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 import { deleteFromCloudinary } from '../../lib/cloudinary';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
 
@@ -122,6 +123,9 @@ export default function AdminUserManagement() {
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showSeedConfirm, setShowSeedConfirm] = useState(false);
+  const [showSuspendConfirm, setShowSuspendConfirm] = useState(false);
+  const [pendingSuspendUserId, setPendingSuspendUserId] = useState<string | null>(null);
+  const [pendingSuspendStatus, setPendingSuspendStatus] = useState<string | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -351,6 +355,17 @@ export default function AdminUserManagement() {
     return matchesSearch && matchesFilter;
   });
 
+  const handleSuspendConfirmed = () => {
+    if (pendingSuspendUserId && pendingSuspendStatus) {
+      handleUpdateStatus(
+        pendingSuspendUserId,
+        pendingSuspendStatus as any
+      );
+    }
+    setPendingSuspendUserId(null);
+    setPendingSuspendStatus(null);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -497,7 +512,15 @@ export default function AdminUserManagement() {
                           </button>
                           
                           <button 
-                            onClick={() => handleUpdateStatus(user.id, user.status === 'active' ? 'suspended' : 'active')}
+                            onClick={() => {
+                              if (user.status === 'active') {
+                                setPendingSuspendUserId(user.id);
+                                setPendingSuspendStatus('suspended');
+                                setShowSuspendConfirm(true);
+                              } else {
+                                handleUpdateStatus(user.id, 'active');
+                              }
+                            }}
                             className={cn(
                               "p-2.5 text-white rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm group relative",
                               user.status === 'active' ? "bg-[#dc2626] hover:bg-[#b91c1c]" : "bg-[#d97706] hover:bg-[#c2410c]"
@@ -666,6 +689,21 @@ export default function AdminUserManagement() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal
+        isOpen={showSuspendConfirm}
+        onClose={() => {
+          setShowSuspendConfirm(false);
+          setPendingSuspendUserId(null);
+          setPendingSuspendStatus(null);
+        }}
+        onConfirm={handleSuspendConfirmed}
+        title="Suspend User"
+        message="Are you sure you want to suspend this profile? The user will lose access to the platform immediately."
+        confirmText="Yes, Suspend"
+        cancelText="No, Keep Active"
+        isDestructive={true}
+      />
     </div>
   );
 }

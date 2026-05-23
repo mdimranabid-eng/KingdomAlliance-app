@@ -9,7 +9,7 @@ import { auth } from '../lib/firebase';
 import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ArrowLeft, CheckCircle2, Upload, Camera, Scale, MapPin, Church, GraduationCap, Briefcase, Ruler, ShieldCheck, X, Plus, Mail, Phone, Loader2, Lock, Eye, EyeOff, Globe, MapPinHouse, Hourglass } from 'lucide-react';
-import { cn, formatAuthError, generateUniqueProfileId } from '../lib/utils';
+import { cn, formatAuthError, generateUniqueProfileId, calculateAge } from '../lib/utils';
 import { useSettings } from '../lib/SettingsContext';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { uploadToCloudinary } from '../lib/cloudinary';
@@ -264,7 +264,6 @@ export default function RegisterPage() {
         lastName: creds.fullName?.split(' ').slice(1).join(' ') || prev.lastName,
       }));
     }
-
     if (user && !formData.email) {
       setFormData(prev => ({
         ...prev,
@@ -274,14 +273,14 @@ export default function RegisterPage() {
         pendingPhotoUrl: prev.pendingPhotoUrl || user.photoURL || ''
       }));
     }
-
     if (isGoogleUser) {
       setEmailVerifiedLocal(true);
     } else if (profile?.emailVerified || user?.emailVerified) {
       setEmailVerifiedLocal(true);
     }
 
-    if (profile && profile.onboardingComplete && profile.approvalStatus === 'approved') {
+    if (profile && profile.onboardingComplete && 
+      profile.approvalStatus === 'approved') {
       navigate('/dashboard');
     }
   }, [user, profile, navigate, formData.email, isGoogleUser]);
@@ -326,14 +325,14 @@ export default function RegisterPage() {
     try {
       const compressedFile = await imageCompression(file, options);
       console.log(`Compressed to ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
-      
+
       // Try Cloudinary first if configured
       if (settings.cloudinaryCloudName && settings.cloudinaryUploadPreset) {
         try {
           console.log("Attempting Cloudinary upload...");
           const url = await uploadToCloudinary(
-            compressedFile, 
-            import.meta.env.VITE_CLOUDINARY_CLOUD_NAME, 
+            compressedFile,
+            import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
             import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
           );
           console.log("Cloudinary upload successful:", url);
@@ -353,12 +352,12 @@ export default function RegisterPage() {
         return downloadUrl;
       } catch (storageError: any) {
         console.error("Firebase Storage upload failed:", storageError);
-        
+
         // If it's a permission error, we should inform the user more clearly
         if (storageError.code === 'storage/unauthorized') {
           throw new Error("Storage permission denied. Please check Firebase Storage rules.");
         }
-        
+
         // Fallback to Data URL for preview purposes if storage fails completely
         console.warn("Falling back to Data URL for preview...");
         const dataUrl = await imageCompression.getDataUrlFromFile(compressedFile);
@@ -385,7 +384,7 @@ export default function RegisterPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    
+
     // Defer the upload: store file and local object URL
     setProfilePhotoFile(file);
     const localUrl = URL.createObjectURL(file);
@@ -425,10 +424,10 @@ export default function RegisterPage() {
         alert("File size must be less than 10MB.");
         return;
       }
-      
+
       const photoId = Math.random().toString(36).substring(7);
       const localUrl = URL.createObjectURL(file);
-      
+
       newFiles.push({ id: photoId, file });
       newPhotos.push({
         id: photoId,
@@ -478,7 +477,7 @@ export default function RegisterPage() {
       }));
 
       const required = ['profileFor', 'profileType', 'name', 'lastName', 'email', 'mobileNumber', 'dob', 'citizenship', 'countryLiving', 'cityLiving', 'denomination', 'churchName', 'churchCity'];
-      
+
       const valMap: Record<string, string> = {
         profileFor: formData.profileFor,
         profileType: formData.profileType,
@@ -545,7 +544,7 @@ export default function RegisterPage() {
         const emailQ = query(collection(db, "users"), where("email", "==", cleanEmail));
         const emailSnapshot = await getDocs(emailQ);
         const existingEmailDocs = emailSnapshot.docs.filter(doc => doc.id !== user?.uid);
-        
+
         if (existingEmailDocs.length > 0) {
           setErrorMsg("Email already registered. Please log in or use another email.");
           setInvalidFields(['email']);
@@ -559,7 +558,7 @@ export default function RegisterPage() {
         const mobileQ = query(collection(db, "users"), where("mobileNumber", "==", fullMobile));
         const mobileSnapshot = await getDocs(mobileQ);
         const existingMobileDocs = mobileSnapshot.docs.filter(doc => doc.id !== user?.uid);
-        
+
         if (existingMobileDocs.length > 0) {
           setErrorMsg("The mobile number entered is already registered.");
           setInvalidFields(['mobileNumber']);
@@ -594,11 +593,11 @@ export default function RegisterPage() {
       }));
 
       const required = [
-        'maritalStatus', 'height', 'weight', 'bodyType', 'complexion', 
-        'physicalStatus', 'motherTongue', 'education', 'profession', 
+        'maritalStatus', 'height', 'weight', 'bodyType', 'complexion',
+        'physicalStatus', 'motherTongue', 'education', 'profession',
         'dietaryHabits', 'drinkingHabits', 'smokingHabits', 'aboutMe'
       ];
-      
+
       const valMap: Record<string, string> = {
         maritalStatus: formData.maritalStatus,
         height: formData.height,
@@ -639,7 +638,7 @@ export default function RegisterPage() {
       }));
 
       const required = [
-        'fathersName', 'fathersOccupation', 'mothersName', 'mothersOccupation', 
+        'fathersName', 'fathersOccupation', 'mothersName', 'mothersOccupation',
         'numberOfSiblings'
       ];
 
@@ -665,7 +664,7 @@ export default function RegisterPage() {
       const prefRequired = ['ageMin', 'ageMax', 'heightMin', 'heightMax', 'educationLevel', 'country', 'city'];
       errors = prefRequired.filter(f => !pref[f as keyof typeof pref]);
       if (pref.maritalStatus.length === 0) errors.push('pref-maritalStatus');
-      
+
       if (errors.length > 0) {
         setInvalidFields(errors);
         setErrorMsg("Please fill in all mandatory Partner Preferences.");
@@ -673,7 +672,7 @@ export default function RegisterPage() {
         return;
       }
     }
-    
+
     if (currentStep < STEPS.length) {
       setCurrentStep(prev => prev + 1);
       setInvalidFields([]);
@@ -702,7 +701,7 @@ export default function RegisterPage() {
     try {
       let activeUser = auth.currentUser;
       const savedCredsStr = sessionStorage.getItem('saved_credentials');
-      
+
       if (!activeUser && savedCredsStr) {
         const creds = JSON.parse(savedCredsStr);
         if (creds.authProvider === 'email') {
@@ -710,13 +709,13 @@ export default function RegisterPage() {
           const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
           const userCredential = await createUserWithEmailAndPassword(auth, creds.email, creds.password);
           activeUser = userCredential.user;
-          
+
           if (creds.fullName) {
             await updateProfile(activeUser, { displayName: creds.fullName });
           }
         }
       }
-      
+
       if (!activeUser) {
         throw new Error("No active user session or registration credentials found. Please sign up again.");
       }
@@ -725,10 +724,10 @@ export default function RegisterPage() {
       let finalProfilePhotoUrl = formData.photoUrl || '';
       let finalPendingPhotoUrl = formData.pendingPhotoUrl;
       let finalPhotoStatus = formData.photoStatus;
-      
+
       // Get user name for moderation
       const userName = formData.name ? `${formData.name} ${formData.lastName}` : (activeUser.displayName || 'User');
-      
+
       // 1. Upload main profile photo if it was selected locally
       if (profilePhotoFile) {
         console.log("Uploading main profile photo...");
@@ -736,7 +735,7 @@ export default function RegisterPage() {
         const url = await compressAndUpload(profilePhotoFile, path);
         finalPendingPhotoUrl = url;
         finalPhotoStatus = 'pending';
-        
+
         // Create photoModeration document
         await addDoc(collection(db, 'photoModeration'), {
           uid: activeUser.uid,
@@ -751,20 +750,20 @@ export default function RegisterPage() {
           rejectedReason: null
         });
       }
-      
+
       // 2. Upload gallery photos if they were selected locally
       const finalGallery = [...formData.gallery];
       for (let i = 0; i < finalGallery.length; i++) {
         const galleryItem = finalGallery[i];
         const matchingLocalFile = galleryPhotoFiles.find(f => f.id === galleryItem.id);
-        
+
         if (matchingLocalFile) {
           console.log(`Uploading gallery photo ${i + 1}...`);
           const path = `users/${activeUser.uid}/gallery_${Date.now()}_${galleryItem.id}`;
           const url = await compressAndUpload(matchingLocalFile.file, path);
-          
+
           galleryItem.url = url; // Update with the real URL
-          
+
           // Create photoModeration document for each gallery photo
           await addDoc(collection(db, 'photoModeration'), {
             uid: activeUser.uid,
@@ -792,7 +791,9 @@ export default function RegisterPage() {
         profileFor: formData.profileFor,
         gender: formData.gender,
         dob: formData.dob,
-        age: parseInt(formData.age) || 0,
+        age: formData.dob
+          ? calculateAge(formData.dob, 0)
+          : formData.age || 0,
         citizenship: formData.citizenship,
         countryLiving: formData.countryLiving,
         cityLiving: formData.cityLiving,
@@ -871,10 +872,11 @@ export default function RegisterPage() {
         approvalStatus: 'pending',   // 🔥 Advance status to alert the admin panel
         updatedAt: new Date()
       }, { merge: true });
-      
+
+
       // Clean up temporary registration session details on success
       sessionStorage.removeItem('saved_credentials');
-      
+
       setSubmissionSuccess(true);
     } catch (error: any) {
       console.error("Registration submission error:", error);
@@ -894,18 +896,18 @@ export default function RegisterPage() {
           </div>
         </header>
         <main className="flex-1 w-full max-w-lg flex flex-col items-center justify-center">
-            <div className="bg-surface-container-lowest rounded-[2rem] p-10 border border-outline-variant shadow-lg text-center space-y-6">
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-10 h-10 text-primary" />
-                </div>
-                <h2 className="font-headline text-3xl text-on-surface">Submission Successful</h2>
-                <p className="text-on-surface-variant text-base">
-                    Thank you, <span className="font-bold">{formData.email}</span>. Your profile has been submitted for review and approval.
-                </p>
-                <div className="p-4 bg-primary/5 rounded-2xl text-sm text-on-surface-variant text-left">
-                    We'll notify you via your email once your profile is approved.
-                </div>
+          <div className="bg-surface-container-lowest rounded-[2rem] p-10 border border-outline-variant shadow-lg text-center space-y-6">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-10 h-10 text-primary" />
             </div>
+            <h2 className="font-headline text-3xl text-on-surface">Submission Successful</h2>
+            <p className="text-on-surface-variant text-base">
+              Thank you, <span className="font-bold">{formData.email}</span>. Your profile has been submitted for review and approval.
+            </p>
+            <div className="p-4 bg-primary/5 rounded-2xl text-sm text-on-surface-variant text-left">
+              We'll notify you via your email once your profile is approved.
+            </div>
+          </div>
         </main>
       </div>
     );
@@ -955,9 +957,9 @@ export default function RegisterPage() {
                     <div className="flex flex-col items-center">
                       <div className={cn(
                         "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
-                        isActive ? "bg-primary border-primary text-on-primary shadow-lg shadow-primary/20" : 
-                        isCompleted ? "bg-secondary border-secondary text-on-secondary" :
-                        "bg-surface border-outline-variant text-on-surface-variant"
+                        isActive ? "bg-primary border-primary text-on-primary shadow-lg shadow-primary/20" :
+                          isCompleted ? "bg-secondary border-secondary text-on-secondary" :
+                            "bg-surface border-outline-variant text-on-surface-variant"
                       )}>
                         {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : step.id}
                       </div>
@@ -987,13 +989,13 @@ export default function RegisterPage() {
         {/* Form Area */}
         <div className="flex-1 bg-surface-container-lowest rounded-3xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col">
           <div className="p-8 lg:p-12 bg-surface-container-low border-b border-outline-variant">
-            <h3 className="font-headline text-3xl text-on-surface mb-2">{STEPS[currentStep-1].title}</h3>
-            <p className="text-on-surface-variant">{STEPS[currentStep-1].description}</p>
+            <h3 className="font-headline text-3xl text-on-surface mb-2">{STEPS[currentStep - 1].title}</h3>
+            <p className="text-on-surface-variant">{STEPS[currentStep - 1].description}</p>
           </div>
 
           <div className="flex-1 p-8 lg:p-12">
             {errorMsg && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="mb-6 p-4 bg-error-container text-error rounded-xl border border-error/20 flex items-center gap-3"
@@ -1018,9 +1020,9 @@ export default function RegisterPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2" id="field-profileFor">
                         <FieldLabel label="Profile created for" field="profileFor" />
-                        <select 
-                          value={formData.profileFor} 
-                          onChange={(e) => updateFormData('profileFor', e.target.value)} 
+                        <select
+                          value={formData.profileFor}
+                          onChange={(e) => updateFormData('profileFor', e.target.value)}
                           className={cn(
                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary",
                             invalidFields.includes('profileFor') && "field-error-animation"
@@ -1032,24 +1034,24 @@ export default function RegisterPage() {
                         <ErrorMessage field="profileFor" message="This field is required." />
                       </div>
                       <div className="space-y-2" id="field-profileType">
-                         <FieldLabel label="Profile Type" field="profileType" />
-                         <div className="flex gap-4">
-                           {['bride', 'groom'].map(type => (
-                             <button 
-                               key={type} 
-                               type="button" 
-                               onClick={() => { updateFormData('profileType', type); updateFormData('gender', type === 'groom' ? 'male' : 'female'); }} 
-                               className={cn(
-                                 "flex-1 p-3 rounded-xl border-2 capitalize transition-colors font-medium", 
-                                 formData.profileType === type ? "border-primary bg-primary/5 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary/50",
-                                 invalidFields.includes('profileType') && "field-error-animation"
-                               )}
-                             >
-                               {type}
-                             </button>
-                           ))}
-                         </div>
-                         <ErrorMessage field="profileType" message="Please select your gender." />
+                        <FieldLabel label="Profile Type" field="profileType" />
+                        <div className="flex gap-4">
+                          {['bride', 'groom'].map(type => (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => { updateFormData('profileType', type); updateFormData('gender', type === 'groom' ? 'male' : 'female'); }}
+                              className={cn(
+                                "flex-1 p-3 rounded-xl border-2 capitalize transition-colors font-medium",
+                                formData.profileType === type ? "border-primary bg-primary/5 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary/50",
+                                invalidFields.includes('profileType') && "field-error-animation"
+                              )}
+                            >
+                              {type}
+                            </button>
+                          ))}
+                        </div>
+                        <ErrorMessage field="profileType" message="Please select your gender." />
                       </div>
                     </div>
 
@@ -1058,38 +1060,38 @@ export default function RegisterPage() {
                       <FieldLabel label="Full Name" field="name" />
                       <div className="flex flex-col sm:flex-row gap-3">
                         <div className="flex-1 space-y-1">
-                          <input 
-                            type="text" 
-                            value={formData.name} 
-                            onChange={(e) => updateFormData('name', e.target.value)} 
-                            placeholder="First Name" 
+                          <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => updateFormData('name', e.target.value)}
+                            placeholder="First Name"
                             className={cn(
                               "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary",
                               invalidFields.includes('name') && "field-error-animation"
-                            )} 
+                            )}
                           />
                           <ErrorMessage field="name" message="Full name is required." />
                         </div>
                         <div className="flex-1 space-y-1">
-                          <input 
-                            type="text" 
-                            value={formData.middleName} 
-                            onChange={(e) => updateFormData('middleName', e.target.value)} 
-                            placeholder="Middle Name" 
-                            className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary" 
+                          <input
+                            type="text"
+                            value={formData.middleName}
+                            onChange={(e) => updateFormData('middleName', e.target.value)}
+                            placeholder="Middle Name"
+                            className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary"
                           />
                           <span className="text-[10px] text-on-surface-variant italic ml-2">(Optional)</span>
                         </div>
                         <div className="flex-1 space-y-1" id="field-lastName">
-                          <input 
-                            type="text" 
-                            value={formData.lastName} 
-                            onChange={(e) => updateFormData('lastName', e.target.value)} 
-                            placeholder="Last Name" 
+                          <input
+                            type="text"
+                            value={formData.lastName}
+                            onChange={(e) => updateFormData('lastName', e.target.value)}
+                            placeholder="Last Name"
                             className={cn(
                               "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary",
                               invalidFields.includes('lastName') && "field-error-animation"
-                            )} 
+                            )}
                           />
                           <ErrorMessage field="lastName" message="Last name is required." />
                         </div>
@@ -1100,10 +1102,10 @@ export default function RegisterPage() {
                     <div className="space-y-2" id="field-email">
                       <FieldLabel label="Email Address" field="email" />
                       <div className="relative group">
-                        <input 
-                          type="email" 
-                          value={formData.email} 
-                          placeholder="Email address" 
+                        <input
+                          type="email"
+                          value={formData.email}
+                          placeholder="Email address"
                           readOnly
                           className="w-full px-4 py-3 bg-surface-variant/30 text-on-surface-variant border border-outline-variant rounded-xl outline-none cursor-not-allowed"
                         />
@@ -1129,8 +1131,8 @@ export default function RegisterPage() {
                           "flex bg-surface border border-outline-variant rounded-xl overflow-hidden focus-within:border-primary transition-colors",
                           invalidFields.includes('mobileNumber') && "field-error-animation"
                         )}>
-                          <select 
-                            value={formData.countryCode} 
+                          <select
+                            value={formData.countryCode}
                             onChange={(e) => updateFormData('countryCode', e.target.value)}
                             className="px-3 py-3 bg-surface border-r border-outline-variant outline-none text-on-surface text-center font-medium min-w-[80px]"
                           >
@@ -1144,30 +1146,30 @@ export default function RegisterPage() {
                       </div>
                       <div className="space-y-2" id="field-dob">
                         <FieldLabel label="Date of Birth" field="dob" />
-                        <input 
-                          type="date" 
-                          value={formData.dob} 
-                          onChange={(e) => updateFormData('dob', e.target.value)} 
+                        <input
+                          type="date"
+                          value={formData.dob}
+                          onChange={(e) => updateFormData('dob', e.target.value)}
                           className={cn(
                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary",
                             invalidFields.includes('dob') && "field-error-animation"
-                          )} 
+                          )}
                         />
                         <ErrorMessage field="dob" message="Date of birth is required." />
                       </div>
                     </div>
-                    
+
                     {/* Account notice */}
                     <p className="text-xs text-on-surface-variant italic -mt-2">
-                        “Your mobile number will be used for account verification and important communication related to your profile.”
+                      “Your mobile number will be used for account verification and important communication related to your profile.”
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <div className="space-y-2" id="field-citizenship">
                         <FieldLabel label="Citizenship" field="citizenship" />
-                        <select 
-                          value={formData.citizenship} 
-                          onChange={(e) => updateFormData('citizenship', e.target.value)} 
+                        <select
+                          value={formData.citizenship}
+                          onChange={(e) => updateFormData('citizenship', e.target.value)}
                           className={cn(
                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary",
                             invalidFields.includes('citizenship') && "field-error-animation"
@@ -1180,12 +1182,12 @@ export default function RegisterPage() {
                       </div>
                       <div className="space-y-2" id="field-countryLiving">
                         <FieldLabel label="Country Living" field="countryLiving" />
-                        <select 
-                          value={formData.countryLiving} 
+                        <select
+                          value={formData.countryLiving}
                           onChange={(e) => {
                             updateFormData('countryLiving', e.target.value);
                             updateFormData('cityLiving', ''); // Reset city when country changes
-                          }} 
+                          }}
                           className={cn(
                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary",
                             invalidFields.includes('countryLiving') && "field-error-animation"
@@ -1198,9 +1200,9 @@ export default function RegisterPage() {
                       </div>
                       <div className="space-y-2" id="field-cityLiving">
                         <FieldLabel label="City" field="cityLiving" />
-                        <select 
-                          value={formData.cityLiving} 
-                          onChange={(e) => updateFormData('cityLiving', e.target.value)} 
+                        <select
+                          value={formData.cityLiving}
+                          onChange={(e) => updateFormData('cityLiving', e.target.value)}
                           disabled={!formData.countryLiving}
                           className={cn(
                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none transition-colors focus:border-primary disabled:opacity-50",
@@ -1215,13 +1217,13 @@ export default function RegisterPage() {
                     </div>
 
                     <h4 className="font-headline text-2xl text-on-surface mt-6">Religion & Church</h4>
-                    
+
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-denomination">
                         <FieldLabel label="Denomination" field="denomination" />
-                        <select 
-                          value={formData.denomination} 
-                          onChange={(e) => updateFormData('denomination', e.target.value)} 
+                        <select
+                          value={formData.denomination}
+                          onChange={(e) => updateFormData('denomination', e.target.value)}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
                             invalidFields.includes('denomination') && "field-error-animation"
@@ -1234,10 +1236,10 @@ export default function RegisterPage() {
                       </div>
                       <div className="space-y-1" id="field-churchName">
                         <FieldLabel label="Church Name" field="churchName" />
-                        <input 
-                          type="text" 
-                          value={formData.churchName} 
-                          onChange={(e) => updateFormData('churchName', e.target.value)} 
+                        <input
+                          type="text"
+                          value={formData.churchName}
+                          onChange={(e) => updateFormData('churchName', e.target.value)}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
                             invalidFields.includes('churchName') && "field-error-animation"
@@ -1250,9 +1252,9 @@ export default function RegisterPage() {
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-churchCity">
                         <FieldLabel label="Church City" field="churchCity" />
-                        <select 
-                          value={formData.churchCity} 
-                          onChange={(e) => updateFormData('churchCity', e.target.value)} 
+                        <select
+                          value={formData.churchCity}
+                          onChange={(e) => updateFormData('churchCity', e.target.value)}
                           disabled={!formData.countryLiving}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm disabled:opacity-50",
@@ -1268,329 +1270,329 @@ export default function RegisterPage() {
 
                   </div>
                 )}
-                
+
                 {currentStep === 2 && (
                   <div className="space-y-6">
-                      <h4 className="font-headline text-xl text-on-surface">Personal Details</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1" id="field-maritalStatus">
-                          <FieldLabel label="Marital Status" field="maritalStatus" />
-                          <select 
-                            value={formData.maritalStatus} 
-                            onChange={(e) => updateFormData('maritalStatus', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('maritalStatus') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Status</option>
-                            {['Never Married', 'Annulled', 'Divorced', 'Widowed'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="maritalStatus" message="This field is required." />
-                        </div>
-                        <div className="space-y-1" id="field-height">
-                          <FieldLabel label="Height (ft)" field="height" />
-                          <select 
-                            value={formData.height} 
-                            onChange={(e) => updateFormData('height', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('height') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Height</option>
-                            {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                          </select>
-                          <ErrorMessage field="height" message="This field is required." />
-                        </div>
+                    <h4 className="font-headline text-xl text-on-surface">Personal Details</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1" id="field-maritalStatus">
+                        <FieldLabel label="Marital Status" field="maritalStatus" />
+                        <select
+                          value={formData.maritalStatus}
+                          onChange={(e) => updateFormData('maritalStatus', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('maritalStatus') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Status</option>
+                          {['Never Married', 'Annulled', 'Divorced', 'Widowed'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="maritalStatus" message="This field is required." />
                       </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-1" id="field-weight">
-                          <FieldLabel label="Weight (kg)" field="weight" />
-                          <input 
-                            type="number" 
-                            value={formData.weight} 
-                            onChange={(e) => updateFormData('weight', e.target.value)} 
-                            placeholder="E.g. 70" 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('weight') && "field-error-animation"
-                            )} 
-                          />
-                          <ErrorMessage field="weight" message="This field is required." />
-                        </div>
-                        <div className="space-y-1" id="field-bodyType">
-                          <FieldLabel label="Body Type" field="bodyType" />
-                          <select 
-                            value={formData.bodyType} 
-                            onChange={(e) => updateFormData('bodyType', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('bodyType') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Body Type</option>
-                            {['Slim', 'Average', 'Athletic', 'Heavy'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="bodyType" message="This field is required." />
-                        </div>
-                        <div className="space-y-1" id="field-complexion">
-                          <FieldLabel label="Complexion" field="complexion" />
-                          <select 
-                            value={formData.complexion} 
-                            onChange={(e) => updateFormData('complexion', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('complexion') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Complexion</option>
-                            {['Fair', 'Light', 'Medium', 'Olive', 'Dark'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="complexion" message="This field is required." />
-                        </div>
+                      <div className="space-y-1" id="field-height">
+                        <FieldLabel label="Height (ft)" field="height" />
+                        <select
+                          value={formData.height}
+                          onChange={(e) => updateFormData('height', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('height') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Height</option>
+                          {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
+                        </select>
+                        <ErrorMessage field="height" message="This field is required." />
                       </div>
-                      <div className="flex flex-row flex-nowrap gap-4 w-full">
-                        <div className="flex-1 min-w-0 space-y-1" id="field-physicalStatus">
-                          <FieldLabel label="Physical Status" field="physicalStatus" />
-                          <select 
-                            value={formData.physicalStatus} 
-                            onChange={(e) => updateFormData('physicalStatus', e.target.value)} 
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-1" id="field-weight">
+                        <FieldLabel label="Weight (kg)" field="weight" />
+                        <input
+                          type="number"
+                          value={formData.weight}
+                          onChange={(e) => updateFormData('weight', e.target.value)}
+                          placeholder="E.g. 70"
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('weight') && "field-error-animation"
+                          )}
+                        />
+                        <ErrorMessage field="weight" message="This field is required." />
+                      </div>
+                      <div className="space-y-1" id="field-bodyType">
+                        <FieldLabel label="Body Type" field="bodyType" />
+                        <select
+                          value={formData.bodyType}
+                          onChange={(e) => updateFormData('bodyType', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('bodyType') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Body Type</option>
+                          {['Slim', 'Average', 'Athletic', 'Heavy'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="bodyType" message="This field is required." />
+                      </div>
+                      <div className="space-y-1" id="field-complexion">
+                        <FieldLabel label="Complexion" field="complexion" />
+                        <select
+                          value={formData.complexion}
+                          onChange={(e) => updateFormData('complexion', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('complexion') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Complexion</option>
+                          {['Fair', 'Light', 'Medium', 'Olive', 'Dark'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="complexion" message="This field is required." />
+                      </div>
+                    </div>
+                    <div className="flex flex-row flex-nowrap gap-4 w-full">
+                      <div className="flex-1 min-w-0 space-y-1" id="field-physicalStatus">
+                        <FieldLabel label="Physical Status" field="physicalStatus" />
+                        <select
+                          value={formData.physicalStatus}
+                          onChange={(e) => updateFormData('physicalStatus', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('physicalStatus') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Physical Status</option>
+                          {['Normal', 'Physically Challenged'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="physicalStatus" message="This field is required." />
+                      </div>
+
+                      <div className="flex-1 min-w-0 space-y-1" id="field-motherTongue">
+                        <FieldLabel label="Mother Tongue" field="motherTongue" />
+                        <select
+                          value={formData.motherTongue}
+                          onChange={(e) => updateFormData('motherTongue', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('motherTongue') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Mother Tongue</option>
+                          {['English', ...INDIAN_LANGUAGES].map(lang => <option key={lang} value={lang}>{lang}</option>)}
+                        </select>
+                        <ErrorMessage field="motherTongue" message="This field is required." />
+                      </div>
+
+                      <div ref={languagesDropdownRef} className="flex-1 min-w-0 space-y-1 relative" id="field-languagesKnown">
+                        <FieldLabel label="Languages I Know" field="languagesKnown" isOptional={true} />
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setShowLanguagesDropdown(!showLanguagesDropdown)}
                             className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('physicalStatus') && "field-error-animation"
+                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary",
+                              invalidFields.includes('languagesKnown') && "field-error-animation"
                             )}
                           >
-                            <option value="">Select Physical Status</option>
-                            {['Normal', 'Physically Challenged'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="physicalStatus" message="This field is required." />
-                        </div>
+                            <span className="truncate">
+                              {formData.languagesKnown.length > 0
+                                ? formData.languagesKnown.join(', ')
+                                : "Select Languages"
+                              }
+                            </span>
+                            <svg className="w-4 h-4 text-on-surface-variant transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
 
-                        <div className="flex-1 min-w-0 space-y-1" id="field-motherTongue">
-                          <FieldLabel label="Mother Tongue" field="motherTongue" />
-                          <select 
-                            value={formData.motherTongue} 
-                            onChange={(e) => updateFormData('motherTongue', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('motherTongue') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Mother Tongue</option>
-                            {['English', ...INDIAN_LANGUAGES].map(lang => <option key={lang} value={lang}>{lang}</option>)}
-                          </select>
-                          <ErrorMessage field="motherTongue" message="This field is required." />
-                        </div>
-
-                        <div ref={languagesDropdownRef} className="flex-1 min-w-0 space-y-1 relative" id="field-languagesKnown">
-                          <FieldLabel label="Languages I Know" field="languagesKnown" isOptional={true} />
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => setShowLanguagesDropdown(!showLanguagesDropdown)}
-                              className={cn(
-                                "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary",
-                                invalidFields.includes('languagesKnown') && "field-error-animation"
-                              )}
-                            >
-                              <span className="truncate">
-                                {formData.languagesKnown.length > 0
-                                  ? formData.languagesKnown.join(', ')
-                                  : "Select Languages"
-                                }
-                              </span>
-                              <svg className="w-4 h-4 text-on-surface-variant transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            
-                            {showLanguagesDropdown && (
-                              <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-lg shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
-                                <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                          {showLanguagesDropdown && (
+                            <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-lg shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
+                              <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.languagesKnown.includes('English')}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    const next = checked
+                                      ? [...formData.languagesKnown, 'English']
+                                      : formData.languagesKnown.filter(l => l !== 'English');
+                                    updateFormData('languagesKnown', next);
+                                  }}
+                                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                />
+                                <span className="text-on-surface font-medium">English</span>
+                              </label>
+                              <div className="border-t border-outline-variant my-1"></div>
+                              {INDIAN_LANGUAGES.map(lang => (
+                                <label key={lang} className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
                                   <input
                                     type="checkbox"
-                                    checked={formData.languagesKnown.includes('English')}
+                                    checked={formData.languagesKnown.includes(lang)}
                                     onChange={(e) => {
                                       const checked = e.target.checked;
                                       const next = checked
-                                        ? [...formData.languagesKnown, 'English']
-                                        : formData.languagesKnown.filter(l => l !== 'English');
+                                        ? [...formData.languagesKnown, lang]
+                                        : formData.languagesKnown.filter(l => l !== lang);
                                       updateFormData('languagesKnown', next);
                                     }}
                                     className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
                                   />
-                                  <span className="text-on-surface font-medium">English</span>
+                                  <span className="text-on-surface">{lang}</span>
                                 </label>
-                                <div className="border-t border-outline-variant my-1"></div>
-                                {INDIAN_LANGUAGES.map(lang => (
-                                  <label key={lang} className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
-                                    <input
-                                      type="checkbox"
-                                      checked={formData.languagesKnown.includes(lang)}
-                                      onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        const next = checked
-                                          ? [...formData.languagesKnown, lang]
-                                          : formData.languagesKnown.filter(l => l !== lang);
-                                        updateFormData('languagesKnown', next);
-                                      }}
-                                      className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
-                                    />
-                                    <span className="text-on-surface">{lang}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <ErrorMessage field="languagesKnown" message="Please select at least one language." />
+                              ))}
+                            </div>
+                          )}
                         </div>
+                        <ErrorMessage field="languagesKnown" message="Please select at least one language." />
                       </div>
-                      
-                      <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Career Path</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1" id="field-education">
-                          <FieldLabel label="Education" field="education" />
-                          <select 
-                            value={formData.education} 
-                            onChange={(e) => updateFormData('education', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('education') && "field-error-animation"
-                            )}
-                          >
-                              <option value="">Select Education</option>
-                              {['High School', 'Diploma', 'Bachelor\'s', 'Master\'s', 'PhD', 'Professional'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="education" message="This field is required." />
-                        </div>
-                        <div className="space-y-1" id="field-profession">
-                          <FieldLabel label="Profession" field="profession" />
-                          <input 
-                            type="text" 
-                            value={formData.profession} 
-                            onChange={(e) => updateFormData('profession', e.target.value)} 
-                            placeholder="E.g. Software Engineer" 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('profession') && "field-error-animation"
-                            )} 
-                          />
-                          <ErrorMessage field="profession" message="This field is required." />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1" id="field-fieldOfStudy">
-                            <FieldLabel label="Field of Study" field="fieldOfStudy" isOptional={true} />
-                            <input 
-                              type="text" 
-                              value={formData.fieldOfStudy} 
-                              onChange={(e) => updateFormData('fieldOfStudy', e.target.value)} 
-                              placeholder="E.g. Computer Science" 
-                              className={cn(
-                                "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                                invalidFields.includes('fieldOfStudy') && "field-error-animation"
-                              )} 
-                            />
-                            <ErrorMessage field="fieldOfStudy" message="This field is required." />
-                          </div>
-                          <div className="space-y-1" id="field-annualIncome">
-                            <FieldLabel label="Annual Income" field="annualIncome" isOptional={true} />
-                            <input 
-                              type="text" 
-                              value={formData.annualIncome} 
-                              onChange={(e) => updateFormData('annualIncome', e.target.value)} 
-                              className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm" 
-                              placeholder="E.g. 500k+" 
-                            />
-                          </div>
-                      </div>
+                    </div>
 
-                      <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Lifestyle</h4>
-                      <div className="grid grid-cols-3 gap-4">
-                         <div className="space-y-1" id="field-dietaryHabits">
-                          <FieldLabel label="Diet" field="dietaryHabits" />
-                          <select 
-                            value={formData.dietaryHabits} 
-                            onChange={(e) => updateFormData('dietaryHabits', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('dietaryHabits') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Diet</option>
-                            {['Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Vegan'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="dietaryHabits" message="This field is required." />
-                         </div>
-                         <div className="space-y-1" id="field-drinkingHabits">
-                          <FieldLabel label="Drinking" field="drinkingHabits" />
-                          <select 
-                            value={formData.drinkingHabits} 
-                            onChange={(e) => updateFormData('drinkingHabits', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('drinkingHabits') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Drinking Habit</option>
-                            {['Never', 'Socially', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="drinkingHabits" message="This field is required." />
-                         </div>
-                         <div className="space-y-1" id="field-smokingHabits">
-                          <FieldLabel label="Smoking" field="smokingHabits" />
-                          <select 
-                            value={formData.smokingHabits} 
-                            onChange={(e) => updateFormData('smokingHabits', e.target.value)} 
-                            className={cn(
-                              "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
-                              invalidFields.includes('smokingHabits') && "field-error-animation"
-                            )}
-                          >
-                            <option value="">Select Smoking Habit</option>
-                            {['Never', 'Occasionally', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <ErrorMessage field="smokingHabits" message="This field is required." />
-                         </div>
-                      </div>
-                      <div className="space-y-1" id="field-hobbies">
-                        <FieldLabel label="Hobbies" field="hobbies" isOptional={true} />
-                        <input 
-                          type="text" 
-                          value={formData.hobbies.join(', ')} 
-                          onChange={(e) => updateFormData('hobbies', e.target.value.split(',').map(s => s.trim()))} 
-                          placeholder="E.g. Reading, Traveling" 
-                          className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm" 
-                        />
-                      </div>
-                      <div className="space-y-1" id="field-aboutMe">
-                        <FieldLabel label="About Me" field="aboutMe" />
-                        <textarea 
-                          value={formData.aboutMe} 
-                          onChange={(e) => updateFormData('aboutMe', e.target.value)} 
-                          placeholder="Describe yourself, your family, and what you are looking for..." 
-                          rows={4}
+                    <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Career Path</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1" id="field-education">
+                        <FieldLabel label="Education" field="education" />
+                        <select
+                          value={formData.education}
+                          onChange={(e) => updateFormData('education', e.target.value)}
                           className={cn(
-                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm resize-none transition-colors focus:border-primary",
-                            invalidFields.includes('aboutMe') && "field-error-animation"
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('education') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Education</option>
+                          {['High School', 'Diploma', 'Bachelor\'s', 'Master\'s', 'PhD', 'Professional'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="education" message="This field is required." />
+                      </div>
+                      <div className="space-y-1" id="field-profession">
+                        <FieldLabel label="Profession" field="profession" />
+                        <input
+                          type="text"
+                          value={formData.profession}
+                          onChange={(e) => updateFormData('profession', e.target.value)}
+                          placeholder="E.g. Software Engineer"
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('profession') && "field-error-animation"
                           )}
                         />
-                        <ErrorMessage field="aboutMe" message="Please write a short description about yourself." />
+                        <ErrorMessage field="profession" message="This field is required." />
                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1" id="field-fieldOfStudy">
+                        <FieldLabel label="Field of Study" field="fieldOfStudy" isOptional={true} />
+                        <input
+                          type="text"
+                          value={formData.fieldOfStudy}
+                          onChange={(e) => updateFormData('fieldOfStudy', e.target.value)}
+                          placeholder="E.g. Computer Science"
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('fieldOfStudy') && "field-error-animation"
+                          )}
+                        />
+                        <ErrorMessage field="fieldOfStudy" message="This field is required." />
+                      </div>
+                      <div className="space-y-1" id="field-annualIncome">
+                        <FieldLabel label="Annual Income" field="annualIncome" isOptional={true} />
+                        <input
+                          type="text"
+                          value={formData.annualIncome}
+                          onChange={(e) => updateFormData('annualIncome', e.target.value)}
+                          className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm"
+                          placeholder="E.g. 500k+"
+                        />
+                      </div>
+                    </div>
+
+                    <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Lifestyle</h4>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-1" id="field-dietaryHabits">
+                        <FieldLabel label="Diet" field="dietaryHabits" />
+                        <select
+                          value={formData.dietaryHabits}
+                          onChange={(e) => updateFormData('dietaryHabits', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('dietaryHabits') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Diet</option>
+                          {['Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Vegan'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="dietaryHabits" message="This field is required." />
+                      </div>
+                      <div className="space-y-1" id="field-drinkingHabits">
+                        <FieldLabel label="Drinking" field="drinkingHabits" />
+                        <select
+                          value={formData.drinkingHabits}
+                          onChange={(e) => updateFormData('drinkingHabits', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('drinkingHabits') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Drinking Habit</option>
+                          {['Never', 'Socially', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="drinkingHabits" message="This field is required." />
+                      </div>
+                      <div className="space-y-1" id="field-smokingHabits">
+                        <FieldLabel label="Smoking" field="smokingHabits" />
+                        <select
+                          value={formData.smokingHabits}
+                          onChange={(e) => updateFormData('smokingHabits', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('smokingHabits') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Smoking Habit</option>
+                          {['Never', 'Occasionally', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ErrorMessage field="smokingHabits" message="This field is required." />
+                      </div>
+                    </div>
+                    <div className="space-y-1" id="field-hobbies">
+                      <FieldLabel label="Hobbies" field="hobbies" isOptional={true} />
+                      <input
+                        type="text"
+                        value={formData.hobbies.join(', ')}
+                        onChange={(e) => updateFormData('hobbies', e.target.value.split(',').map(s => s.trim()))}
+                        placeholder="E.g. Reading, Traveling"
+                        className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1" id="field-aboutMe">
+                      <FieldLabel label="About Me" field="aboutMe" />
+                      <textarea
+                        value={formData.aboutMe}
+                        onChange={(e) => updateFormData('aboutMe', e.target.value)}
+                        placeholder="Describe yourself, your family, and what you are looking for..."
+                        rows={4}
+                        className={cn(
+                          "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm resize-none transition-colors focus:border-primary",
+                          invalidFields.includes('aboutMe') && "field-error-animation"
+                        )}
+                      />
+                      <ErrorMessage field="aboutMe" message="Please write a short description about yourself." />
+                    </div>
                   </div>
                 )}
-                
+
                 {currentStep === 3 && (
                   <div className="space-y-8">
                     <h4 className="font-headline text-2xl text-on-surface">Family Background</h4>
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-fathersName">
                         <FieldLabel label="Father's Name" field="fathersName" />
-                        <input 
-                          type="text" 
-                          value={formData.fathersName} 
-                          onChange={(e) => updateFormData('fathersName', e.target.value)} 
+                        <input
+                          type="text"
+                          value={formData.fathersName}
+                          onChange={(e) => updateFormData('fathersName', e.target.value)}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
                             invalidFields.includes('fathersName') && "field-error-animation"
@@ -1600,10 +1602,10 @@ export default function RegisterPage() {
                       </div>
                       <div className="space-y-1" id="field-fathersOccupation">
                         <FieldLabel label="Father's Occupation" field="fathersOccupation" />
-                        <input 
-                          type="text" 
-                          value={formData.fathersOccupation} 
-                          onChange={(e) => updateFormData('fathersOccupation', e.target.value)} 
+                        <input
+                          type="text"
+                          value={formData.fathersOccupation}
+                          onChange={(e) => updateFormData('fathersOccupation', e.target.value)}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
                             invalidFields.includes('fathersOccupation') && "field-error-animation"
@@ -1612,14 +1614,14 @@ export default function RegisterPage() {
                         <ErrorMessage field="fathersOccupation" message="Required." />
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-mothersName">
                         <FieldLabel label="Mother's Name" field="mothersName" />
-                        <input 
-                          type="text" 
-                          value={formData.mothersName} 
-                          onChange={(e) => updateFormData('mothersName', e.target.value)} 
+                        <input
+                          type="text"
+                          value={formData.mothersName}
+                          onChange={(e) => updateFormData('mothersName', e.target.value)}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
                             invalidFields.includes('mothersName') && "field-error-animation"
@@ -1629,10 +1631,10 @@ export default function RegisterPage() {
                       </div>
                       <div className="space-y-1" id="field-mothersOccupation">
                         <FieldLabel label="Mother's Occupation" field="mothersOccupation" />
-                        <input 
-                          type="text" 
-                          value={formData.mothersOccupation} 
-                          onChange={(e) => updateFormData('mothersOccupation', e.target.value)} 
+                        <input
+                          type="text"
+                          value={formData.mothersOccupation}
+                          onChange={(e) => updateFormData('mothersOccupation', e.target.value)}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
                             invalidFields.includes('mothersOccupation') && "field-error-animation"
@@ -1645,9 +1647,9 @@ export default function RegisterPage() {
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-numberOfSiblings">
                         <FieldLabel label="Number of Siblings" field="numberOfSiblings" />
-                        <select 
-                          value={formData.numberOfSiblings} 
-                          onChange={(e) => updateFormData('numberOfSiblings', e.target.value)} 
+                        <select
+                          value={formData.numberOfSiblings}
+                          onChange={(e) => updateFormData('numberOfSiblings', e.target.value)}
                           className={cn(
                             "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
                             invalidFields.includes('numberOfSiblings') && "field-error-animation"
@@ -1667,153 +1669,153 @@ export default function RegisterPage() {
 
                   </div>
                 )}
-                
+
                 {currentStep === 4 && (
                   <div className="space-y-8">
-                     <h4 className="font-headline text-2xl text-on-surface">Age, Height & Language Preferences</h4>
-                     <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-2" id="field-ageMin">
-                         <FieldLabel label="Min Age" field="ageMin" />
-                         <select 
-                           value={formData.partnerPreferences.ageMin} 
-                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMin: e.target.value})} 
-                           className={cn(
-                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                             invalidFields.includes('ageMin') && "field-error-animation"
-                           )}
-                         >
-                           <option value="">Select Min Age</option>
-                           {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
-                         </select>
-                         <ErrorMessage field="ageMin" message="Required." />
-                       </div>
-                       <div className="space-y-2" id="field-ageMax">
-                         <FieldLabel label="Max Age" field="ageMax" />
-                         <select 
-                           value={formData.partnerPreferences.ageMax} 
-                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, ageMax: e.target.value})} 
-                           className={cn(
-                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                             invalidFields.includes('ageMax') && "field-error-animation"
-                           )}
-                         >
-                           <option value="">Select Max Age</option>
-                           {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
-                         </select>
-                         <ErrorMessage field="ageMax" message="Required." />
-                       </div>
-                     </div>
-                     <div className="grid grid-cols-3 gap-6">
-                        <div className="space-y-2" id="field-heightMin">
-                         <FieldLabel label="Min Height (ft)" field="heightMin" />
-                         <select 
-                           value={formData.partnerPreferences.heightMin} 
-                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMin: e.target.value})} 
-                           className={cn(
-                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                             invalidFields.includes('heightMin') && "field-error-animation"
-                           )}
-                         >
-                           <option value="">Select Min Height</option>
-                           {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                         </select>
-                         <ErrorMessage field="heightMin" message="Required." />
-                        </div>
-                        <div className="space-y-2" id="field-heightMax">
-                         <FieldLabel label="Max Height (ft)" field="heightMax" />
-                         <select 
-                           value={formData.partnerPreferences.heightMax} 
-                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, heightMax: e.target.value})} 
-                           className={cn(
-                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
-                             invalidFields.includes('heightMax') && "field-error-animation"
-                           )}
-                         >
-                           <option value="">Select Max Height</option>
-                           {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
-                         </select>
-                         <ErrorMessage field="heightMax" message="Required." />
-                        </div>
-                        <div ref={prefMotherTongueDropdownRef} className="space-y-2 relative" id="field-pref-motherTongue">
-                          <FieldLabel label="Mother Tongue" field="pref-motherTongue" isOptional={true} />
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => setShowPrefMotherTongueDropdown(!showPrefMotherTongueDropdown)}
-                              className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary"
-                            >
-                              <span className="truncate">
-                                {formData.partnerPreferences.motherTongue.length > 0
-                                  ? formData.partnerPreferences.motherTongue.join(', ')
-                                  : "Any"
-                                }
-                              </span>
-                              <svg className="w-4 h-4 text-on-surface-variant transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            
-                            {showPrefMotherTongueDropdown && (
-                              <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-xl shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
-                                <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                    <h4 className="font-headline text-2xl text-on-surface">Age, Height & Language Preferences</h4>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2" id="field-ageMin">
+                        <FieldLabel label="Min Age" field="ageMin" />
+                        <select
+                          value={formData.partnerPreferences.ageMin}
+                          onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMin: e.target.value })}
+                          className={cn(
+                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                            invalidFields.includes('ageMin') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Min Age</option>
+                          {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
+                        </select>
+                        <ErrorMessage field="ageMin" message="Required." />
+                      </div>
+                      <div className="space-y-2" id="field-ageMax">
+                        <FieldLabel label="Max Age" field="ageMax" />
+                        <select
+                          value={formData.partnerPreferences.ageMax}
+                          onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMax: e.target.value })}
+                          className={cn(
+                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                            invalidFields.includes('ageMax') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Max Age</option>
+                          {AGE_OPTIONS.map(age => <option key={age} value={age}>{age}</option>)}
+                        </select>
+                        <ErrorMessage field="ageMax" message="Required." />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-6">
+                      <div className="space-y-2" id="field-heightMin">
+                        <FieldLabel label="Min Height (ft)" field="heightMin" />
+                        <select
+                          value={formData.partnerPreferences.heightMin}
+                          onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMin: e.target.value })}
+                          className={cn(
+                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                            invalidFields.includes('heightMin') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Min Height</option>
+                          {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
+                        </select>
+                        <ErrorMessage field="heightMin" message="Required." />
+                      </div>
+                      <div className="space-y-2" id="field-heightMax">
+                        <FieldLabel label="Max Height (ft)" field="heightMax" />
+                        <select
+                          value={formData.partnerPreferences.heightMax}
+                          onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMax: e.target.value })}
+                          className={cn(
+                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
+                            invalidFields.includes('heightMax') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Max Height</option>
+                          {HEIGHT_FT.map(h => <option key={h} value={h}>{h} ft</option>)}
+                        </select>
+                        <ErrorMessage field="heightMax" message="Required." />
+                      </div>
+                      <div ref={prefMotherTongueDropdownRef} className="space-y-2 relative" id="field-pref-motherTongue">
+                        <FieldLabel label="Mother Tongue" field="pref-motherTongue" isOptional={true} />
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setShowPrefMotherTongueDropdown(!showPrefMotherTongueDropdown)}
+                            className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary"
+                          >
+                            <span className="truncate">
+                              {formData.partnerPreferences.motherTongue.length > 0
+                                ? formData.partnerPreferences.motherTongue.join(', ')
+                                : "Any"
+                              }
+                            </span>
+                            <svg className="w-4 h-4 text-on-surface-variant transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+
+                          {showPrefMotherTongueDropdown && (
+                            <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-xl shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
+                              <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.partnerPreferences.motherTongue.includes('English')}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    const next = checked
+                                      ? [...formData.partnerPreferences.motherTongue, 'English']
+                                      : formData.partnerPreferences.motherTongue.filter(l => l !== 'English');
+                                    updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
+                                  }}
+                                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                />
+                                <span className="text-on-surface font-medium">English</span>
+                              </label>
+                              <div className="border-t border-outline-variant my-1"></div>
+                              {INDIAN_LANGUAGES.map(lang => (
+                                <label key={lang} className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
                                   <input
                                     type="checkbox"
-                                    checked={formData.partnerPreferences.motherTongue.includes('English')}
+                                    checked={formData.partnerPreferences.motherTongue.includes(lang)}
                                     onChange={(e) => {
                                       const checked = e.target.checked;
                                       const next = checked
-                                        ? [...formData.partnerPreferences.motherTongue, 'English']
-                                        : formData.partnerPreferences.motherTongue.filter(l => l !== 'English');
+                                        ? [...formData.partnerPreferences.motherTongue, lang]
+                                        : formData.partnerPreferences.motherTongue.filter(l => l !== lang);
                                       updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
                                     }}
                                     className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
                                   />
-                                  <span className="text-on-surface font-medium">English</span>
+                                  <span className="text-on-surface">{lang}</span>
                                 </label>
-                                <div className="border-t border-outline-variant my-1"></div>
-                                {INDIAN_LANGUAGES.map(lang => (
-                                  <label key={lang} className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
-                                    <input
-                                      type="checkbox"
-                                      checked={formData.partnerPreferences.motherTongue.includes(lang)}
-                                      onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        const next = checked
-                                          ? [...formData.partnerPreferences.motherTongue, lang]
-                                          : formData.partnerPreferences.motherTongue.filter(l => l !== lang);
-                                        updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
-                                      }}
-                                      className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
-                                    />
-                                    <span className="text-on-surface">{lang}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                     </div>
+                      </div>
+                    </div>
 
                     <h4 className="font-headline text-2xl text-on-surface">Lifestyle & References</h4>
                     <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-2" id="field-dietaryHabits-pref">
+                      <div className="space-y-2" id="field-dietaryHabits-pref">
                         <FieldLabel label="Dietary Habits" field="dietaryHabits-pref" isOptional={true} />
-                        <select value={formData.partnerPreferences.dietaryHabits} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, dietaryHabits: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
+                        <select value={formData.partnerPreferences.dietaryHabits} onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, dietaryHabits: e.target.value })} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
                           <option value="">Select Dietary Habit</option>
                           {['No Preference', 'Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Vegan'].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
-                       </div>
-                       <div className="space-y-2" id="field-drinkingHabits-pref">
+                      </div>
+                      <div className="space-y-2" id="field-drinkingHabits-pref">
                         <FieldLabel label="Drinking Habits" field="drinkingHabits-pref" isOptional={true} />
-                        <select value={formData.partnerPreferences.drinkingHabits} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, drinkingHabits: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
+                        <select value={formData.partnerPreferences.drinkingHabits} onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, drinkingHabits: e.target.value })} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
                           <option value="">Select Drinking Habit</option>
                           {['No Preference', 'Never', 'Socially', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
-                       </div>
+                      </div>
                     </div>
                     <div className="space-y-2" id="field-smokingHabits-pref">
                       <FieldLabel label="Smoking Habits" field="smokingHabits-pref" isOptional={true} />
-                      <select value={formData.partnerPreferences.smokingHabits} onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, smokingHabits: e.target.value})} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
+                      <select value={formData.partnerPreferences.smokingHabits} onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, smokingHabits: e.target.value })} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
                         <option value="">Select Smoking Habit</option>
                         {['No Preference', 'Never', 'Occasionally', 'Regularly'].map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -1823,9 +1825,9 @@ export default function RegisterPage() {
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-2" id="field-educationLevel">
                         <FieldLabel label="Education Level" field="educationLevel" />
-                        <select 
-                          value={formData.partnerPreferences.educationLevel} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, educationLevel: e.target.value})} 
+                        <select
+                          value={formData.partnerPreferences.educationLevel}
+                          onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, educationLevel: e.target.value })}
                           className={cn(
                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
                             invalidFields.includes('educationLevel') && "field-error-animation"
@@ -1838,40 +1840,40 @@ export default function RegisterPage() {
                       </div>
                       <div className="space-y-2" id="field-country">
                         <FieldLabel label="Country Preference" field="country" />
-                        <select 
-                          value={formData.partnerPreferences.country} 
-                          onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, country: e.target.value, city: ''})} 
+                        <select
+                          value={formData.partnerPreferences.country}
+                          onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, country: e.target.value, city: '' })}
                           className={cn(
                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none",
                             invalidFields.includes('country') && "field-error-animation"
                           )}
                         >
-                            <option value="">Select Country</option>
-                            <option value="Any">Any</option>
-                            {WORLD_COUNTRIES.map(country => <option key={country} value={country}>{country}</option>)}
+                          <option value="">Select Country</option>
+                          <option value="Any">Any</option>
+                          {WORLD_COUNTRIES.map(country => <option key={country} value={country}>{country}</option>)}
                         </select>
                         <ErrorMessage field="country" message="Required." />
                       </div>
                     </div>
-                     <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-2" id="field-city">
-                         <FieldLabel label="City Preference" field="city" />
-                         <select 
-                           value={formData.partnerPreferences.city} 
-                           onChange={(e) => updateFormData('partnerPreferences', {...formData.partnerPreferences, city: e.target.value})} 
-                           disabled={!formData.partnerPreferences.country || formData.partnerPreferences.country === 'Any'}
-                           className={cn(
-                             "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none disabled:opacity-50",
-                             invalidFields.includes('city') && "field-error-animation"
-                           )}
-                         >
-                             <option value="">Select City</option>
-                             <option value="Any">Any</option>
-                             {getCitiesForCountry(formData.partnerPreferences.country).map(city => <option key={city} value={city}>{city}</option>)}
-                         </select>
-                         <ErrorMessage field="city" message="Required." />
-                       </div>
-                     </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2" id="field-city">
+                        <FieldLabel label="City Preference" field="city" />
+                        <select
+                          value={formData.partnerPreferences.city}
+                          onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, city: e.target.value })}
+                          disabled={!formData.partnerPreferences.country || formData.partnerPreferences.country === 'Any'}
+                          className={cn(
+                            "w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none disabled:opacity-50",
+                            invalidFields.includes('city') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select City</option>
+                          <option value="Any">Any</option>
+                          {getCitiesForCountry(formData.partnerPreferences.country).map(city => <option key={city} value={city}>{city}</option>)}
+                        </select>
+                        <ErrorMessage field="city" message="Required." />
+                      </div>
+                    </div>
                     <div className="space-y-4" id="field-pref-maritalStatus">
                       <FieldLabel label="Marital Status Preference" field="pref-maritalStatus" />
                       <div className={cn(
@@ -1903,13 +1905,13 @@ export default function RegisterPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {currentStep === 5 && (
                   <div className="space-y-8">
                     {/* Profile Photo */}
                     <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant" id="field-pendingPhotoUrl">
                       <h4 className="text-lg font-semibold text-on-surface mb-6 flex items-center gap-2">
-                        <Camera className="w-5 h-5 text-primary" /> 
+                        <Camera className="w-5 h-5 text-primary" />
                         <FieldLabel label="Profile Photo" field="pendingPhotoUrl" />
                       </h4>
                       <div className="flex items-center gap-6">
@@ -1922,7 +1924,7 @@ export default function RegisterPage() {
                               <Loader2 className="w-8 h-8 text-primary animate-spin" />
                             </div>
                           ) : null}
-                          
+
                           {formData.pendingPhotoUrl ? (
                             <div className="relative w-full h-full">
                               <img src={formData.pendingPhotoUrl} alt="Main" className="w-full h-full object-cover" />
@@ -1945,12 +1947,12 @@ export default function RegisterPage() {
                             uploading && "opacity-50 cursor-not-allowed pointer-events-none"
                           )}>
                             {formData.pendingPhotoUrl ? "Change Photo" : "Upload Photo"}
-                            <input 
-                              type="file" 
-                              ref={fileInputRef} 
-                              onChange={handleMainPhotoChange} 
-                              className="hidden" 
-                              accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp" 
+                            <input
+                              type="file"
+                              ref={fileInputRef}
+                              onChange={handleMainPhotoChange}
+                              className="hidden"
+                              accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp"
                               disabled={uploading}
                             />
                           </label>
@@ -1958,7 +1960,7 @@ export default function RegisterPage() {
                           <p className="text-[10px] text-on-surface-variant mt-1">Please upload .Jpg files only and not more than 500 KB file size.</p>
                         </div>
                       </div>
-                      
+
                       <div className="mt-8 pt-6 border-t border-outline-variant">
                         <h4 className="text-sm font-semibold text-on-surface mb-4">Photo Privacy Settings</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1969,7 +1971,7 @@ export default function RegisterPage() {
                               <div className="text-xs opacity-80 mt-1">Visible to all members</div>
                             </div>
                           </button>
-                          
+
                           <button type="button" onClick={() => updateFormData('photoPrivacy', 'accepted_only')} className={cn("p-4 rounded-xl border flex flex-col items-center text-center gap-2 transition-colors", formData.photoPrivacy === 'accepted_only' ? "border-primary bg-primary/5 text-primary" : "border-outline-variant hover:border-primary/50 text-on-surface-variant")}>
                             <Lock className="w-6 h-6" />
                             <div>
@@ -1980,11 +1982,11 @@ export default function RegisterPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Gallery Photos */}
                     <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant">
                       <h4 className="text-lg font-semibold text-on-surface mb-2 flex items-center gap-2">
-                        <Upload className="w-5 h-5 text-primary" /> 
+                        <Upload className="w-5 h-5 text-primary" />
                         <FieldLabel label="Gallery Photos" field="gallery" isOptional={true} />
                       </h4>
                       <p className="text-sm text-on-surface-variant mb-6">Add up to 3 additional photos to showcase your lifestyle and personality.</p>
@@ -1999,12 +2001,12 @@ export default function RegisterPage() {
                                 </div>
                               </div>
                             )}
-                            <button 
+                            <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeGalleryPhoto(photo.id);
-                              }} 
+                              }}
                               className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition-all z-20"
                             >
                               <X className="w-4 h-4" />
@@ -2024,13 +2026,13 @@ export default function RegisterPage() {
                                 <span className="text-xs text-outline mt-2 font-medium">Add Photo</span>
                               </>
                             )}
-                            <input 
-                              type="file" 
-                              ref={galleryInputRef} 
-                              onChange={handleGalleryAdd} 
-                              className="hidden" 
-                              accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp" 
-                              multiple 
+                            <input
+                              type="file"
+                              ref={galleryInputRef}
+                              onChange={handleGalleryAdd}
+                              className="hidden"
+                              accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp"
+                              multiple
                               disabled={uploading}
                             />
                           </label>
@@ -2040,7 +2042,7 @@ export default function RegisterPage() {
                     </div>
                   </div>
                 )}
-                
+
               </motion.div>
             </AnimatePresence>
           </div>

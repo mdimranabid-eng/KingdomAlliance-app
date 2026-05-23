@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { motion } from 'motion/react';
-import { collection, query, where, getDocs, limit, serverTimestamp, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, serverTimestamp, addDoc, updateDoc, doc, collectionGroup, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { 
-  AlertCircle, 
-  Hourglass, 
-  CheckCircle, 
-  Eye, 
-  Heart, 
-  MessageSquare, 
+import {
+  AlertCircle,
+  Hourglass,
+  CheckCircle,
+  Eye,
+  Heart,
+  MessageSquare,
   Users,
   Search,
   ArrowRight,
@@ -34,10 +34,137 @@ const getOptimizedImageUrl = (url: string) => {
   return `${parts[0]}/upload/c_fill,w_600,h_800,g_face,q_auto,f_auto/${parts[1]}`;
 };
 
+function timeAgo(date: Date): string {
+  const seconds = Math.floor(
+    (Date.now() - date.getTime()) / 1000
+  );
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+  return date.toLocaleDateString();
+}
+
+function calculateProfileStrength(profile: any): {
+  percentage: number;
+  hint: string;
+} {
+  const checks = [
+    // Step 1 — Basic Info (Required)
+    { field: profile?.profileType, label: 'profileType' },
+    { field: profile?.name, label: 'name' },
+    { field: profile?.lastName, label: 'lastName' },
+    { field: profile?.mobileNumber, label: 'mobileNumber' },
+    { field: profile?.dob, label: 'dob' },
+    { field: profile?.citizenship, label: 'citizenship' },
+    { field: profile?.countryLiving, label: 'countryLiving' },
+    { field: profile?.cityLiving, label: 'cityLiving' },
+    { field: profile?.denomination, label: 'denomination' },
+    { field: profile?.churchName, label: 'churchName' },
+    { field: profile?.churchCity, label: 'churchCity' },
+    { field: profile?.maritalStatus, label: 'maritalStatus' },
+
+    // Step 2 — Personal, Career & Lifestyle (Required)
+    { field: profile?.height, label: 'height' },
+    { field: profile?.weight, label: 'weight' },
+    { field: profile?.bodyType, label: 'bodyType' },
+    { field: profile?.complexion, label: 'complexion' },
+    { field: profile?.physicalStatus, label: 'physicalStatus' },
+    { field: profile?.motherTongue, label: 'motherTongue' },
+    { field: profile?.education, label: 'education' },
+    { field: profile?.profession, label: 'profession' },
+    { field: profile?.dietaryHabits, label: 'dietaryHabits' },
+    { field: profile?.drinkingHabits, label: 'drinkingHabits' },
+    { field: profile?.smokingHabits, label: 'smokingHabits' },
+    { field: profile?.aboutMe, label: 'aboutMe' },
+
+    // Step 3 — Family Background (Required)
+    { field: profile?.fathersName, label: 'fathersName' },
+    { field: profile?.fathersOccupation, label: 'fathersOccupation' },
+    { field: profile?.mothersName, label: 'mothersName' },
+    { field: profile?.mothersOccupation, label: 'mothersOccupation' },
+    { field: profile?.numberOfSiblings !== undefined && 
+             profile?.numberOfSiblings !== '', 
+      label: 'numberOfSiblings' },
+
+    // Step 4 — Partner Preferences (Required)
+    { field: profile?.partnerPreferences?.ageMin, label: 'prefAgeMin' },
+    { field: profile?.partnerPreferences?.ageMax, label: 'prefAgeMax' },
+    { field: profile?.partnerPreferences?.heightMin, label: 'prefHeightMin' },
+    { field: profile?.partnerPreferences?.heightMax, label: 'prefHeightMax' },
+    { field: profile?.partnerPreferences?.educationLevel, label: 'prefEducation' },
+    { field: profile?.partnerPreferences?.country, label: 'prefCountry' },
+    { field: profile?.partnerPreferences?.city, label: 'prefCity' },
+    { field: profile?.partnerPreferences?.maritalStatus, label: 'prefMaritalStatus' },
+
+    // Step 5 — Photos (Required)
+    { field: profile?.photoUrl || profile?.photoURL || profile?.pendingPhotoUrl, label: 'photo' },
+  ];
+
+  const filled = checks.filter(c => !!c.field).length;
+  const percentage = Math.round((filled / checks.length) * 100);
+
+  const missing = checks.find(c => !c.field);
+
+  const hintMap: Record<string, string> = {
+    profileType: 'Select who this profile is for.',
+    name: 'Add your first name to complete your profile.',
+    lastName: 'Add your last name to complete your profile.',
+    mobileNumber: 'Add your mobile number for verification.',
+    dob: 'Add your date of birth to appear in searches.',
+    citizenship: 'Add your citizenship to complete your profile.',
+    countryLiving: 'Add the country you are living in.',
+    cityLiving: 'Add the city you are living in.',
+    denomination: 'Add your denomination to find faith-compatible matches.',
+    churchName: 'Add your church name to strengthen your profile.',
+    churchCity: 'Add your church city to complete your profile.',
+    maritalStatus: 'Add your marital status to appear in searches.',
+    height: 'Add your height to appear in partner searches.',
+    weight: 'Add your weight to complete your profile.',
+    bodyType: 'Add your body type to complete your profile.',
+    complexion: 'Add your complexion to complete your profile.',
+    physicalStatus: 'Add your physical status to complete your profile.',
+    motherTongue: 'Add your mother tongue to find compatible matches.',
+    education: 'Add your education details to reach more matches.',
+    profession: 'Add your profession to complete your profile.',
+    dietaryHabits: 'Add your dietary habits to complete your profile.',
+    drinkingHabits: 'Add your drinking habits to complete your profile.',
+    smokingHabits: 'Add your smoking habits to complete your profile.',
+    aboutMe: 'Write an About Me to attract more interest.',
+    fathersName: 'Add your father\'s name to complete family details.',
+    fathersOccupation: 'Add your father\'s occupation to complete family details.',
+    mothersName: 'Add your mother\'s name to complete family details.',
+    mothersOccupation: 'Add your mother\'s occupation to complete family details.',
+    numberOfSiblings: 'Add number of siblings to complete family details.',
+    prefAgeMin: 'Add partner age preference to improve suggestions.',
+    prefAgeMax: 'Add partner age preference to improve suggestions.',
+    prefHeightMin: 'Add partner height preference to improve suggestions.',
+    prefHeightMax: 'Add partner height preference to improve suggestions.',
+    prefEducation: 'Add partner education preference to improve suggestions.',
+    prefCountry: 'Add partner country preference to improve suggestions.',
+    prefCity: 'Add partner city preference to improve suggestions.',
+    prefMaritalStatus: 'Add partner marital status preference.',
+    photo: 'Add a profile photo to get 5x more matches.',
+  };
+
+  const hint = missing
+    ? hintMap[missing.label]
+    : 'Your profile is complete! You are getting maximum visibility.';
+
+  return { percentage, hint };
+}
+
 export default function DashboardPage() {
   const { profile, loading: authLoading } = useAuth();
   const [suggestedMatches, setSuggestedMatches] = useState<any[]>([]);
   const [matchLoading, setMatchLoading] = useState(true);
+  const [profileViewsCount, setProfileViewsCount] = useState(0);
+  const [interestsCount, setInterestsCount] = useState(0);
+  const [activeChatsCount, setActiveChatsCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [topMatchScore, setTopMatchScore] = useState(0);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -56,16 +183,16 @@ export default function DashboardPage() {
             const cached = JSON.parse(cachedStr);
             const now = Date.now();
             const ageHours = (now - cached.generatedAt) / (1000 * 60 * 60);
-            
+
             if (ageHours < 24 && Array.isArray(cached.profiles) && cached.profiles.length > 0) {
               setSuggestedMatches(cached.profiles);
               return; // Return early, do not run the engine
             }
-          } catch(e) {
+          } catch (e) {
             console.error("Failed to parse cached matches", e);
           }
         }
-        
+
         // TODO: Migrate this cache to the user's Firestore document (or a Cloud Function) once the platform scales, to ensure the daily batch remains consistent across multiple devices.
 
         // Force Cache Invalidation to purge legacy/unfiltered matches
@@ -91,7 +218,7 @@ export default function DashboardPage() {
 
         // Task 3: The Mutual Hard Gates (Base Fetch)
         const myGender = profile.gender?.toLowerCase() || '';
-        const myPreference = profile.partnerPreferences?.gender?.toLowerCase() || 
+        const myPreference = profile.partnerPreferences?.gender?.toLowerCase() ||
           (profile.profileType === 'bride' ? 'male' : 'female');
 
         const qCandidates = query(
@@ -101,7 +228,7 @@ export default function DashboardPage() {
           limit(200)
         );
         const snapCandidates = await getDocs(qCandidates);
-        
+
         let candidates = snapCandidates.docs.map(d => {
           const data = d.data();
           return { id: d.id, ...data, age: calculateAge(data.dob, data.age) } as any;
@@ -109,7 +236,7 @@ export default function DashboardPage() {
 
         candidates = candidates.filter(u => {
           // 1. Mutual Gender Preference
-          const uPreference = u.partnerPreferences?.gender?.toLowerCase() || 
+          const uPreference = u.partnerPreferences?.gender?.toLowerCase() ||
             (u.profileType === 'bride' ? 'male' : 'female');
           if (uPreference !== myGender) return false;
 
@@ -181,7 +308,7 @@ export default function DashboardPage() {
 
         // Task 5: State Save & UI Rendering
         const topCandidates = candidates.slice(0, 10);
-        
+
         localStorage.setItem('kingdomAlliance_dailyMatches', JSON.stringify({
           profiles: topCandidates,
           generatedAt: Date.now()
@@ -198,6 +325,108 @@ export default function DashboardPage() {
     if (profile) fetchSuggestions();
   }, [profile]);
 
+  useEffect(() => {
+    if (!profile) return;
+    const uid = profile.uid || profile.id;
+
+    const fetchStats = async () => {
+      try {
+        setStatsLoading(true);
+
+        // 1. Profile Views
+        const viewsSnap = await getDocs(
+          query(
+            collection(db, 'profileViews'),
+            where('profileId', '==', uid)
+          )
+        );
+        setProfileViewsCount(viewsSnap.size);
+
+        // 2. Interests Received
+        const interestsSnap = await getDocs(
+          query(
+            collection(db, 'interests'),
+            where('toId', '==', uid)
+          )
+        );
+        setInterestsCount(interestsSnap.size);
+
+        // 3. Active Chats
+        const [chats1, chats2] = await Promise.all([
+          getDocs(query(
+            collection(db, 'interests'),
+            where('toId', '==', uid),
+            where('status', '==', 'accepted')
+          )),
+          getDocs(query(
+            collection(db, 'interests'),
+            where('fromId', '==', uid),
+            where('status', '==', 'accepted')
+          ))
+        ]);
+        setActiveChatsCount(chats1.size + chats2.size);
+
+        // 4. Unread Messages
+        const unreadSnap = await getDocs(
+          query(
+            collectionGroup(db, 'messages'),
+            where('receiverId', '==', uid),
+            where('read', '==', false)
+          )
+        );
+        setUnreadMessagesCount(unreadSnap.size);
+
+        // 5. Recent Activity from notifications
+        const activitySnap = await getDocs(
+          query(
+            collection(db, 'notifications'),
+            where('userId', '==', uid),
+            orderBy('createdAt', 'desc'),
+            limit(5)
+          )
+        );
+
+        const activities = await Promise.all(
+          activitySnap.docs.map(async (d) => {
+            const data = d.data();
+            const senderDoc = await getDoc(
+              doc(db, 'users', data.fromId)
+            );
+            const senderName = senderDoc.exists()
+              ? senderDoc.data()?.name
+              : 'Someone';
+            return {
+              id: d.id,
+              user: senderName,
+              action: data.type === 'interest'
+                ? 'sent an interest'
+                : data.type === 'accepted'
+                  ? 'accepted your interest'
+                  : 'sent a message',
+              time: data.createdAt?.toDate
+                ? timeAgo(data.createdAt.toDate())
+                : 'Recently',
+              icon: data.type === 'message'
+                ? 'message'
+                : data.type === 'accepted'
+                  ? 'accepted'
+                  : 'interest',
+              type: data.type
+            };
+          })
+        );
+        setRecentActivity(activities);
+
+      } catch (err) {
+        console.error('Stats fetch error:', err);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [profile]);
+
   if (authLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   const isApproved = profile?.isApproved;
@@ -210,32 +439,32 @@ export default function DashboardPage() {
           <h1 className="font-headline text-3xl md:text-4xl text-on-surface">Your Dashboard</h1>
           <p className="text-on-surface-variant">Welcome back, {profile?.name}</p>
         </div>
-        
+
         {!isApproved ? (
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-container/10 border border-primary-container text-on-primary-container rounded-full animate-pulse shadow-sm">
             <Hourglass className="w-4 h-4" />
             <span className="font-label-lg">Approval Pending</span>
           </div>
         ) : (
-        <div className="flex flex-col md:flex-row gap-2">
-          {profile?.isApproved === false ? (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-container text-on-primary-container rounded-full shadow-sm">
-              <Clock className="w-4 h-4" />
-              <span className="font-label-lg">Under Admin Review</span>
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary-container/10 border border-secondary-container text-on-secondary-container rounded-full shadow-sm">
-              <CheckCircle className="w-4 h-4" />
-              <span className="font-label-lg">Profile Approved</span>
-            </div>
-          )}
-          
-          {profile?.photoStatus === 'pending' && (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-container text-on-primary-container rounded-full shadow-sm">
-              <Camera className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Photo Reviewing</span>
-            </div>
-          )}
+          <div className="flex flex-col md:flex-row gap-2">
+            {profile?.isApproved === false ? (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-container text-on-primary-container rounded-full shadow-sm">
+                <Clock className="w-4 h-4" />
+                <span className="font-label-lg">Under Admin Review</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary-container/10 border border-secondary-container text-on-secondary-container rounded-full shadow-sm">
+                <CheckCircle className="w-4 h-4" />
+                <span className="font-label-lg">Profile Approved</span>
+              </div>
+            )}
+
+            {profile?.photoStatus === 'pending' && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-container text-on-primary-container rounded-full shadow-sm">
+                <Camera className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-wider">Photo Reviewing</span>
+              </div>
+            )}
 
             {profile?.photoStatus === 'rejected' && (
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-error text-on-error rounded-full shadow-sm">
@@ -248,7 +477,7 @@ export default function DashboardPage() {
       </div>
 
       {!isApproved ? (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-surface-container-low border border-outline-variant p-8 md:p-12 rounded-3xl text-center space-y-6 max-w-3xl mx-auto mt-12"
@@ -259,7 +488,7 @@ export default function DashboardPage() {
           <div className="space-y-2">
             <h2 className="font-headline text-2xl text-on-surface">Awaiting Verification</h2>
             <p className="text-on-surface-variant leading-relaxed">
-              Your profile is currently being reviewed by our administrative team. 
+              Your profile is currently being reviewed by our administrative team.
               To ensure the sanctity and safety of our community, we manually verify every profile.
               You'll be notified via email once your profile is approved and you can start meeting matches.
             </p>
@@ -294,53 +523,47 @@ export default function DashboardPage() {
         <>
           {/* Stats Grid */}
           {profile?.isApproved === false && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-primary/5 border border-primary/20 rounded-3xl p-8 text-center space-y-4"
-        >
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-            <ShieldCheck className="w-8 h-8 text-primary" />
-          </div>
-          <div className="max-w-md mx-auto space-y-2">
-            <h3 className="font-headline text-2xl text-on-surface">Your profile is under review</h3>
-            <p className="text-on-surface-variant">
-              To keep our community safe and sacred, each profile is manually verified. 
-              We'll notify you within 24 hours.
-            </p>
-          </div>
-        </motion.div>
-      )}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-primary/5 border border-primary/20 rounded-3xl p-8 text-center space-y-4"
+            >
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                <ShieldCheck className="w-8 h-8 text-primary" />
+              </div>
+              <div className="max-w-md mx-auto space-y-2">
+                <h3 className="font-headline text-2xl text-on-surface">Your profile is under review</h3>
+                <p className="text-on-surface-variant">
+                  To keep our community safe and sacred, each profile is manually verified.
+                  We'll notify you within 24 hours.
+                </p>
+              </div>
+            </motion.div>
+          )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard 
-              label="Profile Views" 
-              value="128" 
-              icon={Eye} 
-              trend="+12% from last week" 
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard
+              label="Profile Views"
+              value={statsLoading ? '...' : profileViewsCount}
+              icon={Eye}
+              trend="Total profile views"
               color="primary"
             />
-            <StatCard 
-              label="Interests Received" 
-              value="42" 
-              icon={Heart} 
-              trend="5 new today" 
+            <StatCard
+              label="Interests Received"
+              value={statsLoading ? '...' : interestsCount}
+              icon={Heart}
+              trend="Total interests received"
               color="secondary"
             />
-            <StatCard 
-              label="Active Chats" 
-              value="7" 
-              icon={MessageSquare} 
-              trend="2 unread messages" 
+            <StatCard
+              label="Active Chats"
+              value={statsLoading ? '...' : activeChatsCount}
+              icon={MessageSquare}
+              trend={`${unreadMessagesCount} unread messages`}
               color="primary"
             />
-            <StatCard 
-              label="Match Score" 
-              value="85%" 
-              icon={TrendingUp} 
-              trend="Based on 12 criteria" 
-              color="secondary"
-            />
+
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -354,7 +577,7 @@ export default function DashboardPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {matchLoading ? (
-                  [1,2].map(i => <div key={i} className="aspect-[4/3] bg-surface-container-high rounded-3xl animate-pulse" />)
+                  [1, 2].map(i => <div key={i} className="aspect-[4/3] bg-surface-container-high rounded-3xl animate-pulse" />)
                 ) : suggestedMatches.length === 0 ? (
                   <div className="col-span-full py-12 bg-surface-container rounded-3xl border border-outline-dashed flex flex-col items-center gap-4 text-center">
                     <Users className="w-10 h-10 text-on-surface-variant" />
@@ -362,12 +585,12 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   suggestedMatches.map(match => (
-                    <MatchCard 
+                    <MatchCard
                       key={match.id}
                       id={match.id}
-                      name={match.name} 
-                      age={match.age} 
-                      location={match.location} 
+                      name={match.name}
+                      age={match.age}
+                      location={match.location}
                       denomination={match.denomination}
                       matchScore={match.matchScore}
                       imageUrl={getOptimizedImageUrl(match.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.id}`}
@@ -378,46 +601,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Recent Activity */}
-            <div className="space-y-6">
-              <h2 className="font-headline text-2xl text-on-surface">Recent Activity</h2>
-              <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant space-y-4 shadow-sm">
-                <ActivityItem 
-                  user="Michael" 
-                  action="viewed your profile" 
-                  time="2 hours ago" 
-                  icon={Eye} 
-                />
-                <ActivityItem 
-                  user="Emily" 
-                  action="sent an interest" 
-                  time="5 hours ago" 
-                  icon={Heart} 
-                />
-                <ActivityItem 
-                  user="James" 
-                  action="sent a message" 
-                  time="Yesterday" 
-                  icon={MessageSquare} 
-                />
-                <button className="w-full mt-4 py-3 text-center text-primary font-label-lg hover:bg-primary/5 rounded-xl transition-colors">
-                  View All Activity
-                </button>
-              </div>
-              
-              {/* Profile Completion Card */}
-              <div className="bg-primary-container p-6 rounded-3xl text-on-primary-container space-y-3 shadow-xl">
-                <p className="font-label-lg uppercase tracking-widest text-xs opacity-80">Profile Strength</p>
-                <div className="flex items-end justify-between">
-                  <span className="text-4xl font-headline">75%</span>
-                  <Link to={`/profile/${profile?.uid}`} className="text-sm font-bold underline">Complete Profile</Link>
-                </div>
-                <div className="w-full bg-on-primary-container/20 h-2 rounded-full overflow-hidden">
-                  <div className="bg-white h-full" style={{ width: '75%' }} />
-                </div>
-                <p className="text-xs">Add family details to reach 90% strength and get more matches.</p>
-              </div>
-            </div>
+
           </div>
         </>
       )}
@@ -486,8 +670,8 @@ function MatchCard({ id, name, age, location, denomination, matchScore, imageUrl
             {denomination}
           </span>
         </div>
-        <Link 
-          to={`/profile/${id}`} 
+        <Link
+          to={`/profile/${id}`}
           className="block w-full text-center py-2.5 bg-surface-container-high border border-outline-variant rounded-xl text-sm font-label-lg hover:bg-surface-variant transition-colors"
         >
           View Profile

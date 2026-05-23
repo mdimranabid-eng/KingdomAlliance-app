@@ -8,27 +8,27 @@ require('dotenv').config();
 // ============================================================================
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 465,
-  secure: true, 
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  }
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: process.env.SMTP_PORT || 465,
+    secure: true,
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+    }
 });
 
 const dispatchEmail = async (to_email, secret_value, type, custom_reason = null, senderName = 'A member') => {
-  let mailSubject = '';
-  let htmlContent = '';
+    let mailSubject = '';
+    let htmlContent = '';
 
-  const isOldSignature = typeof type === 'string' && (type.trim().startsWith('<') || type.includes('<div') || type.includes('<p'));
+    const isOldSignature = typeof type === 'string' && (type.trim().startsWith('<') || type.includes('<div') || type.includes('<p'));
 
-  if (isOldSignature) {
-    mailSubject = secret_value;
-    htmlContent = type;
-  } else if (type === 'password_reset') {
-      mailSubject = 'Your Password Reset OTP - Kingdom Alliance';
-      htmlContent = `
+    if (isOldSignature) {
+        mailSubject = secret_value;
+        htmlContent = type;
+    } else if (type === 'password_reset') {
+        mailSubject = 'Your Password Reset OTP - Kingdom Alliance';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #d4af37;">Password Reset Request</h2>
               <p>Hello,</p>
@@ -42,9 +42,9 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'password_reset_success') {
-      mailSubject = 'Your Password at Kingdom Alliance was reset';
-      htmlContent = `
+    } else if (type === 'password_reset_success') {
+        mailSubject = 'Your Password at Kingdom Alliance was reset';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #16a34a;">Password Reset Successful</h2>
               <p>Hello,</p>
@@ -55,9 +55,9 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'profile_approved') {
-      mailSubject = 'Congratulations! Your Kingdom Alliance profile is approved';
-      htmlContent = `
+    } else if (type === 'profile_approved') {
+        mailSubject = 'Congratulations! Your Kingdom Alliance profile is approved';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #16a34a;">Welcome to Kingdom Alliance!</h2>
               <p>Hello,</p>
@@ -68,9 +68,9 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'profile_rejected') {
-      mailSubject = 'Action Required: Kingdom Alliance Profile Update';
-      htmlContent = `
+    } else if (type === 'profile_rejected') {
+        mailSubject = 'Action Required: Kingdom Alliance Profile Update';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #dc2626;">Profile Update Required</h2>
               <p>Hello,</p>
@@ -84,9 +84,9 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'photo_approved') {
-      mailSubject = 'Your Kingdom Alliance Photo is Approved';
-      htmlContent = `
+    } else if (type === 'photo_approved') {
+        mailSubject = 'Your Kingdom Alliance Photo is Approved';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #16a34a;">Photo Approved!</h2>
               <p>Hello,</p>
@@ -97,9 +97,9 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'photo_rejected') {
-      mailSubject = 'Action Required: Kingdom Alliance Photo Update';
-      htmlContent = `
+    } else if (type === 'photo_rejected') {
+        mailSubject = 'Action Required: Kingdom Alliance Photo Update';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #dc2626;">Photo Update Required</h2>
               <p>Hello,</p>
@@ -113,9 +113,9 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'connection_request') {
-      mailSubject = 'Someone wants to connect with you on Kingdom Alliance!';
-      htmlContent = `
+    } else if (type === 'connection_request') {
+        mailSubject = 'Someone wants to connect with you on Kingdom Alliance!';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #d4af37;">New Connection Request</h2>
               <p>Hello,</p>
@@ -126,9 +126,9 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'connection_accepted') {
-      mailSubject = 'Your connection request was accepted!';
-      htmlContent = `
+    } else if (type === 'connection_accepted') {
+        mailSubject = 'Your connection request was accepted!';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #16a34a;">Connection Accepted!</h2>
               <p>Hello,</p>
@@ -139,46 +139,46 @@ const dispatchEmail = async (to_email, secret_value, type, custom_reason = null,
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else if (type === 'new_message') {
-      mailSubject = 'You have a new message on Kingdom Alliance';
-      htmlContent = `
+    } else if (type === 'new_message') {
+        mailSubject = 'You have a new message on Kingdom Alliance';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
               <h2 style="color: #d4af37;">New Message Received</h2>
               <p>Hello,</p>
-              <p>You have just received a new private message from <strong>${senderName}</strong>.</p>
-              <p>For your privacy and security, we do not include message contents in emails. Please log in to your Kingdom Alliance inbox to read and reply.</p>
+              <p>You have just received a new private message.</p>
+              <p>For your privacy and security, we do not include message contents in emails. Please log in to your Kingdom Alliance messages to read and reply.</p>
               <br/>
               <p style="margin-bottom: 5px;">Regards,</p>
               <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  } else {
-      // Default fallback for standard OTPs
-      mailSubject = 'Your Kingdom Alliance Verification Code';
-      htmlContent = `
+    } else {
+        // Default fallback for standard OTPs
+        mailSubject = 'Your Kingdom Alliance Verification Code';
+        htmlContent = `
           <div style="font-family: Arial, sans-serif; color: #040e2a;">
               <h2>Your Verification Code</h2>
               <p>Your code is: <strong>${secret_value}</strong></p>
               <p>Regards,<br/>The Kingdom Alliance Team</p>
           </div>
       `;
-  }
+    }
 
-  try {
-    const mailOptions = {
-      from: `"Kingdom Alliance" <${process.env.SMTP_USER}>`,
-      to: to_email,
-      subject: mailSubject,
-      html: htmlContent,
-    };
+    try {
+        const mailOptions = {
+            from: `"Kingdom Alliance" <${process.env.SMTP_USER}>`,
+            to: to_email,
+            subject: mailSubject,
+            html: htmlContent,
+        };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ [EMAIL ADAPTER] Successfully dispatched to ${to_email} (ID: ${info.messageId})`);
-    return true;
-  } catch (error) {
-    console.error(`❌ [EMAIL ADAPTER] Delivery failure for ${to_email}:`, error.message);
-    throw new Error('Provider failed to dispatch email');
-  }
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ [EMAIL ADAPTER] Successfully dispatched to ${to_email} (ID: ${info.messageId})`);
+        return true;
+    } catch (error) {
+        console.error(`❌ [EMAIL ADAPTER] Delivery failure for ${to_email}:`, error.message);
+        throw new Error('Provider failed to dispatch email');
+    }
 };
 
 module.exports = { dispatchEmail };

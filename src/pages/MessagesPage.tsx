@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
-  addDoc, 
-  serverTimestamp, 
-  doc, 
-  getDoc, 
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  serverTimestamp,
+  doc,
+  getDoc,
   getDocs,
   limit,
   setDoc,
@@ -17,7 +17,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, rtdb } from '../lib/firebase';
-import { ref, set, onValue, onDisconnect, remove } from 'firebase/database';
+import { ref, set, onValue, onDisconnect, remove, get } from 'firebase/database';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,7 +30,7 @@ export default function MessagesPage() {
   const chatWithQuery = searchParams.get('chatWith');
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
-  
+
   const [messages, setMessages] = useState<any[]>([]);
   const [activeChatUser, setActiveChatUser] = useState<any | null>(null);
   const [chats, setChats] = useState<any[]>([]);
@@ -93,6 +93,8 @@ export default function MessagesPage() {
       where('toId', '==', currentUser.uid)
     );
 
+    const unsubscribers: (() => void)[] = [];
+
     const fetchChats = async () => {
       const [s1, s2] = await Promise.all([getDocs(q), getDocs(q2)]);
       const otherUserIds = new Set<string>();
@@ -103,14 +105,56 @@ export default function MessagesPage() {
       for (const uid of otherUserIds) {
         const uDoc = await getDoc(doc(db, 'users', uid));
         if (uDoc.exists()) {
-          chatList.push({ id: uDoc.id, ...uDoc.data() });
+          const chatId = [currentUser.uid, uid].sort().join('_');
+          const unreadQ = query(
+            collection(db, `chats/${chatId}/messages`),
+            where('receiverId', '==', currentUser.uid),
+            where('read', '==', false),
+            limit(1)
+          );
+          const unreadSnap = await getDocs(unreadQ);
+          const hasUnread = !unreadSnap.empty;
+
+          chatList.push({ 
+            id: uDoc.id, 
+            ...uDoc.data(),
+            hasUnread 
+          });
         }
       }
       setChats(chatList);
       setLoading(false);
+
+      // --- REAL-TIME UNREAD LISTENERS START ---
+      chatList.forEach((chat) => {
+        const chatId = [currentUser.uid, chat.id]
+          .sort().join('_');
+        
+        const unreadQ = query(
+          collection(db, `chats/${chatId}/messages`),
+          where('receiverId', '==', currentUser.uid),
+          where('read', '==', false),
+          limit(1)
+        );
+
+        const unsub = onSnapshot(unreadQ, (snap) => {
+          setChats(prev => prev.map(c =>
+            c.id === chat.id
+              ? { ...c, hasUnread: !snap.empty }
+              : c
+          ));
+        });
+
+        unsubscribers.push(unsub);
+      });
+      // --- REAL-TIME UNREAD LISTENERS END ---
     };
 
     fetchChats();
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
   }, [currentUser]);
 
   // Fetch active chat user
@@ -124,6 +168,11 @@ export default function MessagesPage() {
     async function fetchUser() {
       const uDoc = await getDoc(doc(db, 'users', activeChatUserId!));
       if (uDoc.exists()) setActiveChatUser({ id: uDoc.id, ...uDoc.data() });
+      setChats(prev => prev.map(c => 
+        c.id === activeChatUserId 
+          ? { ...c, hasUnread: false } 
+          : c
+      ));
     }
     fetchUser();
 
@@ -136,7 +185,7 @@ export default function MessagesPage() {
 
     const unsubscribeMessages = onSnapshot(msgsQuery, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-      
+
       setMessages(msgs);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, `chats/${chatId}/messages`);
@@ -201,7 +250,7 @@ export default function MessagesPage() {
     if (!activeChatUserId || !currentUser || messages.length === 0) return;
 
     const unreadMessages = messages.filter(m => m.receiverId === currentUser.uid && m.read === false);
-    
+
     if (unreadMessages.length > 0) {
       const chatId = [currentUser.uid, activeChatUserId].sort().join('_');
       unreadMessages.forEach(msg => {
@@ -212,7 +261,7 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!activeChatUser?.id) return;
-    
+
     const statusRef = ref(rtdb, `status/${activeChatUser.id}`);
     const unsubscribe = onValue(statusRef, (snapshot) => {
       const data = snapshot.val();
@@ -247,24 +296,62 @@ export default function MessagesPage() {
 
       // Create a real-time alert for the recipient
       await addDoc(collection(db, 'notifications'), {
-          userId: activeChatUserId,
-          fromId: currentUser.uid,
-          type: 'message',
-          title: 'New Message',
-          message: `You have a new message from ${currentUser.displayName || 'a member'}`,
-          read: false,
-          createdAt: serverTimestamp()
+        userId: activeChatUserId,
+        fromId: currentUser.uid,
+        type: 'message',
+        title: 'New Message',
+        message: `You have a new message from ${currentUser.displayName || 'a member'}`,
+        read: false,
+        createdAt: serverTimestamp()
       });
 
       // Fetch recipient email to dispatch notification
-      const recipientSnap = await getDoc(doc(db, 'users', activeChatUserId));
-      if (recipientSnap.exists() && recipientSnap.data()?.email) {
-          await sendEmail({
-              to_email: recipientSnap.data().email,
+      // --- SESSION-BASED EMAIL DIGEST START ---
+      // Check recipient's live status in RTDB
+      const recipientStatusRef = ref(rtdb, `status/${activeChatUserId}`);
+      const statusSnapshot = await get(recipientStatusRef);
+      const statusData = statusSnapshot.val();
+
+      // --- DEBUG LOGS START ---
+      console.log("DEBUG: Checking status for:", activeChatUserId);
+      console.log("DEBUG: Status data:", statusData);
+
+      // Only proceed if recipient is offline
+      if (!statusData || statusData.state === 'offline') {
+        console.log("DEBUG: Recipient is offline. Checking timestamps...");
+        const recipientSnap = await getDoc(
+          doc(db, 'users', activeChatUserId)
+        );
+        if (recipientSnap.exists()) {
+          const userData = recipientSnap.data();
+
+          const lastActive = userData?.lastActive?.toMillis() || 0;
+          const lastEmailSent = userData?.lastEmailSent?.toMillis() || 0;
+
+          console.log("DEBUG: lastEmailSent:", lastEmailSent, "lastActive:", lastActive);
+
+          // Send ONE email per offline session only
+          // lastEmailSent < lastActive means no email sent
+          // since they last logged in
+          if (lastEmailSent < lastActive) {
+            console.log("DEBUG: Condition met. Calling sendEmail...");
+            await sendEmail({
+              to_email: userData.email,
               type: 'new_message',
               senderName: currentUser.displayName || 'A member'
-          });
+            });
+            await updateDoc(doc(db, 'users', activeChatUserId), {
+              lastEmailSent: serverTimestamp()
+            });
+          } else {
+            console.log("DEBUG: Condition failed. Email already sent in this session.");
+          }
+        }
+      } else {
+         console.log("DEBUG: Recipient is online. Skipping email.");
       }
+      // --- DEBUG LOGS END ---
+      // --- SESSION-BASED EMAIL DIGEST END ---
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `chats/${chatId}/messages`);
     }
@@ -281,8 +368,8 @@ export default function MessagesPage() {
           <h2 className="font-headline text-2xl text-on-surface">Messages</h2>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Search conversations..."
               className="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary"
             />
@@ -304,26 +391,30 @@ export default function MessagesPage() {
                 const isActive = connectionState?.status === 'accepted';
                 const isLocked = activeChatUserId === chat.id && !isActive;
                 return (
-                <Link
-                  key={chat.id}
-                  to={`/messages/${chat.id}`}
-                  className={cn(
-                    "flex items-center gap-4 p-4 hover:bg-surface-variant transition-colors",
-                    activeChatUserId === chat.id && "bg-primary/5",
-                    isLocked && "opacity-50 grayscale pointer-events-none"
-                  )}
-                >
-                  <div className="w-12 h-12 rounded-full border border-primary-container overflow-hidden flex-shrink-0">
-                    <img src={chat.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.id}`} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline">
-                      <h4 className="font-bold text-on-surface truncate">{chat.name}</h4>
-                      <span className="text-[10px] text-on-surface-variant">12:45 PM</span>
+                  <Link
+                    key={chat.id}
+                    to={`/messages/${chat.id}`}
+                    className={cn(
+                      "flex items-center gap-4 p-4 hover:bg-surface-variant transition-colors",
+                      activeChatUserId === chat.id && "bg-primary/5",
+                      isLocked && "opacity-50 grayscale pointer-events-none"
+                    )}
+                  >
+                    <div className="w-12 h-12 rounded-full border border-primary-container overflow-hidden flex-shrink-0">
+                      <img src={chat.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.id}`} alt="" className="w-full h-full object-cover" />
                     </div>
-                    <p className="text-xs text-on-surface-variant truncate">Click to start chatting</p>
-                  </div>
-                </Link>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-bold text-on-surface truncate">
+                          {chat.name}
+                        </h4>
+                        {chat.hasUnread && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-xs text-on-surface-variant truncate">Click to start chatting</p>
+                    </div>
+                  </Link>
                 );
               })}
             </div>
@@ -364,8 +455,8 @@ export default function MessagesPage() {
                         <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors">{activeChatUser.name}</h4>
                         {isOnline && (
                           <span className="relative flex h-2.5 w-2.5 ml-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"/>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"/>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
                           </span>
                         )}
                       </div>
@@ -405,8 +496,8 @@ export default function MessagesPage() {
                   >
                     <div className={cn(
                       "px-4 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed",
-                      isMine 
-                        ? "bg-primary text-on-primary rounded-tr-none" 
+                      isMine
+                        ? "bg-primary text-on-primary rounded-tr-none"
                         : "bg-surface-container-highest text-on-surface rounded-tl-none border border-outline-variant/30"
                     )}>
                       {msg.text}
@@ -427,15 +518,15 @@ export default function MessagesPage() {
             {/* Message Input */}
             <div className="p-6 bg-surface border-t border-outline-variant">
               {connectionState?.status === 'accepted' ? (
-                <form 
+                <form
                   onSubmit={handleSendMessage}
                   className="flex items-center gap-3 bg-surface-container-low p-2 pr-2 h-14 rounded-2xl border border-outline-variant focus-within:ring-2 focus-within:ring-primary shadow-inner"
                 >
                   <button type="button" className="p-2 hover:bg-surface-container h-10 w-10 flex items-center justify-center rounded-xl text-on-surface-variant">
                     <Info className="w-5 h-5" />
                   </button>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={newMessage}
                     onChange={(e) => {
                       // --- TYPING INDICATOR START ---
@@ -466,7 +557,7 @@ export default function MessagesPage() {
                     placeholder="Type a blessing..."
                     className="flex-1 bg-transparent border-none outline-none text-sm px-2 font-inter"
                   />
-                  <button 
+                  <button
                     type="submit"
                     disabled={!newMessage.trim()}
                     className="bg-primary text-on-primary h-10 px-6 rounded-xl font-label-lg hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"

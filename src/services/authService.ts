@@ -69,9 +69,17 @@ export const signInWithGoogle = async (): Promise<AuthResponse> => {
 };
 
 export const signInWithEmail = async (email: string, pass: string): Promise<AuthResponse> => {
-  const result = await signInWithEmailAndPassword(auth, email, pass);
-  const { isNewUser, status, onboardingComplete } = await checkUserStatus(result.user);
-  return { user: result.user, isNewUser, status, onboardingComplete };
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    const { isNewUser, status, onboardingComplete } = await checkUserStatus(result.user);
+    return { user: result.user, isNewUser, status, onboardingComplete };
+  } catch (error: any) {
+    console.error("🚨 AUTH ERROR DETAIL:", error.response?.data || error.message);
+    if (error.code === 'auth/invalid-credential') {
+         console.log("FIX: Check email/password match.");
+    }
+    throw error;
+  }
 };
 
 export const registerWithEmail = async (email: string, pass: string, fullName: string): Promise<AuthResponse> => {

@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import { auth, db, rtdb } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { ref, set, serverTimestamp } from 'firebase/database';
-import { collection, collectionGroup, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, onSnapshot, getDocs, getDoc, doc, writeBatch } from 'firebase/firestore';
 import {
   Heart,
   MessageSquare,
@@ -41,7 +41,12 @@ export default function Layout() {
   const [unreadMessageNotifCount, setUnreadMessageNotifCount] = React.useState(0);
   const [pendingApprovalsCount, setPendingApprovalsCount] = React.useState(0);
   const [pendingPhotosCount, setPendingPhotosCount] = React.useState(0);
-  const [toast, setToast] = React.useState<{ title: string; message: string; type: 'message' | 'interest' } | null>(null);
+  const [toast, setToast] = React.useState<{ 
+    title: string; 
+    message: string; 
+    type: 'message' | 'interest';
+    chatId?: string;
+  } | null>(null);
   const isInitialLoadMessages = React.useRef(true);
   const isInitialLoadNotifications = React.useRef(true);
 
@@ -73,7 +78,7 @@ export default function Layout() {
       where('read', '==', false)
     );
 
-    const unsubscribeMessages = onSnapshot(q, (snapshot) => {
+    const unsubscribeMessages = onSnapshot(q, async (snapshot) => {
       // Play sound for new messages if not initial load
       const docChanges = snapshot.docChanges();
       const hasNew = docChanges.some(change => change.type === 'added');
@@ -82,10 +87,20 @@ export default function Layout() {
         const latestDoc = docChanges.find(change => change.type === 'added')?.doc;
         if (latestDoc) {
           const data = latestDoc.data();
+          // Fetch sender name from Firestore
+          const senderDoc = await getDoc(
+            doc(db, 'users', data.senderId)
+          );
+          const senderName = senderDoc.exists()
+            ? senderDoc.data()?.name
+            : 'Someone';
+
           setToast({
-            title: 'New Message',
-            message: data.text?.substring(0, 60) + (data.text?.length > 60 ? '...' : ''),
-            type: 'message'
+            title: `💬 ${senderName}`,
+            message: data.text?.substring(0, 60) + 
+              (data.text?.length > 60 ? '...' : ''),
+            type: 'message',
+            chatId: data.senderId
           });
           setTimeout(() => setToast(null), 5000);
         }
@@ -209,6 +224,36 @@ export default function Layout() {
       if (unsubscribePhotos) unsubscribePhotos();
     };
   }, [user, isAdmin]);
+
+  React.useEffect(() => {
+    if (!user) return;
+    
+    // When user navigates to Messages page,
+    // clear all unread message notifications
+    if (location.pathname.startsWith('/messages')) {
+      const clearNotifications = async () => {
+        try {
+          const q = query(
+            collection(db, 'notifications'),
+            where('userId', '==', user.uid),
+            where('read', '==', false),
+            where('type', '==', 'message')
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const batch = writeBatch(db);
+            snap.docs.forEach(d => {
+              batch.update(d.ref, { read: true });
+            });
+            await batch.commit();
+          }
+        } catch (err) {
+          console.error('Failed to clear message notifications:', err);
+        }
+      };
+      clearNotifications();
+    }
+  }, [location.pathname, user]);
 
   let navItems: any[] = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -446,6 +491,17 @@ export default function Layout() {
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-semibold text-on-surface truncate">{toast.title}</h4>
                 <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{toast.message}</p>
+                {toast.chatId && (
+                  <button
+                    onClick={() => {
+                      navigate(`/messages/${toast.chatId}`);
+                      setToast(null);
+                    }}
+                    className="text-xs font-bold text-primary mt-2 hover:underline"
+                  >
+                    Open Chat →
+                  </button>
+                )}
               </div>
               <button
                 onClick={() => setToast(null)}

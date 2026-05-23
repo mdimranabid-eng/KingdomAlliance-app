@@ -170,11 +170,13 @@ export default function MatchesPage() {
       let docs = querySnapshot.docs
         .map(doc => {
           const data = doc.data();
-          const age = calculateAge(data.dob, data.age);
+          const calculatedAge = data.dob
+            ? calculateAge(data.dob, data.age)
+            : data.age || 0;
           return {
             id: doc.id,
             ...data,
-            age
+            age: calculatedAge
           } as any;
         })
         .filter(u => {
@@ -187,23 +189,56 @@ export default function MatchesPage() {
 
       // Apply Filters Locally for complex ones
       docs = docs.filter(u => {
-        const ageMatch = u.age >= filters.minAge && u.age <= filters.maxAge;
-        const denomMatch = filters.denomination === 'All' || u.denomination === filters.denomination;
-        const locMatch = !filters.location || u.location?.toLowerCase().includes(filters.location.toLowerCase());
-        const eduMatch = filters.education === 'All' || u.educationLevel === filters.education;
+        const ageMatch = (!u.age || u.age === 0 ||
+          (u.age >= filters.minAge && u.age <= filters.maxAge));
+        const denomMatch = filters.denomination === 'All' || 
+          u.denomination?.toLowerCase() === 
+            filters.denomination?.toLowerCase();
+        const locMatch = !filters.location || 
+          u.cityLiving?.toLowerCase().includes(
+            filters.location.toLowerCase()
+          ) ||
+          u.countryLiving?.toLowerCase().includes(
+            filters.location.toLowerCase()
+          );
+        const eduMatch = filters.education === 'All' || 
+          u.education?.toLowerCase().includes(
+            filters.education.toLowerCase()
+          );
         const martMatch = filters.maritalStatus === 'All' || u.maritalStatus === filters.maritalStatus;
         const profMatch = !filters.profession || u.profession?.toLowerCase().includes(filters.profession.toLowerCase());
-        const heightMatch = u.height >= filters.minHeight && u.height <= filters.maxHeight;
+        // Height stored as string e.g "5'8" — skip
+        // filter if no UI height filter is active
+        const heightMatch = 
+          (filters.minHeight === 0 && filters.maxHeight === 250) 
+            ? true 
+            : (() => {
+                if (!u.height) return true;
+                const heightStr = String(u.height);
+                const parts = heightStr.split("'");
+                const feet = parseInt(parts[0]) || 0;
+                const inches = parseInt(parts[1]) || 0;
+                const totalInches = (feet * 12) + inches;
+                return totalInches >= filters.minHeight && 
+                       totalInches <= filters.maxHeight;
+              })();
         const verifyMatch = !filters.verifiedOnly || u.emailVerified;
         // Search Term (Name or Profession)
         const nameMatch = !filters.searchTerm || u.name?.toLowerCase().includes(filters.searchTerm.toLowerCase());
         
-        // Recently active (last 7 days)
         let activeMatch = true;
-        if (filters.recentlyActive && u.updatedAt) {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          activeMatch = u.updatedAt.toDate() >= sevenDaysAgo;
+        if (filters.recentlyActive) {
+          if (u.lastActive) {
+            const twentyFourHoursAgo = new Date(
+              Date.now() - 24 * 60 * 60 * 1000
+            );
+            const lastActiveDate = u.lastActive?.toDate
+              ? u.lastActive.toDate()
+              : new Date(u.lastActive);
+            activeMatch = lastActiveDate >= twentyFourHoursAgo;
+          } else {
+            activeMatch = false;
+          }
         }
 
         return ageMatch && denomMatch && locMatch && eduMatch && martMatch && profMatch && heightMatch && verifyMatch && activeMatch && nameMatch && !excludedUids.has(u.uid || u.id);
@@ -333,7 +368,7 @@ export default function MatchesPage() {
                     <option>Protestant</option>
                     <option>Baptist</option>
                     <option>Orthodox</option>
-                    <option>Non-Denominational</option>
+                    <option value="Non-denominational">Non-denominational</option>
                   </select>
                 </div>
 
@@ -345,11 +380,13 @@ export default function MatchesPage() {
                     onChange={(e) => setFilters({...filters, education: e.target.value})}
                     className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none"
                   >
-                    <option>All</option>
-                    <option>School</option>
-                    <option>Bachelor</option>
-                    <option>Master</option>
-                    <option>Doctorate</option>
+                    <option value="All">All</option>
+                    <option value="High School">High School</option>
+                    <option value="Diploma">Diploma</option>
+                    <option value="Bachelor">Bachelor's</option>
+                    <option value="Master">Master's</option>
+                    <option value="PhD">PhD</option>
+                    <option value="Professional">Professional</option>
                   </select>
                 </div>
 

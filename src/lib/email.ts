@@ -22,14 +22,13 @@ export const sendEmail = async (payload: EmailPayload): Promise<void> => {
     });
 
     if (!response.ok) {
-      let serverError = '';
-      try {
-        const errorData = await response.json();
-        serverError = errorData.error || JSON.stringify(errorData);
-      } catch {
-        serverError = await response.text();
-      }
-      throw new Error(`Server Error (${response.status}): ${serverError}`);
+      const responseClone = response.clone();
+      const errorData = await responseClone.json()
+        .catch(() => ({}));
+      throw new Error(
+        errorData.error || 
+        `Server Error (${response.status})`
+      );
     }
 
     console.log(`✅ Request successfully handled by backend for ${payload.to_email}`);
