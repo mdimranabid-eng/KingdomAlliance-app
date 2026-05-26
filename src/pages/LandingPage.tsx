@@ -4,14 +4,15 @@ import { motion } from 'motion/react';
 import { Shield, Users, MessageCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useSettings } from '../lib/SettingsContext';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
+import landingVideo from '../assets/landing-video.mp4';
 
 export default function LandingPage() {
   const { settings } = useSettings();
-  
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navbar */}
-      <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant">
+      <header className="fixed top-0 w-full z-50 bg-transparent backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <KingdomCrossIcon size="md" />
@@ -31,81 +32,122 @@ export default function LandingPage() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative pt-32 pb-32 md:pt-48 md:pb-48 overflow-hidden bg-surface">
-          <div className="absolute inset-0 z-0">
-            <img 
-              src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=2069" 
-              alt="Background" 
-              className="w-full h-full object-cover opacity-[0.07]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-surface via-surface/80 to-surface" />
-          </div>
+        <div className="relative w-screen min-h-screen h-screen m-0 p-0 overflow-hidden bg-slate-950 select-none">
+          {/* Video background layer stretched to absolute screen size boundaries */}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="absolute inset-0 w-screen h-screen object-cover z-0 pointer-events-none"
+          >
+            <source src={landingVideo} type="video/mp4" />
+          </video>
 
-          <div className="max-w-7xl mx-auto px-4 relative z-10 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-            >
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/5 text-primary text-sm font-bold uppercase tracking-[0.2em] border border-primary/20 mb-8 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                Faith-Led Matchmaking
+          {/* Overlay Mask layer stretched to absolute screen size boundaries - Gradient Untouched */}
+          <div
+            className="absolute inset-0 w-screen h-screen z-10 pointer-events-none"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(250,250,250,0.05) 0%, rgba(250,250,250,0.60) 60%, rgba(250,250,250,1) 100%)'
+            }}
+          />
+
+          {/* Core Screen-Size Centering Frame Layer */}
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center text-white px-4 sm:px-6 lg:px-8 select-none pointer-events-none">
+            <div className="w-full max-w-5xl pointer-events-auto flex flex-col items-center justify-center">
+
+              {/* Brand Tagline - Tightly packed frosted glass wrapper matching exact typography variables from the cards below */}
+              <div className="inline-flex items-center justify-center py-1 px-3.5 rounded-full bg-white/[0.02] backdrop-blur-md border border-white/10 shadow-lg mb-2 animate-fade-in">
+                <span className="text-xs sm:text-sm font-semibold text-white tracking-wide select-none">
+                  Faith-Led Matchmaking
+                </span>
               </div>
-              <h1 className="font-headline text-5xl md:text-8xl text-on-surface mb-8 leading-[0.9] tracking-tighter">
-                Find Your God-Given <br />
-                <span className="text-primary italic font-serif">Life Partner</span>
+
+              {/* Main Headline */}
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold tracking-tight mb-3 leading-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
+                Find Your God-Given <br className="hidden sm:inline" /> Life Partner
               </h1>
-              <p className="max-w-xl mx-auto text-lg md:text-2xl text-on-surface-variant mb-12 leading-relaxed font-light">
-                {settings.siteTagline}
+
+              {/* Subtext Description */}
+              <p className="text-sm sm:text-base md:text-lg font-light opacity-90 max-w-xl mx-auto mb-6 text-white/95 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
+                Christian Matrimony Rooted in Faith & Values
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                <Link to="/register" className="w-full sm:w-auto bg-primary text-on-primary font-bold px-10 py-5 rounded-2xl text-lg shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 transition-all hover:-translate-y-1 flex items-center justify-center gap-3">
-                  Join Now <ArrowRight className="w-5 h-5" />
+
+              {/* Primary Action Button Cluster - Maximized bottom margin gaps to drop cards right down to the base perimeter view */}
+              <div className="flex flex-row items-center justify-center gap-3 mb-16 sm:mb-24 md:mb-32">
+                <Link to="/register">
+                  <button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-semibold px-6 sm:px-8 py-2.5 rounded-full transition-all duration-300 shadow-md transform hover:scale-105 text-xs sm:text-sm md:text-base">
+                    Join Now
+                  </button>
                 </Link>
-                <Link to="/login" className="w-full sm:w-auto bg-surface-container text-on-surface font-bold px-10 py-5 rounded-2xl text-lg border border-outline-variant hover:border-primary transition-all">
-                  Sign In
+                <Link to="/login">
+                  <button className="bg-white/10 hover:bg-white/15 text-white font-medium px-6 sm:px-8 py-2.5 rounded-full backdrop-blur-sm border border-white/20 transition-all duration-300 transform hover:scale-105 text-xs sm:text-sm md:text-base">
+                    Sign In
+                  </button>
                 </Link>
               </div>
-            </motion.div>
-          </div>
-        </section>
 
-        {/* Features Section */}
-        <section id="how-it-works" className="py-32 bg-surface">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="text-center mb-20">
-              <h2 className="font-headline text-4xl md:text-6xl text-on-surface mb-6 tracking-tight">The Journey to Your Sacred Union</h2>
-              <p className="text-xl text-on-surface-variant max-w-xl mx-auto font-light">A thoughtful, guided process designed to help you find a partner who shares your faith and values.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                { step: "1", title: "Create Profile", text: "Share your story, your values, and your faith journey in a detailed, elegant profile." },
-                { step: "2", title: "Connect", text: "Browse hand-picked matches and initiate meaningful conversations in a secure environment." },
-                { step: "3", title: "Start Your Story", text: "Meet in person and begin building a lifelong partnership rooted in profound love." },
-              ].map((item, index) => (
-                <motion.div 
-                  key={index}
-                  whileHover={{ y: -10 }}
-                  className="bg-surface-container-lowest p-10 rounded-[2rem] border border-outline-variant shadow-sm hover:shadow-xl transition-all"
-                >
-                  <div className="w-16 h-16 rounded-3xl bg-primary/5 flex items-center justify-center mb-8 text-primary border border-primary/10">
-                    <span className="text-3xl font-bold">{item.step}</span>
+              {/* Neat & Compact Onboarding Journey Grid - Firmly anchored to the lower edge layout with mt-auto */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl px-4 mt-auto mb-2 sm:mb-4 animate-fade-in-up">
+                
+                {/* Step Card 1 */}
+                <div className="flex items-start text-left p-4 rounded-xl bg-white/[0.02] backdrop-blur-md border border-white/10 hover:border-amber-500/20 transition-all duration-300 shadow-xl">
+                  <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-serif font-bold text-sm mr-3.5 mt-0.5">
+                    1
                   </div>
-                  <h3 className="font-headline text-2xl text-on-surface mb-4">{item.title}</h3>
-                  <p className="text-on-surface-variant leading-relaxed">{item.text}</p>
-                </motion.div>
-              ))}
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-1 tracking-wide">
+                      Create Profile
+                    </h3>
+                    <p className="text-xs text-white/60 leading-relaxed font-light">
+                      Share your story, your values, and your faith journey in a detailed, elegant profile.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step Card 2 */}
+                <div className="flex items-start text-left p-4 rounded-xl bg-white/[0.02] backdrop-blur-md border border-white/10 hover:border-amber-500/20 transition-all duration-300 shadow-xl">
+                  <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-serif font-bold text-sm mr-3.5 mt-0.5">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-1 tracking-wide">
+                      Connect
+                    </h3>
+                    <p className="text-xs text-white/60 leading-relaxed font-light">
+                      Browse hand-picked matches and initiate meaningful conversations in a secure environment.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step Card 3 */}
+                <div className="flex items-start text-left p-4 rounded-xl bg-white/[0.02] backdrop-blur-md border border-white/10 hover:border-amber-500/20 transition-all duration-300 shadow-xl">
+                  <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-serif font-bold text-sm mr-3.5 mt-0.5">
+                    3
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-1 tracking-wide">
+                      Start Your Story
+                    </h3>
+                    <p className="text-xs text-white/60 leading-relaxed font-light">
+                      Meet in person and begin building a lifelong partnership rooted in profound love.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           </div>
-        </section>
+        </div>
 
         {/* Benefits Section */}
         <section className="py-32 bg-surface-container-lowest">
           <div className="max-w-7xl mx-auto px-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
               <div>
-                <h2 className="font-headline text-4xl md:text-6xl text-on-surface mb-12 tracking-tight">Built on Values, <br/> Rooted in Trust</h2>
+                <h2 className="font-headline text-4xl md:text-6xl text-on-surface mb-12 tracking-tight">Built on Values, <br /> Rooted in Trust</h2>
                 <div className="space-y-8">
                   {[
                     { icon: Shield, title: "Admin Approved Profiles", text: "Every profile is manually verified by our team to ensure a high-quality community." },
@@ -126,16 +168,16 @@ export default function LandingPage() {
               </div>
               <div className="relative">
                 <div className="aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl">
-                  <img 
-                    src="https://images.unsplash.com/photo-1523301343968-6a6ebf63c672?auto=format&fit=crop&q=80&w=1000" 
-                    alt="Happy Couple" 
+                  <img
+                    src="https://images.unsplash.com/photo-1523301343968-6a6ebf63c672?auto=format&fit=crop&q=80&w=1000"
+                    alt="Happy Couple"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="absolute -bottom-12 -left-12 bg-surface p-10 rounded-[2rem] shadow-2xl border border-outline-variant hidden md:block">
                   <div className="flex items-center gap-6 mb-6">
                     <div className="flex -space-x-4">
-                      {[1,2,3,4].map(i => (
+                      {[1, 2, 3, 4].map(i => (
                         <div key={i} className="w-14 h-14 rounded-full border-4 border-surface overflow-hidden bg-surface-container">
                           <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`} alt="Avatar" />
                         </div>
