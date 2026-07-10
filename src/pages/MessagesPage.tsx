@@ -379,7 +379,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex bg-surface-container-lowest rounded-[2.5rem] border border-outline-variant overflow-hidden shadow-2xl">
+    <div className="h-[calc(100vh-8rem)] flex glass-card rounded-[2.5rem] overflow-hidden">
       {/* Sidebar - Chat List */}
       <aside className={cn(
         "w-full md:w-80 border-r border-outline-variant flex flex-col transition-all duration-300",

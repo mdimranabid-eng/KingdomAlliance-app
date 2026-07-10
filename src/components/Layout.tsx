@@ -23,12 +23,14 @@ import {
   Megaphone,
   CheckCircle,
   Ban,
-  Church
+  Church,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, resolveApprovalStatus } from '../lib/utils';
 import { useSettings } from '../lib/SettingsContext';
 import { KingdomCrossIcon } from './KingdomCrossIcon';
+import AdminReportModal from './admin/AdminReportModal';
 
 export default function Layout() {
   const { settings } = useSettings();
@@ -37,6 +39,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [unreadInterestCount, setUnreadInterestCount] = React.useState(0);
   const [unreadMessageNotifCount, setUnreadMessageNotifCount] = React.useState(0);
@@ -292,9 +295,24 @@ export default function Layout() {
   const isApproved = profile?.isApproved;
 
   return (
-    <div className="min-h-screen bg-surface flex">
+    <div 
+      className="min-h-screen flex relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(135deg, #f1f8f3 0%, #e3f2e6 40%, #c8e6c9 70%, #f1f8f3 100%)'
+      }}
+    >
+      {/* Ambient background orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-45"
+          style={{ background: 'radial-gradient(circle, #c8e6c9 0%, transparent 70%)' }} />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl opacity-35"
+          style={{ background: 'radial-gradient(circle, #d4af3720 0%, transparent 70%)' }} />
+        <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full blur-3xl opacity-20"
+          style={{ background: 'radial-gradient(circle, #e8f5e9 0%, transparent 70%)' }} />
+      </div>
+
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex w-64 bg-surface-container flex-col border-r border-outline-variant transition-all duration-300 print:hidden">
+      <aside className="hidden lg:flex w-64 bg-transparent flex-col border-r border-outline-variant/30 transition-all duration-300 print:hidden relative z-10">
         <div className="p-6">
           <Link to="/" className="flex items-center gap-2 group">
             <KingdomCrossIcon size="md" className="group-hover:scale-110 transition-transform" />
@@ -370,9 +388,8 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Header - Mobile & Action Area */}
-        <header className="h-16 bg-surface border-b border-outline-variant flex items-center justify-between px-4 lg:px-8 z-30 print:hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
+        <header className="h-16 bg-transparent border-b border-outline-variant/30 flex items-center justify-between px-4 lg:px-8 z-30 print:hidden">
           <div className="flex items-center gap-4">
             <button
               className="lg:hidden p-2 hover:bg-surface-container rounded-lg"
@@ -494,6 +511,21 @@ export default function Layout() {
                 })}
               </nav>
 
+              {isAdmin && (
+                <div className="px-4 py-2 border-t border-outline-variant">
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setIsReportModalOpen(true);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-variant/40 rounded-xl transition-all duration-200 font-label-lg"
+                  >
+                    <FileText className="w-5 h-5" />
+                    Generate Report
+                  </button>
+                </div>
+              )}
+
               <div className="p-4 border-t border-outline-variant">
                 <button
                   onClick={handleLogout}
@@ -557,6 +589,13 @@ export default function Layout() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {isAdmin && (
+        <AdminReportModal 
+          isOpen={isReportModalOpen} 
+          onClose={() => setIsReportModalOpen(false)} 
+        />
+      )}
     </div>
   );
 }

@@ -151,7 +151,7 @@ export default function AdminDashboard() {
         </div>
         <button 
           onClick={() => setIsReportModalOpen(true)}
-          className="bg-[#0b291a] text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-[#0b291a]/90 hover:-translate-y-0.5 transition-all"
+          className="hidden md:block bg-[#0b291a] text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-[#0b291a]/90 hover:-translate-y-0.5 transition-all"
         >
           Generate Report
         </button>
@@ -202,17 +202,17 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
-        {/* New This Week - Solid Green Card */}
+        {/* New This Week */}
         <Link 
           to="/admin/users?filter=new-this-week" 
-          className="bg-[#139c5a] border border-[#139c5a] rounded-3xl p-5 shadow-md flex items-center gap-4 text-white hover:-translate-y-1 hover:shadow-lg hover:bg-[#118f51] hover:border-[#118f51] transition-all duration-300 group"
+          className="bg-white border border-[#e4ebe6] rounded-3xl p-5 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#16a34a]/40 hover:bg-[#dcfce7]/10 transition-all duration-300 group"
         >
-          <div className="p-3 bg-white/20 text-white rounded-2xl group-hover:bg-white group-hover:text-[#139c5a] transition-colors duration-300">
+          <div className="p-3 bg-[#dcfce7] text-[#16a34a] rounded-2xl group-hover:bg-[#16a34a] group-hover:text-white transition-colors duration-300">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider font-extrabold text-white/80">New This Week</p>
-            <p className="text-3xl font-extrabold text-white leading-tight mt-0.5">{stats.newThisWeek}</p>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 group-hover:text-slate-500 transition-colors">New This Week</p>
+            <p className="text-3xl font-extrabold text-slate-800 leading-tight mt-0.5">{stats.newThisWeek}</p>
           </div>
         </Link>
 

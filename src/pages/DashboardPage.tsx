@@ -801,7 +801,7 @@ function StatCard({ label, value, icon: Icon, trend, color, to, onClick }: any) 
     </>
   );
 
-  const classes = "block w-full text-left bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group cursor-pointer";
+  const classes = "block w-full text-left glass-card rounded-3xl p-6 relative overflow-hidden group cursor-pointer";
 
   if (onClick) {
     return (
@@ -828,7 +828,7 @@ function StatCard({ label, value, icon: Icon, trend, color, to, onClick }: any) 
 
 function MatchCard({ id, name, age, location, denomination, matchScore, imageUrl, lastActive }: any) {
   return (
-    <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-outline-variant hover:-translate-y-1 transition-all duration-300 group">
+    <div className="glass-card rounded-3xl overflow-hidden hover:-translate-y-1 transition-all duration-300 group">
       <div className="aspect-[4/3] overflow-hidden relative">
         <img src={imageUrl} alt={name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
         <div className="absolute top-4 left-4">

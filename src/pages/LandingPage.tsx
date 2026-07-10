@@ -152,7 +152,7 @@ export default function LandingPage() {
                   ))}
                 </div>
               </div>
-              <div className="relative">
+              <div className="relative hidden lg:block">
                 <div className="aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl">
                   <img
                     src={sideImage}

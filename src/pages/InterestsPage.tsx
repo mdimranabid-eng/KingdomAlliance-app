@@ -490,7 +490,7 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="bg-surface-container-lowest p-6 rounded-[2rem] border border-outline-variant shadow-sm hover:shadow-md transition-shadow flex items-center gap-6"
+      className="glass-card p-6 rounded-[2rem] flex items-center gap-6"
     >
       <Link to={`/profile/${user.id}`} className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-outline-variant">
         <img src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} alt={user.name} className="w-full h-full object-cover" />

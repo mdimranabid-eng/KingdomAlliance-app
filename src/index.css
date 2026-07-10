@@ -117,4 +117,12 @@
   .animate-pulse-red {
     animation: pulse-red 2s infinite;
   }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.55) !important;
+    backdrop-filter: blur(40px) !important;
+    -webkit-backdrop-filter: blur(40px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.80) !important;
+    box-shadow: 0 32px 64px -12px rgba(26,46,74,0.12), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 -1px 0 rgba(0,0,0,0.04) !important;
+  }
 }

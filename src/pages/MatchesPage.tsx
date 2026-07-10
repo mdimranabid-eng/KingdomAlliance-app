@@ -622,7 +622,7 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-surface-container-lowest rounded-[2rem] overflow-hidden shadow-ambient border border-outline-variant flex flex-col hover-lift group"
+      className="glass-card rounded-[2rem] overflow-hidden flex flex-col hover-lift group"
     >
       <Link to={`/profile/${user.id}`} className="block relative aspect-[3/4] overflow-hidden">
         <img 

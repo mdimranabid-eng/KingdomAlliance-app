@@ -57,7 +57,13 @@ import {
 import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge } from '../lib/utils';
 import BlockedUsersList from '../components/BlockedUsersList';
 import toast from 'react-hot-toast';
-
+const glassCardStyle = {
+  background: 'rgba(255, 255, 255, 0.55)',
+  backdropFilter: 'blur(40px)',
+  WebkitBackdropFilter: 'blur(40px)',
+  border: '1px solid rgba(255, 255, 255, 0.80)',
+  boxShadow: '0 32px 64px -12px rgba(26,46,74,0.12), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 -1px 0 rgba(0,0,0,0.04)'
+};
 
 export default function ProfilePage() {
   const { id } = useParams();
@@ -603,18 +609,25 @@ export default function ProfilePage() {
   const defaultName = isDeclinedPrivacy ? 'Profile Unavailable' : (profile.name || 'Unnamed Member');
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20">
-      {/* Premium Hero Banner */}
-      <div className="relative">
-        <div className="h-64 md:h-96 profile-banner-gradient w-full relative overflow-hidden">
-          <div className="absolute inset-0 bg-black/10" />
-          {/* Decorative elements */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48 blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/10 rounded-full -ml-32 -mb-32 blur-2xl" />
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 md:-mt-48 relative z-10">
-          <div className="bg-white rounded-[2.5rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] overflow-hidden border border-slate-100">
+    <div className="min-h-screen relative overflow-hidden pb-20"
+      style={{
+        background: 'linear-gradient(135deg, #f1f8f3 0%, #e3f2e6 40%, #c8e6c9 70%, #f1f8f3 100%)'
+      }}
+    >
+      {/* Ambient background orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-45"
+          style={{ background: 'radial-gradient(circle, #c8e6c9 0%, transparent 70%)' }} />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl opacity-35"
+          style={{ background: 'radial-gradient(circle, #d4af3720 0%, transparent 70%)' }} />
+        <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full blur-3xl opacity-20"
+          style={{ background: 'radial-gradient(circle, #e8f5e9 0%, transparent 70%)' }} />
+      </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
+          <div 
+            className="rounded-[2.5rem] overflow-hidden"
+            style={glassCardStyle}
+          >
             <div className="p-8 md:p-12">
               <div className="flex flex-col md:flex-row items-center md:items-end gap-10">
                 {/* Profile Photo with Golden Ring */}
@@ -838,7 +851,6 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
-      </div>
 
       {/* Main Content Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
@@ -848,7 +860,10 @@ export default function ProfilePage() {
           <div className="lg:col-span-8 space-y-8">
 
             {/* Navigation Tabs */}
-            <div className="bg-white p-2 rounded-3xl shadow-sm border border-slate-100 flex gap-2 overflow-x-auto no-scrollbar">
+            <div 
+              className="p-2 rounded-3xl flex gap-2 overflow-x-auto no-scrollbar"
+              style={glassCardStyle}
+            >
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -877,7 +892,10 @@ export default function ProfilePage() {
               {activeTab === 'about' && (
                 <div className="space-y-8">
                   {/* About Me Card */}
-                  <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-sm border border-slate-100 relative overflow-hidden">
+                  <div 
+                    className="rounded-[2rem] p-8 md:p-10 relative overflow-hidden"
+                    style={glassCardStyle}
+                  >
                     <div className="absolute top-0 right-0 p-8 opacity-5">
                       <Quote className="w-24 h-24 rotate-180" />
                     </div>
@@ -916,7 +934,10 @@ export default function ProfilePage() {
                   </div>
 
                   {/* Basic Info Grid */}
-                  <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-sm border border-slate-100">
+                  <div 
+                    className="rounded-[2rem] p-8 md:p-10"
+                    style={glassCardStyle}
+                  >
                     <h2 className="text-2xl font-bold text-slate-900 mb-8">Personal Details</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                       <InfoRow label="Profile ID" value={isDeclinedPrivacy ? 'HIDDEN' : (profile.profileId || id?.substring(0, 8).toUpperCase())} />
@@ -948,7 +969,10 @@ export default function ProfilePage() {
                   </div>
 
                   {/* Gallery Section - Now directly below Personal Details */}
-                  <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-sm border border-slate-100">
+                  <div 
+                    className="rounded-[2rem] p-8 md:p-10"
+                    style={glassCardStyle}
+                  >
                     <div className="flex justify-between items-center mb-8">
                       <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
                         <ImageIcon className="w-7 h-7 text-primary" /> Photo Gallery
@@ -1043,7 +1067,10 @@ export default function ProfilePage() {
           <div className="lg:col-span-4 space-y-8">
 
             {/* Preferred Partner Match Card */}
-            <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-slate-100 relative overflow-hidden group">
+            <div 
+              className="rounded-[2rem] p-8 relative overflow-hidden group"
+              style={glassCardStyle}
+            >
               <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-150 duration-700" />
               <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
                 <HeartHandshake className="w-7 h-7 text-secondary" /> Partner Preferences
@@ -1173,7 +1200,8 @@ export default function ProfilePage() {
                   key={match.id}
                   whileHover={{ y: -10 }}
                   onClick={() => navigate(`/profile/${match.id}`)}
-                  className="bg-white rounded-[2rem] overflow-hidden shadow-lg border border-slate-100 cursor-pointer group"
+                  className="rounded-[2rem] overflow-hidden cursor-pointer group"
+                  style={glassCardStyle}
                 >
                   <div className="aspect-[4/5] relative overflow-hidden">
                     <img 
