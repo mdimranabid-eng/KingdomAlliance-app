@@ -4,7 +4,9 @@ import { motion } from 'motion/react';
 import { Shield, Users, MessageCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useSettings } from '../lib/SettingsContext';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
+import PublicNavbar from '../components/PublicNavbar';
 import landingVideo from '../assets/landing-video.mp4';
+import sideImage from '../assets/Side Image Webp.webp';
 
 export default function LandingPage() {
   const { settings } = useSettings();
@@ -12,23 +14,7 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navbar */}
-      <header className="fixed top-0 w-full z-50 bg-transparent backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <KingdomCrossIcon size="md" />
-            <span className="font-headline text-2xl text-primary font-bold tracking-tight">{settings.siteName}</span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-8 font-label-lg">
-            <a href="#how-it-works" className="text-on-surface-variant hover:text-primary transition-colors">How It Works</a>
-            <a href="#success-stories" className="text-on-surface-variant hover:text-primary transition-colors">Success Stories</a>
-            <a href="#about" className="text-on-surface-variant hover:text-primary transition-colors">About Us</a>
-          </nav>
-          <div className="flex items-center gap-4">
-            <Link to="/login" className="font-label-lg text-on-surface-variant hover:text-primary">Sign In</Link>
-            <Link to="/register" className="bg-primary text-on-primary font-label-lg px-6 py-2.5 rounded-full hover:shadow-lg transition-all hover:-translate-y-0.5">Join Now</Link>
-          </div>
-        </div>
-      </header>
+      <PublicNavbar />
 
       <main className="flex-1">
         {/* Hero Section */}
@@ -169,23 +155,10 @@ export default function LandingPage() {
               <div className="relative">
                 <div className="aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl">
                   <img
-                    src="https://images.unsplash.com/photo-1523301343968-6a6ebf63c672?auto=format&fit=crop&q=80&w=1000"
+                    src={sideImage}
                     alt="Happy Couple"
                     className="w-full h-full object-cover"
                   />
-                </div>
-                <div className="absolute -bottom-12 -left-12 bg-surface p-10 rounded-[2rem] shadow-2xl border border-outline-variant hidden md:block">
-                  <div className="flex items-center gap-6 mb-6">
-                    <div className="flex -space-x-4">
-                      {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="w-14 h-14 rounded-full border-4 border-surface overflow-hidden bg-surface-container">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`} alt="Avatar" />
-                        </div>
-                      ))}
-                    </div>
-                    <span className="font-bold text-lg text-primary">12k+ Members</span>
-                  </div>
-                  <p className="text-lg text-on-surface-variant max-w-[250px] font-light">Join thousands finding their lifelong partner everyday.</p>
                 </div>
               </div>
             </div>
@@ -202,11 +175,11 @@ export default function LandingPage() {
               <span className="font-headline text-3xl text-on-surface font-bold tracking-tight">{settings.siteName}</span>
             </Link>
             <nav className="flex flex-wrap justify-center gap-x-10 gap-y-6 text-lg font-light">
-              <Link to="/" className="text-on-surface-variant hover:text-primary transition-colors">Home</Link>
+              <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-on-surface-variant hover:text-primary transition-colors">Home</Link>
               <Link to="/register" className="text-on-surface-variant hover:text-primary transition-colors">Register</Link>
               <Link to="/login" className="text-on-surface-variant hover:text-primary transition-colors">Login</Link>
-              <Link to="/" className="text-on-surface-variant hover:text-primary transition-colors">Terms</Link>
-              <Link to="/" className="text-on-surface-variant hover:text-primary transition-colors">Privacy</Link>
+              <Link to="/terms" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-on-surface-variant hover:text-primary transition-colors">Terms</Link>
+              <Link to="/contact" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-on-surface-variant hover:text-primary transition-colors">Contact Us</Link>
             </nav>
           </div>
           <div className="text-center text-on-surface-variant text-base font-light">

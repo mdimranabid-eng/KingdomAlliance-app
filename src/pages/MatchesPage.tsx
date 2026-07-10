@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, limit, addDoc, serverTimestamp, deleteDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, addDoc, serverTimestamp, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
@@ -36,6 +36,21 @@ const getOptimizedImageUrl = (url: string) => {
   if (parts.length !== 2) return url;
   return `${parts[0]}/upload/c_fill,w_600,h_800,g_face,q_auto,f_auto/${parts[1]}`;
 };
+
+const DENOMINATIONS = [
+  'Catholic',
+  'Protestant',
+  'Orthodox',
+  'Anglican / Episcopalian',
+  'Baptist',
+  'Methodist',
+  'Lutheran',
+  'Pentecostal',
+  'Presbyterian',
+  'Evangelical',
+  'Non-denominational',
+  'Other'
+];
 
 export default function MatchesPage() {
   const { profile, user: authUser } = useAuth();
@@ -200,6 +215,9 @@ export default function MatchesPage() {
           ) ||
           u.countryLiving?.toLowerCase().includes(
             filters.location.toLowerCase()
+          ) ||
+          u.location?.toLowerCase().includes(
+            filters.location.toLowerCase()
           );
         const eduMatch = filters.education === 'All' || 
           u.education?.toLowerCase().includes(
@@ -363,12 +381,10 @@ export default function MatchesPage() {
                     onChange={(e) => setFilters({...filters, denomination: e.target.value})}
                     className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none"
                   >
-                    <option>All</option>
-                    <option>Catholic</option>
-                    <option>Protestant</option>
-                    <option>Baptist</option>
-                    <option>Orthodox</option>
-                    <option value="Non-denominational">Non-denominational</option>
+                    <option value="All">All</option>
+                    {DENOMINATIONS.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -513,21 +529,23 @@ export default function MatchesPage() {
           <h3 className="font-headline text-2xl text-on-surface">No Matches Found</h3>
           <p className="text-on-surface-variant max-w-sm mx-auto">Try adjusting your filters or completing your profile to get better recommendations.</p>
           <button 
-            onClick={() => setFilters({
-              minAge: 18,
-              maxAge: 60,
-              denomination: 'All',
-              location: '',
-              education: 'All',
-              profession: '',
-              minHeight: 0,
-              maxHeight: 250,
-              maritalStatus: 'All',
-              verifiedOnly: false,
-              recentlyActive: false,
-              profileId: '',
-              searchTerm: ''
-            })}
+            onClick={() => {
+              setFilters({
+                minAge: 18,
+                maxAge: 60,
+                denomination: 'All',
+                location: '',
+                education: 'All',
+                profession: '',
+                minHeight: 0,
+                maxHeight: 250,
+                maritalStatus: 'All',
+                verifiedOnly: false,
+                recentlyActive: false,
+                searchTerm: ''
+              });
+              setProfileIdSearch('');
+            }}
             className="text-primary font-bold hover:underline"
           >
             Clear all filters
@@ -561,8 +579,8 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
     
     setSending(true);
     try {
-      // Add interest document
-      await addDoc(collection(db, 'interests'), {
+      const connectionId = [currentUser.uid, user.id].sort().join('_');
+      await setDoc(doc(db, 'interests', connectionId), {
         fromId: currentUser.uid,
         toId: user.id,
         status: 'pending',

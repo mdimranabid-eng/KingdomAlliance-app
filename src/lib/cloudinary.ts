@@ -1,11 +1,24 @@
 import imageCompression from 'browser-image-compression';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 
 /**
- * CLOUDINARY UPLOAD UTILITY
+ * CLOUDINARY UPLOAD UTILITY WITH DUPLICATE PREVENTION
  * 
  * This helper sends images directly to Cloudinary using their REST API.
- * It uses 'unsigned' uploads so we don't need a secret key on the frontend.
+ * It uses 'unsigned' uploads and checks file hashes to prevent duplicates.
  */
+
+/**
+ * Calculates SHA-256 hash of a file to check for duplicates.
+ */
+export async function getFileHash(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
 
 export async function uploadToCloudinary(
   file: File, 
@@ -20,6 +33,22 @@ export async function uploadToCloudinary(
     throw new Error("Cloudinary configuration missing. Check .env file.");
   }
 
+  // 1. Calculate original file hash & check for duplicates in Firestore
+  let fileHash = '';
+  try {
+    fileHash = await getFileHash(file);
+    const dupDocRef = doc(db, 'uploadedImages', fileHash);
+    const dupDocSnap = await getDoc(dupDocRef);
+    if (dupDocSnap.exists()) {
+      const existingData = dupDocSnap.data();
+      console.log(`[Cloudinary] Duplicate found! Reusing existing URL for hash ${fileHash}`);
+      return existingData.url;
+    }
+  } catch (hashError) {
+    console.error('[Cloudinary] Failed to calculate hash or check duplicates:', hashError);
+  }
+
+  // 2. Compress image using browser-image-compression
   let fileToUpload = file;
   try {
     const options = {
@@ -53,7 +82,6 @@ export async function uploadToCloudinary(
     try {
       if (attempt > 0) {
         console.log(`[Cloudinary] Retry attempt ${attempt}...`);
-        // Add a small delay before retry
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
 
@@ -82,7 +110,24 @@ export async function uploadToCloudinary(
       }
 
       const data = await response.json();
-      return data.secure_url;
+      const secureUrl = data.secure_url;
+
+      // 3. Save duplicate check metadata in Firestore
+      if (fileHash) {
+        try {
+          const user = auth.currentUser;
+          await setDoc(doc(db, 'uploadedImages', fileHash), {
+            url: secureUrl,
+            uploadedBy: user ? user.uid : 'anonymous',
+            createdAt: new Date().toISOString()
+          });
+          console.log(`[Cloudinary] Saved new upload hash reference: ${fileHash}`);
+        } catch (saveError) {
+          console.error('[Cloudinary] Failed to save upload hash metadata:', saveError);
+        }
+      }
+
+      return secureUrl;
 
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -96,7 +141,6 @@ export async function uploadToCloudinary(
         lastError = new Error("Upload failed — please check your internet connection and try again. This can also be caused by browser extensions (like AdBlock) blocking the upload.");
       }
 
-      // If it's a 4xx error (except 408/429), don't bother retrying as it's likely a config issue
       if (error.message.includes('Status 4') && !error.message.includes('408') && !error.message.includes('429')) {
         break;
       }
@@ -120,8 +164,6 @@ export function extractPublicId(url: string): string | null {
     const pathPart = parts[1];
     const pathSegments = pathPart.split('/');
     
-    // Filter out version segment (starts with 'v' followed by digits)
-    // and short transformation segments
     const cleanSegments = pathSegments.filter(seg => {
       const isVersion = /^v\d+$/.test(seg);
       const isTransformation = seg.includes('_') && seg.length < 20;
@@ -139,82 +181,24 @@ export function extractPublicId(url: string): string | null {
 }
 
 /**
- * Native SHA-1 signature generator using the Web Crypto API.
- * This runs natively in all modern browsers without external dependencies.
+ * Securely requests the backend to delete a Cloudinary photo.
  */
-async function generateSHA1(message: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(message);
-  const hashBuffer = await window.crypto.subtle.digest('SHA-1', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex;
-}
-
-/**
- * Delete an asset from Cloudinary using a secure signed request.
- * Requires the admin credentials.
- */
-export async function deleteFromCloudinary(
-  url: string,
-  cloudName: string,
-  apiKey: string,
-  apiSecret: string
-): Promise<boolean> {
-  const publicId = extractPublicId(url);
-  if (!publicId) {
-    console.warn(`[Cloudinary] Could not extract public ID or non-Cloudinary asset URL: ${url}`);
-    return false;
-  }
-
-  const finalCloudName = (cloudName || import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dvmx7w1a8").trim();
-  const timestamp = Math.round(new Date().getTime() / 1000).toString();
-  
-  // Signature calculation string must be sorted alphabetically: public_id and timestamp
-  // Example: "public_id=my_id&timestamp=1234567890YOUR_API_SECRET"
-  const signString = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
-  
+export async function secureDeletePhoto(url: string): Promise<boolean> {
+  const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
   try {
-    const signature = await generateSHA1(signString);
-    
-    const formData = new FormData();
-    formData.append('public_id', publicId);
-    formData.append('api_key', apiKey);
-    formData.append('timestamp', timestamp);
-    formData.append('signature', signature);
-
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${finalCloudName}/image/destroy`,
-      {
-        method: 'POST',
-        body: formData,
-        mode: 'cors',
-        credentials: 'omit'
-      }
-    );
-
-    if (!response.ok) {
-      let errorMessage = `Status ${response.status}: ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error?.message || errorMessage;
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    if (data.result === 'ok') {
-      console.log(`[Cloudinary] Asset ${publicId} successfully deleted.`);
-      return true;
-    } else {
-      console.warn(`[Cloudinary] Asset ${publicId} delete response result: ${data.result}`);
-      return false;
-    }
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return false;
+    const response = await fetch(`${BACKEND_URL}/api/user/delete-photo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({ url })
+    });
+    return response.ok;
   } catch (error) {
-    console.error(`[Cloudinary] Failed to delete asset ${publicId}:`, error);
+    console.error('[Cloudinary] Failed to securely request photo deletion:', error);
     return false;
   }
 }
-

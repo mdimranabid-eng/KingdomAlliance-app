@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { onAuthStateChanged, User, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getToken } from 'firebase/messaging';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { auth, db, messaging, handleFirestoreError, OperationType } from './firebase';
 import { calculateAge } from './utils';
 
 interface AuthContextType {
@@ -41,15 +42,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ]);
   };
 
+  const registerFCMToken = async (uid: string) => {
+    if (typeof window === 'undefined' || !('Notification' in window) || !messaging) return;
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+        if (!vapidKey) {
+          console.warn("FCM VAPID key is missing in .env configurations.");
+          return;
+        }
+        const token = await getToken(messaging, { vapidKey });
+        if (token) {
+          const userRef = doc(db, 'users', uid);
+          await updateDoc(userRef, {
+            fcmTokens: arrayUnion(token)
+          });
+          console.log("FCM device token registered successfully");
+        }
+      }
+    } catch (err) {
+      console.error("Error registering FCM token:", err);
+    }
+  };
+
   const fetchProfile = async (uid: string, email: string) => {
     try {
-      // Bootstrap first admin if email matches developer
-      const allowedAdmins = ["md.imranabid@gmail.com", "admin@kingdomalliance.com"];
-      if (email && allowedAdmins.includes(email)) {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const idTokenResult = await user.getIdTokenResult();
+      let isAdmin = !!idTokenResult.claims.admin;
+
+      if (isAdmin) {
         try {
-          await withTimeout(setDoc(doc(db, 'admins', uid), { uid, email }, { merge: true }));
+          const adminDoc = await withTimeout(getDoc(doc(db, 'admins', uid)));
+          if (adminDoc.exists() && adminDoc.data()?.emailVerified !== true) {
+            isAdmin = false;
+          }
         } catch (e) {
-          console.warn("Could not write admin doc (Firestore may not be ready):", e);
+          console.warn("Could not fetch admin details:", e);
         }
       }
 
@@ -72,7 +104,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (!lastLogin || lastLogin < fiveMinutesAgo || data.status === 'inactive' || daysDiff > 40) {
           try {
-            const { updateDoc, doc, serverTimestamp } = await import('firebase/firestore');
             const userRef = doc(db, 'users', uid);
             const updates: any = {
               lastLoginAt: serverTimestamp()
@@ -85,18 +116,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.warn("Error updating user active status on login:", err);
           }
         }
+        registerFCMToken(uid);
       } else {
         setProfile(null);
       }
 
-      // Check if admin
-      let adminDoc;
-      try {
-        adminDoc = await withTimeout(getDoc(doc(db, 'admins', uid)));
-      } catch (e) {
-        console.warn("Could not fetch admin doc (Firestore may not be ready):", e);
-      }
-      setIsAdmin(!!adminDoc?.exists());
+      setIsAdmin(isAdmin);
     } catch (error) {
       console.error("Error fetching profile:", error);
     }
@@ -117,6 +142,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+
+    // 10 minutes for admins, 15 minutes for standard users
+    const timeoutDuration = isAdmin ? 10 * 60 * 1000 : 15 * 60 * 1000;
+    let timeoutId: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(async () => {
+        console.log("Session inactive. Auto logging out...");
+        try {
+          await signOutUser();
+          alert("You have been logged out due to inactivity.");
+        } catch (err) {
+          console.error("Auto logout error:", err);
+        }
+      }, timeoutDuration);
+    };
+
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    const handleEvent = () => resetTimer();
+
+    events.forEach(event => {
+      window.addEventListener(event, handleEvent);
+    });
+
+    resetTimer();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      events.forEach(event => {
+        window.removeEventListener(event, handleEvent);
+      });
+    };
+  }, [user, isAdmin]);
+
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.uid, user.email || "");
@@ -124,13 +186,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (email: string, pass: string) => {
-    const { signInWithEmailAndPassword } = await import('firebase/auth');
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
   const signOutUser = async () => {
-    const { signOut: firebaseSignOut } = await import('firebase/auth');
-    await firebaseSignOut(auth);
+    await signOut(auth);
   };
 
   return (

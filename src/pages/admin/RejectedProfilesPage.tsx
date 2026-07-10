@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType, calculateAge } from '../../lib/utils';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
-import { deleteFromCloudinary } from '../../lib/cloudinary';
+import { secureDeletePhoto } from '../../lib/cloudinary';
 
 const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
 
@@ -217,37 +217,23 @@ export default function RejectedProfilesPage() {
       
       // FALLBACK WORKFLOW: Perform client-side cascade deletions directly if the local Express API is not running
       try {
-        // 1. Fetch Cloudinary config credentials from Firestore setting
-        const configDoc = await getDoc(doc(db, 'settings', 'site_config'));
-        let cloudName = '';
-        let apiKey = '';
-        let apiSecret = '';
-        if (configDoc.exists()) {
-          const data = configDoc.data();
-          cloudName = data.cloudinaryCloudName || '';
-          apiKey = data.cloudinaryApiKey || '';
-          apiSecret = data.cloudinaryApiSecret || '';
+        // 1. Programmatically delete Cloudinary assets via secure backend endpoint
+        const urlsToDelete = new Set<string>();
+        if (selectedUser.photoUrl) urlsToDelete.add(selectedUser.photoUrl);
+        if (selectedUser.pendingPhotoUrl) urlsToDelete.add(selectedUser.pendingPhotoUrl);
+        if (Array.isArray(selectedUser.gallery)) {
+          selectedUser.gallery.forEach((p: any) => {
+            if (p && p.url) urlsToDelete.add(p.url);
+          });
         }
 
-        // 2. Programmatically delete Cloudinary assets if config is available
-        if (cloudName && apiKey && apiSecret) {
-          const urlsToDelete = new Set<string>();
-          if (selectedUser.photoUrl) urlsToDelete.add(selectedUser.photoUrl);
-          if (selectedUser.pendingPhotoUrl) urlsToDelete.add(selectedUser.pendingPhotoUrl);
-          if (Array.isArray(selectedUser.gallery)) {
-            selectedUser.gallery.forEach((p: any) => {
-              if (p && p.url) urlsToDelete.add(p.url);
-            });
-          }
-
-          // Delete each Cloudinary URL
-          for (const url of urlsToDelete) {
-            if (url && url.includes('cloudinary.com')) {
-              try {
-                await deleteFromCloudinary(url, cloudName, apiKey, apiSecret);
-              } catch (cloudinaryErr) {
-                console.error(`[Admin Delete Fallback] Failed Cloudinary asset purge: ${url}`, cloudinaryErr);
-              }
+        // Delete each Cloudinary URL securely
+        for (const url of urlsToDelete) {
+          if (url && url.includes('cloudinary.com')) {
+            try {
+              await secureDeletePhoto(url);
+            } catch (cloudinaryErr) {
+              console.error(`[Admin Delete Fallback] Failed Cloudinary asset secure deletion: ${url}`, cloudinaryErr);
             }
           }
         }
@@ -350,7 +336,7 @@ export default function RejectedProfilesPage() {
       {/* User Table */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[750px]">
             <thead className="bg-surface-container border-b border-outline-variant">
               <tr>
                 <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">User Details</th>

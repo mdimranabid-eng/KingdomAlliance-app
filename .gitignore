@@ -13,3 +13,9 @@ server/node_modules/
 # Firebase service account (NEVER commit this)
 serviceAccountKey.json
 *serviceAccountKey*.json
+
+# Firebase tool configurations & credentials
+.config/
+scratch/.config/
+scratch/.npm/
+auth_backups/

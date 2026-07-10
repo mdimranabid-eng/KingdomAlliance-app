@@ -67,9 +67,6 @@ interface ReportData {
 export default function AdminReportModal({ isOpen, onClose }: AdminReportModalProps) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [emailRecipient, setEmailRecipient] = useState('');
-  const [sendingEmail, setSendingEmail] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
@@ -97,7 +94,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
 
       // Card 3: Active Today
       const activeToday = allUsers.filter(u => {
-        const lastActive = parseFirestoreDate(u.lastActive) || parseFirestoreDate(u.updatedAt);
+        const lastActive = parseFirestoreDate(u.lastActive);
         if (!lastActive) return false;
         return format(lastActive, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
       }).length;
@@ -166,7 +163,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
       // Composition: Locations (Top 5)
       const locs: Record<string, number> = {};
       allUsers.forEach(u => {
-        const l = u.location?.split(',')[0] || u.city || 'Unknown';
+        const l = u.cityLiving || u.location?.split(',')[0] || u.city || 'Unknown';
         locs[l] = (locs[l] || 0) + 1;
       });
       const topLocations = Object.entries(locs)
@@ -249,7 +246,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Kingdom Alliance Report - ${format(new Date(), 'yyyy-MM-dd')}</title>
+        <title>The Kingdom Alliances Report - ${format(new Date(), 'yyyy-MM-dd')}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Playfair+Display:ital,wght@1,700&display=swap');
           @page { size: A4 portrait; margin: 16mm; }
@@ -265,22 +262,22 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
           .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; page-break-inside: avoid; }
           .header-left { display: flex; align-items: center; gap: 12px; }
           .header-right { text-align: right; }
-          .brand-name { font-size: 20px; font-weight: bold; margin: 0; color: #040e2a; }
-          .brand-sub { font-size: 10px; color: #d4af37; text-transform: uppercase; letter-spacing: 2px; margin: 0; font-weight: bold; }
-          .report-title { font-size: 16px; font-family: 'Playfair Display', serif; font-style: italic; margin: 0; color: #040e2a; }
-          .report-date { font-size: 10px; color: #6b7280; margin-top: 4px; }
+          .brand-name { font-size: 22px; font-family: 'Playfair Display', serif; font-weight: bold; margin: 0; color: #040e2a; letter-spacing: -0.5px; }
+          .brand-sub { font-size: 9px; color: #d4af37; text-transform: uppercase; letter-spacing: 3px; margin: 4px 0 0; font-weight: 700; }
+          .report-title { font-size: 18px; font-family: 'Playfair Display', serif; font-style: italic; margin: 0; color: #040e2a; font-weight: 700; }
+          .report-date { font-size: 9px; color: #6b7280; margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
           
-          .divider { height: 2px; width: 100%; display: flex; margin-bottom: 12px; }
-          .divider-navy { width: 50%; background: #040e2a; }
-          .divider-gold { width: 50%; background: #d4af37; }
+          .divider { height: 3px; width: 100%; display: flex; margin-bottom: 16px; }
+          .divider-navy { width: 70%; background: #040e2a; }
+          .divider-gold { width: 30%; background: #d4af37; }
           
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          th, td { border: 1px solid #e2e3e0; padding: 8px; text-align: left; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          th, td { border: 1px solid #eef0f2; padding: 10px 12px; text-align: left; }
           thead { display: table-header-group; }
-          th { background: #040e2a; color: white; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; border-color: #040e2a; }
-          tr:nth-child(even) { background: #f8fafc; }
+          th { background: #040e2a; color: #ffffff; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; border: none; }
+          tr:nth-child(even) { background: #fafbfc; }
           
-          .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid #e2e3e0; margin-bottom: 24px; page-break-inside: avoid; }
+          .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid #eef0f2; margin-bottom: 28px; page-break-inside: avoid; border-radius: 8px; overflow: hidden; }
           .stat-cell { padding: 12px; text-align: center; border-right: 1px solid #e2e3e0; }
           .stat-cell:last-child { border-right: none; }
           .stat-value { font-size: 22px; font-weight: bold; display: block; color: #040e2a; }
@@ -311,12 +308,11 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
               <path d="M10 2H14V8H20V12H14V22H10V12H4V8H10V2Z" fill="url(#crossGradientPrint)" />
             </svg>
             <div>
-              <h1 class="brand-name">Kingdom Alliance</h1>
+              <h1 class="brand-name">The Kingdom Alliances</h1>
               <p class="brand-sub">Matrimonial Platform</p>
             </div>
           </div>
           <div class="header-right">
-            <h2 class="report-title">Community Health & Activity Report</h2>
             <p class="report-date">Generated: ${nowStr}</p>
           </div>
         </div>
@@ -437,7 +433,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
                   <td style="font-weight:bold">${u.name}</td>
                   <td style="text-transform:capitalize">${u.gender}</td>
                   <td>${u.denomination}</td>
-                  <td>${u.location || u.city || 'N/A'}</td>
+                  <td>${u.cityLiving || u.location || u.city || 'N/A'}</td>
                   <td>${u.createdAt?.toDate ? format(u.createdAt.toDate(), 'MMM dd, yyyy') : 'N/A'}</td>
                   <td style="font-weight:bold">${u.isApproved ? 'Approved' : 'Pending'}</td>
                 </tr>
@@ -467,7 +463,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
         </div>
 
         <div class="footer">
-          Kingdom Alliance — Confidential Admin Report | Generated ${nowStr}
+          The Kingdom Alliances — Confidential Admin Report | Generated ${nowStr}
         </div>
       </body>
       </html>
@@ -494,7 +490,43 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
       scale: 2,
       useCORS: true,
       logging: false,
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      onclone: (clonedDoc) => {
+        const elements = clonedDoc.querySelectorAll('*');
+        elements.forEach((node) => {
+          const el = node as HTMLElement;
+          const style = window.getComputedStyle(el);
+          
+          const hasOklch = (val: string) => val && val.includes('oklch');
+          
+          if (hasOklch(style.color)) {
+            const isWhite = el.classList.contains('text-white') || style.color.includes('white');
+            el.style.color = isWhite ? '#ffffff' : '#0f172a';
+          }
+          if (hasOklch(style.backgroundColor)) {
+            if (el.classList.contains('bg-primary')) {
+              el.style.backgroundColor = '#6750A4';
+            } else if (el.classList.contains('bg-[#040e2a]') || el.classList.contains('bg-slate-900') || el.classList.contains('from-[#040e2a]')) {
+              el.style.backgroundColor = '#040e2a';
+            } else if (el.classList.contains('bg-[#d4af37]') || el.classList.contains('from-[#d97706]')) {
+              el.style.backgroundColor = '#d4af37';
+            } else if (el.classList.contains('bg-[#0d9488]') || el.classList.contains('from-[#0d9488]')) {
+              el.style.backgroundColor = '#0d9488';
+            } else if (el.classList.contains('bg-[#7c3aed]') || el.classList.contains('from-[#7c3aed]')) {
+              el.style.backgroundColor = '#7c3aed';
+            } else if (el.classList.contains('bg-slate-50')) {
+              el.style.backgroundColor = '#f8fafc';
+            } else if (el.classList.contains('bg-white')) {
+              el.style.backgroundColor = '#ffffff';
+            } else {
+              el.style.backgroundColor = '#f8fafc';
+            }
+          }
+          if (hasOklch(style.borderColor)) {
+            el.style.borderColor = '#e2e8f0';
+          }
+        });
+      }
     });
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -513,44 +545,6 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
     }
   };
 
-  const handleSendEmail = async () => {
-    if (!emailRecipient || !data) return;
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailRecipient)) {
-      alert("Please enter a valid email address.");
-      return;
-    }
-
-    setSendingEmail(true);
-    try {
-      const pdf = await generatePDF();
-      if (!pdf) throw new Error("Could not generate PDF");
-      
-      const pdfBase64 = pdf.output('datauristring');
-
-      const templateParams = {
-        to_email: emailRecipient,
-        report_date: format(new Date(), 'PPpp'),
-        message: "Please find the Kingdom Alliance Community Health & Activity Report attached.",
-        content: pdfBase64 // Note: EmailJS might have limits on large base64 attachments
-      };
-
-      // Simulating report delivery
-      console.log("Simulating report dispatch...");
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      alert(`Report sent successfully (Simulation Mode) to ${emailRecipient}`);
-      
-      setIsEmailModalOpen(false);
-      setEmailRecipient('');
-    } catch (err) {
-      console.error("Email sending failed:", err);
-      alert("Failed to send email. Please try again.");
-    } finally {
-      setSendingEmail(false);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -583,12 +577,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
               <Printer className="w-4 h-4" /> Print
             </button>
 
-            <button 
-              onClick={() => setIsEmailModalOpen(true)}
-              className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg flex items-center gap-2 text-sm font-bold transition-all shadow-sm"
-            >
-              <Mail className="w-4 h-4" /> Email Report
-            </button>
+
             <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors ml-4">
               <X className="w-6 h-6" />
             </button>
@@ -609,16 +598,18 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b-2 border-slate-100 pb-8 header-container">
                   <div className="flex items-center gap-4">
-                    <KingdomCrossIcon size="lg" />
+                    <div data-html2canvas-ignore="true">
+                      <KingdomCrossIcon size="lg" />
+                    </div>
                     <div>
-                      <h1 className="text-4xl font-serif text-slate-900 leading-tight">Kingdom Alliance</h1>
-                      <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Matrimonial Platform</p>
+                      <h1 className="text-4xl font-serif text-slate-900 leading-tight tracking-tight">The Kingdom Alliances</h1>
+                      <p className="text-xs font-bold text-amber-600 uppercase tracking-[0.25em] mt-1">Matrimonial Platform</p>
                     </div>
                   </div>
-                  <div className="text-left md:text-right">
-                    <h2 className="text-3xl font-serif text-slate-800 italic">Community Health & Activity Report</h2>
-                    <p className="text-slate-500 font-bold mt-1">Generated: {format(new Date(), 'PPP p')}</p>
-                    <div className="h-1.5 w-full mt-4 bg-gradient-to-r from-[#040e2a] via-[#1e3a8a] to-[#d4af37] rounded-full" />
+                   <div className="text-left md:text-right">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Generated</p>
+                    <p className="text-sm font-bold text-[#040e2a] mt-0.5">{format(new Date(), 'PPP p')}</p>
+                    <div className="h-1 w-full mt-3 bg-gradient-to-r from-[#040e2a] via-[#b8860b] to-[#d4af37] rounded-full" />
                   </div>
                 </div>
 
@@ -628,34 +619,34 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
                     label="Total Registered Users" 
                     value={data.summary.totalUsers} 
                     icon={Users} 
-                    gradient="from-[#040e2a] to-[#1e3a8a]"
+                    gradient="bg-gradient-to-br from-[#040e2a] to-[#1e3a8a]"
                   />
                   <ReportStatCard 
                     label="Pending Approvals" 
                     value={data.summary.pendingApprovals} 
                     icon={Clock} 
-                    gradient="from-[#d97706] to-[#ea580c]"
+                    gradient="bg-gradient-to-br from-[#d97706] to-[#ea580c]"
                   />
                   <ReportStatCard 
-                    label="Active Members Today" 
+                    label="Active Today" 
                     value={data.summary.activeToday} 
                     icon={TrendingUp} 
-                    gradient="from-[#0d9488] to-[#059669]"
+                    gradient="bg-gradient-to-br from-[#0d9488] to-[#059669]"
                   />
                   <ReportStatCard 
-                    label="New Profiles (Week)" 
+                    label="New This Week" 
                     value={data.metrics.newWeek} 
                     icon={Calendar} 
-                    gradient="from-[#7c3aed] to-[#4f46e5]"
+                    gradient="bg-gradient-to-br from-[#7c3aed] to-[#4f46e5]"
                   />
                 </div>
 
                 {/* Charts Grid - 2 Column */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Gender Distribution Donut */}
-                  <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 chart-card">
-                    <h3 className="font-headline text-xl mb-8 flex items-center gap-2">
-                      <Users className="w-5 h-5 text-indigo-600" /> Gender Distribution
+                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100/80 shadow-[0_12px_40px_rgba(0,0,0,0.015)] hover:shadow-[0_20px_50px_rgba(4,14,42,0.05)] hover:border-slate-200/50 transition-all duration-300 chart-card">
+                    <h3 className="font-serif text-2xl text-[#040e2a] mb-8 flex items-center gap-2.5 font-bold">
+                      <Users className="w-5 h-5 text-[#d4af37]" /> Gender Distribution
                     </h3>
                     <div className="flex items-center justify-around gap-8">
                       <DonutChart 
@@ -670,41 +661,41 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
                   </div>
 
                   {/* Denomination Distribution */}
-                  <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 chart-card">
-                    <h3 className="font-headline text-xl mb-8 flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5 text-indigo-600" /> Users by Denomination
+                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100/80 shadow-[0_12px_40px_rgba(0,0,0,0.015)] hover:shadow-[0_20px_50px_rgba(4,14,42,0.05)] hover:border-slate-200/50 transition-all duration-300 chart-card">
+                    <h3 className="font-serif text-2xl text-[#040e2a] mb-8 flex items-center gap-2.5 font-bold">
+                      <BarChart3 className="w-5 h-5 text-[#d4af37]" /> Users by Denomination
                     </h3>
                     <HorizontalBarChart data={data.denomDist.slice(0, 6)} />
                   </div>
 
                   {/* Age Range Distribution */}
-                  <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 chart-card">
-                    <h3 className="font-headline text-xl mb-8 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-indigo-600" /> Age Range Distribution
+                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100/80 shadow-[0_12px_40px_rgba(0,0,0,0.015)] hover:shadow-[0_20px_50px_rgba(4,14,42,0.05)] hover:border-slate-200/50 transition-all duration-300 chart-card">
+                    <h3 className="font-serif text-2xl text-[#040e2a] mb-8 flex items-center gap-2.5 font-bold">
+                      <TrendingUp className="w-5 h-5 text-[#d4af37]" /> Age Range Distribution
                     </h3>
                     <VerticalBarChart data={data.ageDist} />
                   </div>
 
                   {/* Growth History Line Chart */}
-                  <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 chart-card">
-                    <h3 className="font-headline text-xl mb-8 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-indigo-600" /> New Registrations (Last 30 Days)
+                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100/80 shadow-[0_12px_40px_rgba(0,0,0,0.015)] hover:shadow-[0_20px_50px_rgba(4,14,42,0.05)] hover:border-slate-200/50 transition-all duration-300 chart-card">
+                    <h3 className="font-serif text-2xl text-[#040e2a] mb-8 flex items-center gap-2.5 font-bold">
+                      <TrendingUp className="w-5 h-5 text-[#d4af37]" /> New Registrations (Last 30 Days)
                     </h3>
                     <LineChart data={data.registrationHistory} />
                   </div>
 
                   {/* Top Locations */}
-                  <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 chart-card">
-                    <h3 className="font-headline text-xl mb-8 flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-indigo-600" /> Top 5 Locations
+                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100/80 shadow-[0_12px_40px_rgba(0,0,0,0.015)] hover:shadow-[0_20px_50px_rgba(4,14,42,0.05)] hover:border-slate-200/50 transition-all duration-300 chart-card">
+                    <h3 className="font-serif text-2xl text-[#040e2a] mb-8 flex items-center gap-2.5 font-bold">
+                      <MapPin className="w-5 h-5 text-[#d4af37]" /> Top 5 Locations
                     </h3>
-                    <HorizontalBarChart data={data.topLocations} colors={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']} />
+                    <HorizontalBarChart data={data.topLocations} colors={['#040e2a', '#d4af37', '#0d9488', '#7c3aed', '#6b7280']} />
                   </div>
 
                   {/* Approval Status Breakdown */}
-                  <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 chart-card">
-                    <h3 className="font-headline text-xl mb-8 flex items-center gap-2">
-                      <CheckCircle className="w-5 h-5 text-indigo-600" /> Approval Status Overview
+                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100/80 shadow-[0_12px_40px_rgba(0,0,0,0.015)] hover:shadow-[0_20px_50px_rgba(4,14,42,0.05)] hover:border-slate-200/50 transition-all duration-300 chart-card">
+                    <h3 className="font-serif text-2xl text-[#040e2a] mb-8 flex items-center gap-2.5 font-bold">
+                      <CheckCircle className="w-5 h-5 text-[#d4af37]" /> Approval Status Overview
                     </h3>
                     <div className="flex items-center justify-around gap-8">
                       <PieChart data={data.statusBreakdown} />
@@ -759,7 +750,7 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
                               <td className="px-6 py-4 font-bold text-slate-900">{u.name}</td>
                               <td className="px-6 py-4 text-sm text-slate-600 capitalize">{u.gender}</td>
                               <td className="px-6 py-4 text-sm text-slate-600">{u.denomination}</td>
-                              <td className="px-6 py-4 text-sm text-slate-600">{u.location || 'N/A'}</td>
+                              <td className="px-6 py-4 text-sm text-slate-600">{u.cityLiving || u.location || 'N/A'}</td>
                               <td className="px-6 py-4 text-sm text-slate-600">
                                 {u.createdAt?.toDate ? format(u.createdAt.toDate(), 'MMM dd, yyyy') : 'N/A'}
                               </td>
@@ -822,10 +813,10 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
                 </div>
 
                 {/* Footer */}
-                <div className="pt-12 border-t border-slate-100 flex flex-col items-center gap-2 opacity-50 print-footer">
+                <div className="pt-12 border-t border-slate-100 flex flex-col items-center gap-2 opacity-70 print-footer">
                   <KingdomCrossIcon size="lg" />
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">Kingdom Alliance &copy; 2026 — Confidential Institutional Report</p>
-                  <p className="text-[8px] text-slate-400">{format(new Date(), 'PPpp')}</p>
+                  <p className="text-[10px] font-bold text-[#040e2a] uppercase tracking-[0.3em]">The Kingdom Alliances &copy; 2026 — Confidential Institutional Report</p>
+                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">{format(new Date(), 'PPpp')}</p>
                 </div>
               </>
             ) : (
@@ -836,65 +827,6 @@ export default function AdminReportModal({ isOpen, onClose }: AdminReportModalPr
           </div>
         </div>
 
-        {/* Email Popup Overlay */}
-        <AnimatePresence>
-          {isEmailModalOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsEmailModalOpen(false)}
-                className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-              />
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="relative w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl border border-slate-100"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
-                    <Mail className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-headline text-2xl text-slate-900">Send Report</h3>
-                    <p className="text-sm text-slate-500">Export high-resolution PDF via email</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Recipient Email</label>
-                    <input 
-                      type="email"
-                      value={emailRecipient}
-                      onChange={(e) => setEmailRecipient(e.target.value)}
-                      placeholder="Enter recipient email address"
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900"
-                    />
-                  </div>
-                  
-                  <div className="pt-4 flex gap-3">
-                    <button 
-                      onClick={handleSendEmail}
-                      disabled={sendingEmail}
-                      className="flex-1 py-4 bg-[#040e2a] text-white rounded-2xl font-bold hover:bg-[#1e3a8a] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                    >
-                      {sendingEmail ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Mail className="w-4 h-4" /> Send Report</>}
-                    </button>
-                    <button 
-                      onClick={() => setIsEmailModalOpen(false)}
-                      className="px-6 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </motion.div>
     </div>
   );
@@ -1060,9 +992,10 @@ function LineChart({ data }: { data: any[] }) {
         {/* Fill */}
         <motion.polyline 
           points={areaPoints}
-          fill="url(#gradient)"
+          fill="#d4af37"
+          fillOpacity={0.15}
           initial={{ opacity: 0 }}
-          animate={{ opacity: 0.2 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: 1.5 }}
         />
         {/* Line */}
@@ -1077,12 +1010,6 @@ function LineChart({ data }: { data: any[] }) {
           animate={{ pathLength: 1 }}
           transition={{ duration: 2, ease: "easeInOut" }}
         />
-        <defs>
-          <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#d4af37" />
-            <stop offset="100%" stopColor="#040e2a" />
-          </linearGradient>
-        </defs>
       </svg>
       
       {/* Dots on peak points (simplified) */}

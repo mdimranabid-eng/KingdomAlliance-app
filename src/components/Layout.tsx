@@ -22,7 +22,8 @@ import {
   Camera,
   Megaphone,
   CheckCircle,
-  Ban
+  Ban,
+  Church
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, resolveApprovalStatus } from '../lib/utils';
@@ -49,6 +50,11 @@ export default function Layout() {
   } | null>(null);
   const isInitialLoadMessages = React.useRef(true);
   const isInitialLoadNotifications = React.useRef(true);
+  const pathnameRef = React.useRef(location.pathname);
+
+  React.useEffect(() => {
+    pathnameRef.current = location.pathname;
+  }, [location.pathname]);
 
   const handleLogout = async () => {
       // --- EXPLICIT OFFLINE ON LOGOUT START ---
@@ -87,6 +93,19 @@ export default function Layout() {
         const latestDoc = docChanges.find(change => change.type === 'added')?.doc;
         if (latestDoc) {
           const data = latestDoc.data();
+          
+          // Chat Suppression Logic: do not show toast if user is actively chatting with this sender
+          const activeChatUserIdFromPath = pathnameRef.current.startsWith('/messages/') 
+            ? pathnameRef.current.split('/')[2] 
+            : null;
+
+          console.log("DEBUG: Layout - activeChatUserIdFromPath:", activeChatUserIdFromPath, "data.senderId:", data.senderId);
+
+          if (activeChatUserIdFromPath === data.senderId) {
+            console.log("Global: Suppressing message popup since user is actively chatting with sender.");
+            return;
+          }
+
           // Fetch sender name from Firestore
           const senderDoc = await getDoc(
             doc(db, 'users', data.senderId)
@@ -257,7 +276,7 @@ export default function Layout() {
 
   let navItems: any[] = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Discover', path: '/matches', icon: Search, requiresApproval: true },
+    { label: 'Search', path: '/matches', icon: Search, requiresApproval: true },
     { label: 'Interests', path: '/interests', icon: Heart, requiresApproval: true },
     { label: 'Shortlist', path: '/shortlist', icon: Bookmark, requiresApproval: true },
     { label: 'Messages', path: '/messages', icon: MessageSquare, requiresApproval: true },
@@ -271,8 +290,7 @@ export default function Layout() {
       { label: 'Photo Moderation', path: '/admin/photos', icon: Camera },
       { label: 'User Management', path: '/admin/users', icon: Users },
       { label: 'Rejected Profiles', path: '/admin/rejected', icon: Ban },
-      { label: 'Announcements', path: '/admin/announcements', icon: Megaphone },
-      { label: 'Site Settings', path: '/admin/settings', icon: Settings },
+      { label: 'Pastor & Church Info', path: '/admin/church-info', icon: Church },
     ];
   }
 
@@ -281,7 +299,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-surface flex">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex w-64 bg-surface-container flex-col border-r border-outline-variant transition-all duration-300">
+      <aside className="hidden lg:flex w-64 bg-surface-container flex-col border-r border-outline-variant transition-all duration-300 print:hidden">
         <div className="p-6">
           <Link to="/" className="flex items-center gap-2 group">
             <KingdomCrossIcon size="md" className="group-hover:scale-110 transition-transform" />
@@ -300,36 +318,46 @@ export default function Layout() {
                 key={item.path}
                 to={isDisabled ? '#' : item.path}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-label-lg",
+                  "relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 font-label-lg group overflow-hidden",
                   isActive
-                    ? "bg-secondary-container text-on-secondary-container shadow-sm"
-                    : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
+                    ? "text-on-primary font-bold shadow-lg shadow-primary/20 scale-[1.02] -translate-y-[1px]"
+                    : "text-on-surface-variant hover:bg-surface-variant/40 hover:text-on-surface hover:-translate-y-[0.5px]",
                   isDisabled && "opacity-50 cursor-not-allowed"
                 )}
               >
-                <div className="relative">
-                  <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                  {((item.label === 'Messages' && (unreadCount > 0 || unreadMessageNotifCount > 0)) ||
-                    (item.label === 'Interests' && unreadInterestCount > 0) ||
-                    (item.badgeCount && item.badgeCount > 0)) && (
-                      <motion.span
-                        initial={{ scale: 0.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className={cn(
-                          "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
-                          item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
-                        )}
-                      >
-                        {item.badgeCount || ""}
+                {isActive && (
+                  <motion.div
+                    layoutId="desktopActiveNavIndicator"
+                    className="absolute inset-0 bg-primary -z-10"
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    style={{ borderRadius: '12px' }}
+                  />
+                )}
+                <div className="relative flex items-center gap-3 w-full">
+                  <div className="relative flex-shrink-0">
+                    <Icon className={cn("w-5 h-5 transition-transform duration-300 group-hover:scale-110", isActive && "fill-current")} />
+                    {((item.label === 'Messages' && (unreadCount > 0 || unreadMessageNotifCount > 0)) ||
+                      (item.label === 'Interests' && unreadInterestCount > 0) ||
+                      (item.badgeCount && item.badgeCount > 0)) && (
                         <motion.span
-                          animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
-                          transition={{ repeat: Infinity, duration: 2 }}
-                          className="absolute inset-0 bg-error rounded-full -z-10"
-                        />
-                      </motion.span>
-                    )}
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className={cn(
+                            "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
+                            item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
+                          )}
+                        >
+                          {item.badgeCount || ""}
+                          <motion.span
+                            animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                            className="absolute inset-0 bg-error rounded-full -z-10"
+                          />
+                        </motion.span>
+                      )}
+                  </div>
+                  <span className="truncate">{item.label}</span>
                 </div>
-                {item.label}
               </Link>
             );
           })}
@@ -349,7 +377,7 @@ export default function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header - Mobile & Action Area */}
-        <header className="h-16 bg-surface border-b border-outline-variant flex items-center justify-between px-4 lg:px-8 z-30">
+        <header className="h-16 bg-surface border-b border-outline-variant flex items-center justify-between px-4 lg:px-8 z-30 print:hidden">
           <div className="flex items-center gap-4">
             <button
               className="lg:hidden p-2 hover:bg-surface-container rounded-lg"
@@ -362,16 +390,19 @@ export default function Layout() {
 
           <div className="flex items-center gap-4">
             {profile && (
-              <div className="flex items-center gap-3 px-3 py-1 bg-surface-container-low rounded-full border border-outline-variant">
+              <Link 
+                to={`/profile/${user?.uid}`}
+                className="flex items-center gap-3 px-3 py-1 bg-surface-container-low hover:bg-surface-variant/40 transition-all duration-200 rounded-full border border-outline-variant cursor-pointer group"
+              >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-label-lg text-on-surface">{profile.name}</p>
+                  <p className="text-sm font-label-lg text-on-surface group-hover:text-primary transition-colors">{profile.name}</p>
                 </div>
                 <img
                   src={profile.photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`}
                   alt="Avatar"
-                  className="w-10 h-10 rounded-full border border-primary-container object-cover"
+                  className="w-10 h-10 rounded-full border border-primary-container object-cover group-hover:scale-105 transition-transform"
                 />
-              </div>
+              </Link>
             )}
           </div>
         </header>
@@ -423,36 +454,46 @@ export default function Layout() {
                       to={isDisabled ? '#' : item.path}
                       onClick={() => !isDisabled && setIsMobileMenuOpen(false)}
                       className={cn(
-                        "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-label-lg",
+                        "relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 font-label-lg group overflow-hidden",
                         isActive
-                          ? "bg-secondary-container text-on-secondary-container shadow-sm"
-                          : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
+                          ? "text-on-primary font-bold shadow-lg shadow-primary/20 scale-[1.02] -translate-y-[1px]"
+                          : "text-on-surface-variant hover:bg-surface-variant/40 hover:text-on-surface hover:-translate-y-[0.5px]",
                         isDisabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
-                      <div className="relative">
-                        <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
-                        {((item.label === 'Messages' && (unreadCount > 0 || unreadMessageNotifCount > 0)) ||
-                          (item.label === 'Interests' && unreadInterestCount > 0) ||
-                          (item.badgeCount && item.badgeCount > 0)) && (
-                            <motion.span
-                              initial={{ scale: 0.5, opacity: 0 }}
-                              animate={{ scale: 1, opacity: 1 }}
-                              className={cn(
-                                "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
-                                item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
-                              )}
-                            >
-                              {item.badgeCount || ""}
+                      {isActive && (
+                        <motion.div
+                          layoutId="mobileActiveNavIndicator"
+                          className="absolute inset-0 bg-primary -z-10"
+                          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                          style={{ borderRadius: '12px' }}
+                        />
+                      )}
+                      <div className="relative flex items-center gap-3 w-full">
+                        <div className="relative flex-shrink-0">
+                          <Icon className={cn("w-5 h-5 transition-transform duration-300 group-hover:scale-110", isActive && "fill-current")} />
+                          {((item.label === 'Messages' && (unreadCount > 0 || unreadMessageNotifCount > 0)) ||
+                            (item.label === 'Interests' && unreadInterestCount > 0) ||
+                            (item.badgeCount && item.badgeCount > 0)) && (
                               <motion.span
-                                animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
-                                transition={{ repeat: Infinity, duration: 2 }}
-                                className="absolute inset-0 bg-error rounded-full -z-10"
-                              />
-                            </motion.span>
-                          )}
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className={cn(
+                                  "absolute -top-1.5 -right-1.5 flex items-center justify-center bg-error rounded-full border-2 border-surface shadow-[0_0_10px_rgba(255,0,0,0.5)] text-white text-[8px] font-bold",
+                                  item.badgeCount ? "min-w-[18px] h-[18px] px-1" : "w-3 h-3"
+                                )}
+                              >
+                                {item.badgeCount || ""}
+                                <motion.span
+                                  animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+                                  transition={{ repeat: Infinity, duration: 2 }}
+                                  className="absolute inset-0 bg-error rounded-full -z-10"
+                                />
+                              </motion.span>
+                            )}
+                        </div>
+                        <span className="truncate">{item.label}</span>
                       </div>
-                      {item.label}
                     </Link>
                   );
                 })}
@@ -481,7 +522,18 @@ export default function Layout() {
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="fixed bottom-6 right-4 z-[100] w-full max-w-sm px-4 md:px-0"
           >
-            <div className="bg-surface border border-outline-variant p-4 rounded-2xl shadow-2xl backdrop-blur-xl bg-opacity-95 flex items-start gap-4">
+            <div 
+              onClick={() => {
+                if (toast.chatId) {
+                  navigate(`/messages/${toast.chatId}`);
+                  setToast(null);
+                }
+              }}
+              className={cn(
+                "bg-surface border border-outline-variant p-4 rounded-2xl shadow-2xl backdrop-blur-xl bg-opacity-95 flex items-start gap-4 transition-all hover:bg-surface-variant/30",
+                toast.chatId && "cursor-pointer"
+              )}
+            >
               <div className={cn(
                 "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm",
                 toast.type === 'message' ? "bg-primary text-on-primary" : "bg-error text-on-error"
@@ -492,20 +544,17 @@ export default function Layout() {
                 <h4 className="text-sm font-semibold text-on-surface truncate">{toast.title}</h4>
                 <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{toast.message}</p>
                 {toast.chatId && (
-                  <button
-                    onClick={() => {
-                      navigate(`/messages/${toast.chatId}`);
-                      setToast(null);
-                    }}
-                    className="text-xs font-bold text-primary mt-2 hover:underline"
-                  >
-                    Open Chat →
-                  </button>
+                  <span className="inline-block text-[10px] font-bold text-primary mt-2 uppercase tracking-wider">
+                    Click to Open Chat →
+                  </span>
                 )}
               </div>
               <button
-                onClick={() => setToast(null)}
-                className="text-on-surface-variant hover:text-on-surface transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setToast(null);
+                }}
+                className="text-on-surface-variant hover:text-on-surface transition-colors p-1 rounded-lg hover:bg-surface-container"
               >
                 <X className="w-4 h-4" />
               </button>

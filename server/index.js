@@ -179,8 +179,8 @@ app.post('/api/login', async (req, res) => {
     const captchaResponse = await fetch(verifyUrl, { method: 'POST' });
     const captchaData = await captchaResponse.json();
 
-    // Enforce a minimum score of 0.5 (Human threshold)
-    if (!captchaData.success || captchaData.score < 0.5) {
+    // Enforce a minimum score of 0.5 if present (v3 feature, v2 has no score)
+    if (!captchaData.success || (captchaData.score !== undefined && captchaData.score < 0.5)) {
       console.warn(`🚨 Bot blocked at login! Email: ${email} | Score: ${captchaData.score}`);
       return res.status(403).json({
         success: false,
@@ -594,6 +594,47 @@ app.post('/api/reset-password', async (req, res) => {
     }
 
     res.status(500).json({ success: false, message: 'Internal server error during password reset.' });
+  }
+});
+
+app.post('/api/verify-admin-email', async (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/, '');
+
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized: Missing verification token' });
+  }
+
+  try {
+    const decodedToken = await authAdmin.verifyIdToken(token);
+
+    const userRecord = await authAdmin.getUser(decodedToken.uid);
+    const isAdmin = userRecord.customClaims?.admin === true;
+    
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Forbidden: Requires administrator status' });
+    }
+
+    const uid = decodedToken.uid;
+
+    await authAdmin.updateUser(uid, {
+      emailVerified: true
+    });
+    console.log(`✅ [Auth] Marked admin email verified for UID: ${uid}`);
+
+    await db.collection('admins').doc(uid).update({
+      emailVerified: true
+    });
+    console.log(`✅ [Firestore] Updated emailVerified to true in admins collection for UID: ${uid}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Administrator email successfully verified in Auth and Firestore.'
+    });
+
+  } catch (error) {
+    console.error('❌ Error executing verify-admin-email:', error.message || error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 

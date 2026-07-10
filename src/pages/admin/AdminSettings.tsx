@@ -48,7 +48,7 @@ export default function AdminSettings() {
       const multiFactorSession = await multiFactor(auth.currentUser!).getSession();
       const secret = await TotpMultiFactorGenerator.generateSecret(multiFactorSession);
       setTotpSecret(secret);
-      setQrCodeUrl(secret.generateQrCodeUrl(auth.currentUser!.email!, "Kingdom Alliance Admin"));
+      setQrCodeUrl(secret.generateQrCodeUrl(auth.currentUser!.email!, "Staging Kingdom Alliance"));
     } catch (err: any) {
       setMfaMessage("❌ Error starting 2FA: " + err.message);
     }
@@ -72,6 +72,7 @@ export default function AdminSettings() {
     siteTagline: CONFIG.siteTagline,
     supportEmail: CONFIG.supportEmail,
     supportPhone: CONFIG.supportPhone,
+    adminNotificationEmails: 'stars@thekingdomalliances.com',
     primaryColor: CONFIG.theme.primaryColor,
     secondaryColor: CONFIG.theme.secondaryColor,
     enableChat: CONFIG.features.enableChat,
@@ -83,6 +84,9 @@ export default function AdminSettings() {
     cloudinaryApiKey: '',
     cloudinaryApiSecret: '',
   });
+
+  const localSettings = settings;
+  const setLocalSettings = setSettings;
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -254,6 +258,27 @@ export default function AdminSettings() {
                 onChange={e => setSettings({...settings, supportEmail: e.target.value})}
                 className="w-full p-3 bg-surface rounded-xl border border-outline-variant outline-none focus:ring-2 focus:ring-primary"
               />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-on-surface">
+                Admin Notification Emails
+              </label>
+              <input
+                type="text"
+                value={localSettings.adminNotificationEmails || ''}
+                onChange={(e) => setLocalSettings(prev => ({
+                  ...prev,
+                  adminNotificationEmails: e.target.value
+                }))}
+                placeholder="admin1@gmail.com, admin2@gmail.com"
+                className="w-full px-4 py-2.5 bg-surface border
+                  border-outline-variant rounded-xl outline-none
+                  focus:ring-2 focus:ring-primary text-sm"
+              />
+              <p className="text-xs text-on-surface-variant">
+                Comma-separated list of emails that receive
+                admin notifications. Changes take effect immediately.
+              </p>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Support Phone</label>

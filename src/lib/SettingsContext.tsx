@@ -16,6 +16,7 @@ interface Settings {
   minAge: number;
   cloudinaryCloudName: string;
   cloudinaryUploadPreset: string;
+  adminNotificationEmails: string;
 }
 
 interface SettingsContextType {
@@ -39,6 +40,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     minAge: DEFAULT_CONFIG.minAge,
     cloudinaryCloudName: DEFAULT_CONFIG.cloudinaryCloudName || '',
     cloudinaryUploadPreset: DEFAULT_CONFIG.cloudinaryUploadPreset || '',
+    adminNotificationEmails: 'stars@thekingdomalliances.com',
   });
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +55,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           // Explicitly preserve Cloudinary settings if Firestore doesn't have them
           cloudinaryCloudName: data.cloudinaryCloudName || prev.cloudinaryCloudName,
           cloudinaryUploadPreset: data.cloudinaryUploadPreset || prev.cloudinaryUploadPreset,
+          adminNotificationEmails: data.adminNotificationEmails || 'stars@thekingdomalliances.com',
         }));
         
         // Apply theme colors to CSS variables dynamically

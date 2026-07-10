@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 export const NotificationListener: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const pathnameRef = useRef(location.pathname);
 
   // Keep location pathname updated in ref to avoid subscribing/unsubscribing on path change
@@ -66,9 +67,28 @@ export const NotificationListener: React.FC = () => {
               }
             });
           } else if (type === 'message') {
-            // Chat Suppression Logic: do not show toast if user is on the /messages page
-            if (!pathnameRef.current.includes('/messages')) {
-              toast(data.message || "New Message!", {
+            // Chat Suppression Logic: do not show toast if user is actively chatting with this sender
+            const activeChatUserIdFromPath = pathnameRef.current.startsWith('/messages/') 
+              ? pathnameRef.current.split('/')[2] 
+              : null;
+
+            console.log("DEBUG: NotificationListener - activeChatUserIdFromPath:", activeChatUserIdFromPath, "data.fromId:", data.fromId);
+
+            if (activeChatUserIdFromPath !== data.fromId) {
+              toast((t) => (
+                <div 
+                  onClick={() => {
+                    if (data.fromId) {
+                      navigate(`/messages/${data.fromId}`);
+                    }
+                    toast.dismiss(t.id);
+                  }}
+                  className="cursor-pointer flex flex-col w-full text-left"
+                >
+                  <span className="font-semibold text-sm text-on-surface">{data.title || "New Message"}</span>
+                  <span className="text-xs text-on-surface-variant mt-0.5">{data.message}</span>
+                </div>
+              ), {
                 duration: 5000,
                 position: 'top-right',
                 icon: '💬',

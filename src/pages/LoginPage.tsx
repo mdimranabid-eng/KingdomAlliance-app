@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { signInWithGoogle, signInWithEmail } from '../services/authService';
-import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import ReCAPTCHA from 'react-google-recaptcha';
 import { Loader2, Eye, EyeOff, CheckCircle2, Heart, Lock as LockIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { resolveApprovalStatus } from '../lib/utils';
+import { signOut, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
 export default function LoginPage() {
@@ -17,8 +18,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
   const navigate = useNavigate();
-  const { executeRecaptcha } = useGoogleReCaptcha();
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
   const enforceGatekeeperRouting = async (uid: string) => {
@@ -27,7 +29,6 @@ export default function LoginPage() {
       const adminRef = doc(db, 'admins', uid);
       const adminDoc = await getDoc(adminRef);
       if (adminDoc.exists()) {
-        const { signOut } = await import('firebase/auth');
         await signOut(auth);
         throw new Error("Administrative accounts are restricted. Please sign in via the Admin Access portal.");
       }
@@ -78,6 +79,7 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setError(null);
     try {
+      await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
       const response = await signInWithGoogle();
       await enforceGatekeeperRouting(response.user.uid);
     } catch (err: any) {
@@ -91,15 +93,14 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    if (!executeRecaptcha) {
-      setError("Security check loading, please try again in a second.");
+    if (!recaptchaToken) {
+      setError("Please check the reCAPTCHA box to verify you are human.");
       setLoading(false);
       return;
     }
 
     try {
-      // Generate the invisible token
-      await executeRecaptcha('login_attempt');
+      await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
 
       // Proceed with existing client-side Firebase Auth check
       const responseAuth = await signInWithEmail(email, password);
@@ -113,24 +114,49 @@ export default function LoginPage() {
   return (
   <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
     style={{
-      background: 'linear-gradient(135deg, #f5f0e8 0%, #fafaf8 40%, #f0ece4 70%, #faf8f2 100%)'
+      background: 'linear-gradient(135deg, #f1f8f3 0%, #e3f2e6 40%, #c8e6c9 70%, #f1f8f3 100%)'
     }}
   >
     {/* Ambient background orbs */}
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-30"
-        style={{ background: 'radial-gradient(circle, #d4af3740 0%, transparent 70%)' }} />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl opacity-20"
-        style={{ background: 'radial-gradient(circle, #c9a84c30 0%, transparent 70%)' }} />
-      <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full blur-3xl opacity-15"
-        style={{ background: 'radial-gradient(circle, #1a2e4a20 0%, transparent 70%)' }} />
-      {/* Grid lines */}
-      <div className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-          backgroundSize: '60px 60px'
-        }} />
+      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-45"
+        style={{ background: 'radial-gradient(circle, #c8e6c9 0%, transparent 70%)' }} />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl opacity-35"
+        style={{ background: 'radial-gradient(circle, #d4af3720 0%, transparent 70%)' }} />
+      <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full blur-3xl opacity-20"
+        style={{ background: 'radial-gradient(circle, #e8f5e9 0%, transparent 70%)' }} />
     </div>
+
+    {/* Decorative SVG Roses & Leaves - Top Left */}
+    <svg className="absolute -top-10 -left-10 w-48 h-48 md:w-80 md:h-80 opacity-30 pointer-events-none select-none" viewBox="0 0 100 100" fill="none">
+      <path d="M30 20C20 30 15 50 35 70C55 50 45 35 30 20Z" fill="url(#rose-mint)" opacity="0.85"/>
+      <path d="M15 45C5 55 10 70 25 75C40 65 30 50 15 45Z" fill="url(#rose-green)" opacity="0.75"/>
+      <path d="M50 15C60 25 55 40 40 45C35 30 40 20 50 15Z" fill="url(#leaf-dark-green)" opacity="0.5"/>
+      <path d="M25 60C35 75 55 70 65 85" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+
+    {/* Decorative SVG Roses & Leaves - Bottom Right */}
+    <svg className="absolute -bottom-10 -right-10 w-48 h-48 md:w-80 md:h-80 opacity-30 pointer-events-none select-none" viewBox="0 0 100 100" fill="none">
+      <path d="M70 80C80 70 85 50 65 30C45 50 55 65 70 80Z" fill="url(#rose-mint)" opacity="0.85"/>
+      <path d="M85 55C95 45 90 30 75 25C60 35 70 50 85 55Z" fill="url(#rose-green)" opacity="0.75"/>
+      <path d="M50 85C40 75 45 60 60 55C65 70 60 80 50 85Z" fill="url(#leaf-dark-green)" opacity="0.5"/>
+      <path d="M75 40C65 25 45 30 35 15" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round"/>
+      <defs>
+        <radialGradient id="rose-mint" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#f1f8f3" />
+          <stop offset="50%" stopColor="#a5d6a7" />
+          <stop offset="100%" stopColor="#81c784" />
+        </radialGradient>
+        <radialGradient id="rose-green" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#a5d6a7" />
+          <stop offset="100%" stopColor="#4caf50" />
+        </radialGradient>
+        <linearGradient id="leaf-dark-green" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#c8e6c9" />
+          <stop offset="100%" stopColor="#2e7d32" />
+        </linearGradient>
+      </defs>
+    </svg>
 
     {/* Main glass card */}
     <motion.div
@@ -270,8 +296,23 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Forgot password */}
-            <div className="flex justify-end">
+            {/* Remember me & Forgot password */}
+            <div className="flex justify-between items-center px-1">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="relative flex-shrink-0 flex items-center justify-center">
+                  <input 
+                    type="checkbox" 
+                    checked={keepSignedIn}
+                    onChange={(e) => setKeepSignedIn(e.target.checked)}
+                    className="peer appearance-none w-4 h-4 border border-on-surface-variant/30 rounded checked:bg-[#d4af37] checked:border-[#d4af37] transition-all bg-white/50" 
+                  />
+                  <CheckCircle2 className="absolute w-3 h-3 text-[#0a0f1e] opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                </div>
+                <span className="text-xs text-on-surface-variant font-medium select-none">
+                  Keep me signed in
+                </span>
+              </label>
+
               <button
                 type="button"
                 onClick={() => setIsForgotModalOpen(true)}
@@ -280,6 +321,14 @@ export default function LoginPage() {
               >
                 Forgot Password?
               </button>
+            </div>
+
+            {/* reCAPTCHA Checkbox */}
+            <div className="flex justify-center py-2">
+              <ReCAPTCHA
+                sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || ""}
+                onChange={(token) => setRecaptchaToken(token)}
+              />
             </div>
 
             {/* Submit */}
@@ -301,11 +350,16 @@ export default function LoginPage() {
           </form>
 
           {/* Register link */}
-          <div className="text-center text-sm pt-2">
-            <span className="text-on-surface-variant">Don't have an account? </span>
-            <Link to="/register" className="font-bold hover:underline"
-              style={{ color: 'rgba(212, 175, 55, 0.9)' }}>
-              Register here
+          <div className="text-center text-sm pt-2 flex flex-col items-center gap-3">
+            <div>
+              <span className="text-on-surface-variant">Don't have an account? </span>
+              <Link to="/register" className="font-bold hover:underline"
+                style={{ color: 'rgba(212, 175, 55, 0.9)' }}>
+                Register here
+              </Link>
+            </div>
+            <Link to="/" className="text-xs font-bold text-[#d4af37] hover:text-[#b8860b] hover:underline transition-colors">
+              ← Go back to Home
             </Link>
           </div>
         </div>

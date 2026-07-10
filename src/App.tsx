@@ -19,6 +19,9 @@ import ProfilePage from './pages/ProfilePage';
 import ShortlistsPage from './pages/ShortlistsPage';
 import InterestsPage from './pages/InterestsPage';
 import OnboardingPage from './pages/OnboardingPage';
+import TermsPage from './pages/TermsPage';
+import ContactPage from './pages/ContactPage';
+import AboutPage from './pages/AboutPage';
 
 // Status Pages
 import PendingApprovalPage from './pages/status/PendingApprovalPage';
@@ -31,16 +34,23 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminApprovals from './pages/admin/AdminApprovals';
 import AdminPhotos from './pages/admin/AdminPhotos';
 import AdminUserManagement from './pages/admin/AdminUserManagement';
-import AdminAnnouncements from './pages/admin/AdminAnnouncements';
-import AdminSettings from './pages/admin/AdminSettings';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import RejectedProfilesPage from './pages/admin/RejectedProfilesPage';
+import AdminChurchInfo from './pages/admin/AdminChurchInfo';
+
+import { multiFactor } from 'firebase/auth';
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, loading } = useAuth();
 
   if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
   if (!user || !isAdmin) return <Navigate to="/admin/login" />;
+
+  // Ensure MFA is enrolled
+  const enrolledFactors = multiFactor(user).enrolledFactors;
+  if (enrolledFactors.length === 0) {
+    return <Navigate to="/admin/login" />;
+  }
 
   return <>{children}</>;
 };
@@ -61,6 +71,9 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/about" element={<AboutPage />} />
           
           {/* Status Routes (Publicly accessible but usually redirected to) */}
           <Route path="/pending-approval" element={<PendingApprovalPage />} />
@@ -94,8 +107,7 @@ export default function App() {
             <Route path="/admin/photos" element={<AdminPhotos />} />
             <Route path="/admin/users" element={<AdminUserManagement />} />
             <Route path="/admin/rejected" element={<RejectedProfilesPage />} />
-            <Route path="/admin/announcements" element={<AdminAnnouncements />} />
-            <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin/church-info" element={<AdminChurchInfo />} />
           </Route>
         </Routes>
       </Router>

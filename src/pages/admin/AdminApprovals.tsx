@@ -146,12 +146,6 @@ export default function AdminApprovals() {
       });
 
       const userToApprove = users.find(u => u.id === userId) || selectedUser;
-      if (userToApprove?.email) {
-        await sendEmail({
-          to_email: userToApprove.email,
-          type: 'profile_approved'
-        });
-      }
 
       setConfirmModal({ isOpen: false, userId: null, name: '' });
     } catch (error) {
@@ -190,15 +184,6 @@ export default function AdminApprovals() {
           }
         ]
       });
-
-      const userToReject = users.find(u => u.id === targetUserId) || selectedUser;
-      if (userToReject?.email) {
-        await sendEmail({
-          to_email: userToReject.email,
-          type: 'profile_rejected',
-          reason: rejectionModal.reason
-        });
-      }
 
       setRejectionModal({ isOpen: false, userId: null, reason: '' });
     } catch (error) {

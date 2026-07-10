@@ -29,12 +29,13 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || request.auth.token.email == 'md.imranabid@gmail.com');
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
     function isApproved() {
-      // Use get() to check profile approval status for relational gates
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true;
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true;
     }
 
     // --- Entity Validations ---
@@ -61,7 +62,7 @@ service cloud.firestore {
              (data.get('approvalStatus', 'incomplete') in ['incomplete', 'pending', 'approved', 'rejected']) &&
              (data.get('onboardingComplete', false) is bool) &&
              (data.get('age', 0) is int && data.get('age', 0) >= 18 && data.get('age', 0) <= 100) &&
-             (data.get('height', 0) is int && data.get('height', 0) >= 0 && data.get('height', 0) <= 300) &&
+             (data.get('height', '') is string || data.get('height', 0) is int) &&
              (data.get('gender', '') in ['', 'male', 'female']) &&
              (data.get('gallery', []) is list);
     }
@@ -87,6 +88,16 @@ service cloud.firestore {
              data.createdAt == request.time;
     }
 
+    function isValidContactMessage(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 128 && data.email.matches('^[^@]+@[^@]+\\.[^@]+$') &&
+             data.mobile is string && data.mobile.size() == 10 && data.mobile.matches('^[0-9]+$') &&
+             data.subject is string && data.subject.size() <= 100 &&
+             data.message is string && data.message.size() <= 1000 &&
+             data.status == 'new' &&
+             data.createdAt == request.time;
+    }
+
     // --- Collection Rules ---
 
     // Collection Group for unread counts
@@ -103,32 +114,35 @@ service cloud.firestore {
         (isApproved() && existing().isApproved == true)
       );
       
-      allow list: if isSignedIn() && (isAdmin() || isApproved());
+      allow list: if isSignedIn();
 
       allow create: if isValidId(userId) && isOwner(userId) && incoming().uid == userId && incoming().email is string && incoming().createdAt == request.time;
 
       allow update: if isValidId(userId) && isSignedIn() && isValidUser(incoming()) && (
         // Owner Update
         (isOwner(userId) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobileNumber', 'emailVerified', 'photoUrl', 'pendingPhotoUrl', 'photoStatus', 'gallery', 'aboutMe', 'denomination', 'church', 'education', 'profession', 'height', 'location', 'familyDetails', 'partnerPreferences', 'gender', 'age', 'approvalStatus', 'onboardingComplete', 'updatedAt']) &&
+         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isSuspended', 'isBanned', 'isApproved', 'status']) &&
          incoming().uid == existing().uid &&
          incoming().email == existing().email &&
-         incoming().createdAt == existing().createdAt &&
-         incoming().isApproved == existing().isApproved &&
-         incoming().status == existing().status &&
-         incoming().updatedAt == request.time
+         incoming().createdAt == existing().createdAt
         ) ||
         // Admin Update
         (isAdmin() && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['isApproved', 'photoApproved', 'photoStatus', 'photoRejectionReason', 'photoUrl', 'pendingPhotoUrl', 'gallery', 'status', 'approvalStatus', 'updatedAt']) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['isApproved', 'photoApproved', 'photoStatus', 'photoRejectionReason', 'photoUrl', 'pendingPhotoUrl', 'gallery', 'status', 'approvalStatus', 'updatedAt', 'approvedAt', 'approvedBy', 'rejectedAt', 'rejectedBy', 'rejectedReason', 'notifications', 'isSuspended', 'isBanned']) &&
          incoming().updatedAt == request.time
         )
       );
     }
 
     match /interests/{interestId} {
-      allow read: if isValidId(interestId) && isSignedIn() && (
+      allow get: if isValidId(interestId) && isSignedIn() && (
         isOwner(resource.data.fromId) || isOwner(resource.data.toId) || isAdmin()
+      );
+      
+      allow list: if isSignedIn() && (
+        resource.data.fromId == request.auth.uid || 
+        resource.data.toId == request.auth.uid || 
+        isAdmin()
       );
       
       allow create: if isValidId(interestId) && isSignedIn() && isValidInterest(incoming()) && 
@@ -150,10 +164,17 @@ service cloud.firestore {
     }
 
     match /shortlists/{shortlistId} {
-      allow read: if isValidId(shortlistId) && isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow get: if isValidId(shortlistId) && isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isValidId(shortlistId) && isSignedIn() && isValidShortlist(incoming()) && isApproved();
       allow delete: if isValidId(shortlistId) && isSignedIn() && (isOwner(existing().userId) || isAdmin());
     }
+
+    match /profileViews/{viewId} {
+      allow read, get, list: if isSignedIn() && (resource.data.profileId == request.auth.uid || resource.data.viewerId == request.auth.uid || isAdmin());
+      allow create, update: if isValidId(viewId) && isSignedIn() && incoming().viewerId == request.auth.uid;
+    }
+
 
     match /chats/{chatId} {
       function isParticipant() {
@@ -163,7 +184,8 @@ service cloud.firestore {
       allow read, get, list: if isValidId(chatId) && isSignedIn() && (isParticipant() || isAdmin());
       
       match /messages/{messageId} {
-        allow read, get, list: if isValidId(messageId) && isSignedIn() && (isParticipant() || isAdmin());
+        allow get: if isValidId(messageId) && isSignedIn() && (isParticipant() || isAdmin());
+        allow list: if isSignedIn() && (isParticipant() || isAdmin());
         
         allow create: if isValidId(messageId) && isSignedIn() && isParticipant() && 
                       isValidMessage(incoming()) &&
@@ -173,14 +195,43 @@ service cloud.firestore {
     }
 
     match /photoModeration/{docId} {
-      allow read, list: if isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
+      allow read: if isSignedIn() && (isAdmin() || resource.data.get('uid', resource.data.get('userId', '')) == request.auth.uid);
+      allow create: if isSignedIn() && incoming().uid == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isSignedIn() && (isAdmin() || existing().get('uid', existing().get('userId', '')) == request.auth.uid);
     }
 
     match /admins/{adminId} {
-      allow read: if isValidId(adminId) && isSignedIn() && (isOwner(adminId) || isAdmin());
-      allow write: if isSignedIn() && request.auth.uid == adminId && (request.auth.token.email in ['md.imranabid@gmail.com']);
+      allow get: if isValidId(adminId) && isSignedIn() && (isOwner(adminId) || isAdmin());
+      allow list: if isSignedIn() && isAdmin();
+      allow write: if isSignedIn() && request.auth.uid == adminId && request.auth.token.admin == true;
+    }
+
+    match /settings/{docId} {
+      allow read: if docId == 'site_config';
+      allow write: if isAdmin();
+    }
+
+    match /uploadedImages/{hashId} {
+      allow read, create: if isSignedIn();
+    }
+
+    match /temp_otps/{otpId} {
+      allow create: if true;
+      allow read, delete: if true;
+    }
+
+    match /contact_messages/{messageId} {
+      allow create: if isValidContactMessage(incoming());
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read, get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().fromId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
   }
 }

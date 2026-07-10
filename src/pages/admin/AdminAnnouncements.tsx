@@ -51,7 +51,7 @@ export default function AdminAnnouncements() {
             <div className="space-y-4">
               <label className="block font-label-lg text-on-surface uppercase tracking-widest">Target Audience</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <button 
+                <button
                   type="button"
                   onClick={() => setTarget('all')}
                   className={cn(
@@ -62,7 +62,7 @@ export default function AdminAnnouncements() {
                   <Users className="w-6 h-6" />
                   <span className="text-xs font-bold">All Users</span>
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setTarget('unverified')}
                   className={cn(
@@ -73,7 +73,7 @@ export default function AdminAnnouncements() {
                   <ShieldCheck className="w-6 h-6" />
                   <span className="text-xs font-bold">Unverified</span>
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setTarget('active')}
                   className={cn(
@@ -89,7 +89,7 @@ export default function AdminAnnouncements() {
 
             <div className="space-y-4">
               <label className="block font-label-lg text-on-surface uppercase tracking-widest">Announcement Subject</label>
-              <input 
+              <input
                 type="text"
                 required
                 value={subject}
@@ -101,7 +101,7 @@ export default function AdminAnnouncements() {
 
             <div className="space-y-4">
               <label className="block font-label-lg text-on-surface uppercase tracking-widest">Message Content</label>
-              <textarea 
+              <textarea
                 required
                 rows={8}
                 value={message}
@@ -111,7 +111,7 @@ export default function AdminAnnouncements() {
               />
             </div>
 
-            <button 
+            <button
               type="submit"
               disabled={loading}
               className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
@@ -121,7 +121,7 @@ export default function AdminAnnouncements() {
             </button>
 
             {success && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="p-4 bg-green-500/10 text-green-500 rounded-2xl border border-green-500/20 flex items-center gap-3"
@@ -134,36 +134,36 @@ export default function AdminAnnouncements() {
         </div>
 
         <div className="space-y-8">
-           <div className="bg-surface-container rounded-3xl p-8 border border-outline-variant shadow-sm space-y-4">
-             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-               <Info className="w-6 h-6 text-primary" />
-             </div>
-             <h3 className="font-headline text-2xl text-on-surface">Guidelines</h3>
-             <ul className="space-y-3">
-               {[
-                 "Keep subjects clear and professional.",
-                 "Use for critical updates or new features.",
-                 "Avoid excessive frequency to prevent spam.",
-                 "Links are automatically tracked for engagement."
-               ].map((text, i) => (
-                 <li key={i} className="flex items-start gap-3 text-sm text-on-surface-variant">
-                   <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5" />
-                   {text}
-                 </li>
-               ))}
-             </ul>
-           </div>
+          <div className="bg-surface-container rounded-3xl p-8 border border-outline-variant shadow-sm space-y-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+              <Info className="w-6 h-6 text-primary" />
+            </div>
+            <h3 className="font-headline text-2xl text-on-surface">Guidelines</h3>
+            <ul className="space-y-3">
+              {[
+                "Keep subjects clear and professional.",
+                "Use for critical updates or new features.",
+                "Avoid excessive frequency to prevent spam.",
+                "Links are automatically tracked for engagement."
+              ].map((text, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm text-on-surface-variant">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5" />
+                  {text}
+                </li>
+              ))}
+            </ul>
+          </div>
 
-           <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-8 space-y-6">
-              <h3 className="font-label-lg text-on-surface uppercase tracking-widest">Recent Sent</h3>
-              <div className="space-y-4">
-                <div className="p-4 bg-surface rounded-2xl border border-outline-variant/30">
-                  <p className="text-xs text-on-surface-variant mb-1">May 10, 2026</p>
-                  <p className="font-bold text-on-surface text-sm">Welcome to Kingdom Alliance</p>
-                  <p className="text-[10px] text-primary uppercase font-bold mt-1">Status: Sent (432 users)</p>
-                </div>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-8 space-y-6">
+            <h3 className="font-label-lg text-on-surface uppercase tracking-widest">Recent Sent</h3>
+            <div className="space-y-4">
+              <div className="p-4 bg-surface rounded-2xl border border-outline-variant/30">
+                <p className="text-xs text-on-surface-variant mb-1">May 10, 2026</p>
+                <p className="font-bold text-on-surface text-sm">Welcome to Kingdom Alliance</p>
+                <p className="text-[10px] text-primary uppercase font-bold mt-1">Status: Sent (432 users)</p>
               </div>
-           </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

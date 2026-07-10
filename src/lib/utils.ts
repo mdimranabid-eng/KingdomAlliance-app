@@ -162,6 +162,13 @@ export function formatRelativeTime(date: any): string {
 }
 
 export function resolveApprovalStatus(data: any): 'incomplete' | 'pending' | 'approved' | 'rejected' | 'banned' | 'suspended' | 'not_approved' {
+  if (data?.isBanned || data?.status === 'blocked') {
+    return 'banned';
+  }
+  if (data?.isSuspended || data?.status === 'suspended') {
+    return 'suspended';
+  }
+
   const rawApproval = data?.approvalStatus || '';
   const rawStatus = data?.status || '';
   
@@ -217,11 +224,16 @@ export const generateProfileId = () => {
 export const generateUniqueProfileId = async () => {
   let isUnique = false;
   let newId = '';
-  while (!isUnique) {
-    newId = generateProfileId();
-    const q = query(collection(db, 'users'), where('profileId', '==', newId));
-    const snap = await getDocs(q);
-    if (snap.empty) { isUnique = true; }
+  try {
+    while (!isUnique) {
+      newId = generateProfileId();
+      const q = query(collection(db, 'users'), where('profileId', '==', newId));
+      const snap = await getDocs(q);
+      if (snap.empty) { isUnique = true; }
+    }
+  } catch (err) {
+    console.warn("Uniqueness check bypassed due to permission restriction. Using random ID:", newId);
+    return newId || generateProfileId();
   }
   return newId;
 };

@@ -1,8 +1,11 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
-import * as nodemailer from 'nodemailer';
 
-const db = admin.firestore();
+//ADD THIS — Initialize before any Firebase service call
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
+const getDb = () => admin.firestore();
 
 // ============================================================
 // EMAIL DISPATCHER
@@ -16,6 +19,7 @@ const sendAdminAlert = async (
   pendingUsers: { name: string; email: string }[],
   pendingPhotos: { userId: string }[]
 ) => {
+  const nodemailer = await import('nodemailer');
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: Number(process.env.SMTP_PORT) || 465,
@@ -84,7 +88,7 @@ const sendAdminAlert = async (
         <h1 style="color: #d4af37; margin: 0; font-size: 22px;
           letter-spacing: 0.05em;">✝ Kingdom Alliance</h1>
         <p style="color: rgba(255,255,255,0.60); margin: 8px 0 0;
-          font-size: 13px;">Admin Alert — 4-Hour Moderation Check</p>
+          font-size: 13px;">Admin Alert — 8-Hour Moderation Check</p>
       </div>
 
       <div style="padding: 28px;">
@@ -124,7 +128,7 @@ const sendAdminAlert = async (
         text-align: center; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; font-size: 11px; color: #94a3b8;">
           Automated alert from Kingdom Alliance.
-          Sent every 4 hours only when action is required.
+          Sent every 8 hours only when action is required.
         </p>
       </div>
     </div>
@@ -142,18 +146,19 @@ const sendAdminAlert = async (
 };
 
 // ============================================================
-// SCHEDULED FUNCTION — Every 4 Hours
+// SCHEDULED FUNCTION — Every 8 Hours
 // ============================================================
 
-export const checkPendingApprovalsEvery4Hours = onSchedule(
+export const checkPendingApprovalsEvery8Hours = onSchedule(
   {
-    schedule: 'every 4 hours',
+    schedule: 'every 8 hours',
     timeZone: 'Asia/Kolkata',
     secrets: ['SMTP_USER', 'SMTP_PASS', 'ADMIN_EMAIL_FALLBACK']
   },
   async (event: any) => {
     try {
-      console.log('🔍 Running 4-hour admin moderation check...');
+      const db = getDb();
+      console.log('🔍 Running 8-hour admin moderation check...');
 
       // 1. Fetch all admin emails from Firestore
       // with hardcoded fallback for reliability
@@ -167,7 +172,7 @@ export const checkPendingApprovalsEvery4Hours = onSchedule(
       // Fallback to hardcoded email if Firestore
       // admins collection is empty or has no emails
       if (adminEmails.length === 0) {
-        const fallback = process.env.ADMIN_EMAIL_FALLBACK || 'md.imranabid@gmail.com';
+        const fallback = process.env.ADMIN_EMAIL_FALLBACK || 'stars@thekingdomalliances.com';
         console.warn(`⚠️ No admin emails in Firestore. Using fallback: ${fallback}`);
         adminEmails = [fallback];
       }
@@ -207,7 +212,7 @@ export const checkPendingApprovalsEvery4Hours = onSchedule(
       console.log(`📧 Sending alert to: ${adminEmails.join(', ')}`);
       console.log(`📊 SMTP_USER set: ${!!process.env.SMTP_USER}`);
       console.log(`📊 SMTP_PASS set: ${!!process.env.SMTP_PASS}`);
-      
+
       await sendAdminAlert(
         adminEmails,
         pendingUsers.length,

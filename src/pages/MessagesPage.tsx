@@ -14,7 +14,9 @@ import {
   limit,
   setDoc,
   updateDoc,
-  writeBatch
+  writeBatch,
+  or,
+  and
 } from 'firebase/firestore';
 import { db, rtdb } from '../lib/firebase';
 import { ref, set, onValue, onDisconnect, remove, get } from 'firebase/database';
@@ -76,13 +78,11 @@ export default function MessagesPage() {
   }, [currentUser]);
 
   // Fetch all chats/matches
+  // Fetch all chats/matches in real-time
   useEffect(() => {
     if (!currentUser) return;
 
-    // In a real app, we'd have a 'chats' collection. 
-    // Here we'll derive it from 'interests' that are 'accepted' or just interactions.
-    // For simplicity, let's look for accepted interests
-    const q = query(
+    const q1 = query(
       collection(db, 'interests'),
       where('status', '==', 'accepted'),
       where('fromId', '==', currentUser.uid)
@@ -93,43 +93,37 @@ export default function MessagesPage() {
       where('toId', '==', currentUser.uid)
     );
 
-    const unsubscribers: (() => void)[] = [];
+    let unsubUnreads: (() => void)[] = [];
+    
+    // Function to build and set the chat list
+    const updateChatList = async (docs1: any[], docs2: any[]) => {
+      // Clear previous unread status listeners
+      unsubUnreads.forEach(unsub => unsub());
+      unsubUnreads = [];
 
-    const fetchChats = async () => {
-      const [s1, s2] = await Promise.all([getDocs(q), getDocs(q2)]);
       const otherUserIds = new Set<string>();
-      s1.docs.forEach(d => otherUserIds.add(d.data().toId));
-      s2.docs.forEach(d => otherUserIds.add(d.data().fromId));
+      docs1.forEach(d => otherUserIds.add(d.toId));
+      docs2.forEach(d => otherUserIds.add(d.fromId));
 
       const chatList: any[] = [];
       for (const uid of otherUserIds) {
         const uDoc = await getDoc(doc(db, 'users', uid));
         if (uDoc.exists()) {
-          const chatId = [currentUser.uid, uid].sort().join('_');
-          const unreadQ = query(
-            collection(db, `chats/${chatId}/messages`),
-            where('receiverId', '==', currentUser.uid),
-            where('read', '==', false),
-            limit(1)
-          );
-          const unreadSnap = await getDocs(unreadQ);
-          const hasUnread = !unreadSnap.empty;
-
           chatList.push({ 
             id: uDoc.id, 
             ...uDoc.data(),
-            hasUnread 
+            hasUnread: false // Will be updated by real-time listeners
           });
         }
       }
+      
+      // Set the initial list first so mapping in snapshots finds existing chats
       setChats(chatList);
       setLoading(false);
 
-      // --- REAL-TIME UNREAD LISTENERS START ---
-      chatList.forEach((chat) => {
-        const chatId = [currentUser.uid, chat.id]
-          .sort().join('_');
-        
+      // Now register the real-time unread messages listener for each conversation
+      for (const uid of otherUserIds) {
+        const chatId = [currentUser.uid, uid].sort().join('_');
         const unreadQ = query(
           collection(db, `chats/${chatId}/messages`),
           where('receiverId', '==', currentUser.uid),
@@ -137,25 +131,36 @@ export default function MessagesPage() {
           limit(1)
         );
 
-        const unsub = onSnapshot(unreadQ, (snap) => {
+        const unsubUnread = onSnapshot(unreadQ, (snap) => {
           setChats(prev => prev.map(c =>
-            c.id === chat.id
-              ? { ...c, hasUnread: !snap.empty }
-              : c
+            c.id === uid ? { ...c, hasUnread: !snap.empty } : c
           ));
         });
-
-        unsubscribers.push(unsub);
-      });
-      // --- REAL-TIME UNREAD LISTENERS END ---
+        unsubUnreads.push(unsubUnread);
+      }
     };
 
-    fetchChats();
+    let snapshotDocs1: any[] = [];
+    let snapshotDocs2: any[] = [];
+
+    // Setup real-time listener for accepted interests (sent)
+    const unsubQ1 = onSnapshot(q1, (snap1) => {
+      snapshotDocs1 = snap1.docs.map(d => d.data());
+      updateChatList(snapshotDocs1, snapshotDocs2);
+    });
+
+    // Setup real-time listener for accepted interests (received)
+    const unsubQ2 = onSnapshot(q2, (snap2) => {
+      snapshotDocs2 = snap2.docs.map(d => d.data());
+      updateChatList(snapshotDocs1, snapshotDocs2);
+    });
 
     return () => {
-      unsubscribers.forEach(unsub => unsub());
+      unsubQ1();
+      unsubQ2();
+      unsubUnreads.forEach(unsub => unsub());
     };
-  }, [currentUser]);
+  }, [currentUser?.uid]);
 
   // Fetch active chat user
   useEffect(() => {
@@ -166,36 +171,47 @@ export default function MessagesPage() {
     }
 
     async function fetchUser() {
-      const uDoc = await getDoc(doc(db, 'users', activeChatUserId!));
-      if (uDoc.exists()) setActiveChatUser({ id: uDoc.id, ...uDoc.data() });
-      setChats(prev => prev.map(c => 
-        c.id === activeChatUserId 
-          ? { ...c, hasUnread: false } 
-          : c
-      ));
+      try {
+        const uDoc = await getDoc(doc(db, 'users', activeChatUserId!));
+        if (uDoc.exists()) setActiveChatUser({ id: uDoc.id, ...uDoc.data() });
+        setChats(prev => prev.map(c => 
+          c.id === activeChatUserId 
+            ? { ...c, hasUnread: false } 
+            : c
+        ));
+      } catch (err) {
+        console.error("DEBUG: Failed to fetch active chat user details:", err);
+      }
     }
     fetchUser();
 
+    if (!currentUser?.uid) return;
+
     // Set up real-time message listener
-    const chatId = [currentUser?.uid, activeChatUserId].sort().join('_');
+    const chatId = [currentUser.uid, activeChatUserId].sort().join('_');
     const msgsQuery = query(
       collection(db, `chats/${chatId}/messages`),
       orderBy('createdAt', 'asc')
     );
 
-    const unsubscribeMessages = onSnapshot(msgsQuery, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+    console.log(`DEBUG: Setting up messages listener for chatId: ${chatId}`);
 
+    const unsubscribeMessages = onSnapshot(msgsQuery, (snapshot) => {
+      console.log(`DEBUG: onSnapshot message event fired for ${chatId}! Total messages:`, snapshot.size);
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
       setMessages(msgs);
     }, (err) => {
+      console.error(`DEBUG: onSnapshot message listener failed for ${chatId} with error:`, err);
       handleFirestoreError(err, OperationType.LIST, `chats/${chatId}/messages`);
     });
 
     // Real-Time Connection Listener & Memory Management
     const q = query(
       collection(db, 'interests'),
-      where('fromId', 'in', [currentUser?.uid, activeChatUserId]),
-      where('toId', 'in', [currentUser?.uid, activeChatUserId])
+      or(
+        and(where('fromId', '==', currentUser.uid), where('toId', '==', activeChatUserId)),
+        and(where('fromId', '==', activeChatUserId), where('toId', '==', currentUser.uid))
+      )
     );
     const unsubConnection = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
@@ -207,10 +223,11 @@ export default function MessagesPage() {
     });
 
     return () => {
+      console.log(`DEBUG: Unsubscribing messages listener for chatId: ${chatId}`);
       unsubscribeMessages();
       unsubConnection();
     };
-  }, [activeChatUserId, currentUser]);
+  }, [activeChatUserId, currentUser?.uid]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -253,11 +270,15 @@ export default function MessagesPage() {
 
     if (unreadMessages.length > 0) {
       const chatId = [currentUser.uid, activeChatUserId].sort().join('_');
-      unreadMessages.forEach(msg => {
-        updateDoc(doc(db, `chats/${chatId}/messages`, msg.id), { read: true });
+      unreadMessages.forEach(async (msg) => {
+        try {
+          await updateDoc(doc(db, `chats/${chatId}/messages`, msg.id), { read: true });
+        } catch (err) {
+          console.error(`DEBUG: Failed to mark message ${msg.id} as read:`, err);
+        }
       });
     }
-  }, [messages, activeChatUserId, currentUser]);
+  }, [messages, activeChatUserId, currentUser?.uid]);
 
   useEffect(() => {
     if (!activeChatUser?.id) return;

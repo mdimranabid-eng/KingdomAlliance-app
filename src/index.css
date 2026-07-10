@@ -56,9 +56,9 @@
   }
 
   /* Force color for gradient cards */
-  .bg-gradient-to-r, .bg-gradient-to-br, .from-\[#040e2a\], .to-\[#1e3a8a\], 
-  .from-\[#0d9488\], .to-\[#059669\], .from-\[#7c3aed\], .to-\[#4f46e5\], 
-  .from-\[#d97706\], .to-\[#ea580c\] {
+  .bg-gradient-to-r, .bg-gradient-to-br, .from-\[\#040e2a\], .to-\[\#1e3a8a\], 
+  .from-\[\#0d9488\], .to-\[\#059669\], .from-\[\#7c3aed\], .to-\[\#4f46e5\], 
+  .from-\[\#d97706\], .to-\[\#ea580c\] {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }

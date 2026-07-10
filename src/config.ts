@@ -7,7 +7,7 @@
 
 export const CONFIG = {
   // --- SITE BRANDING ---
-  siteName: "Kingdom Alliance",
+  siteName: "The Kingdom Alliances",
   siteTagline: "Christian Matrimony Rooted in Faith & Values",
   
   // --- CONTACT INFORMATION ---

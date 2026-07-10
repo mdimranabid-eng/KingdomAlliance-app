@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { db, storage } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc, deleteDoc, Timestamp } from 'firebase/firestore';
@@ -88,6 +88,9 @@ export interface UserOnboardingData {
   churchName: string;
   diocese: string;
   baptized: string;
+  pastorName?: string;
+  pastorNumber?: string;
+  churchArea?: string;
   spiritualInvolvement: string[];
   motherTongue: string;
   languagesKnown: string[];
@@ -133,6 +136,7 @@ export interface UserOnboardingData {
     country: string;
     city: string;
     relocationPreference: string;
+    otherPreferences?: string;
   };
 }
 
@@ -159,6 +163,9 @@ export default function RegisterPage() {
   const [showPrefMotherTongueDropdown, setShowPrefMotherTongueDropdown] = useState(false);
   const prefMotherTongueDropdownRef = useRef<HTMLDivElement>(null);
 
+  const [showPrefDenominationDropdown, setShowPrefDenominationDropdown] = useState(false);
+  const prefDenominationDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (languagesDropdownRef.current && !languagesDropdownRef.current.contains(event.target as Node)) {
@@ -166,6 +173,9 @@ export default function RegisterPage() {
       }
       if (prefMotherTongueDropdownRef.current && !prefMotherTongueDropdownRef.current.contains(event.target as Node)) {
         setShowPrefMotherTongueDropdown(false);
+      }
+      if (prefDenominationDropdownRef.current && !prefDenominationDropdownRef.current.contains(event.target as Node)) {
+        setShowPrefDenominationDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -188,7 +198,7 @@ export default function RegisterPage() {
     dob: '',
     age: '',
     citizenship: '',
-    countryLiving: '',
+    countryLiving: 'Saudi Arabia',
     cityLiving: '',
     maritalStatus: '',
     height: '',
@@ -201,6 +211,9 @@ export default function RegisterPage() {
     churchName: '',
     diocese: '',
     baptized: '',
+    pastorName: '',
+    pastorNumber: '',
+    churchArea: '',
     spiritualInvolvement: [] as string[],
     motherTongue: '',
     languagesKnown: [] as string[],
@@ -244,9 +257,10 @@ export default function RegisterPage() {
       dietaryHabits: '',
       drinkingHabits: '',
       smokingHabits: '',
-      country: '',
+      country: 'Saudi Arabia',
       city: '',
-      relocationPreference: ''
+      relocationPreference: '',
+      otherPreferences: ''
     }
   });
 
@@ -293,7 +307,7 @@ export default function RegisterPage() {
   };
 
   const FieldLabel = ({ label, field, isOptional = false }: { label: string, field: string, isOptional?: boolean }) => (
-    <label className="block font-label-sm text-on-surface uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis">
+    <label className="block font-label-sm text-on-surface uppercase tracking-wider sm:whitespace-nowrap sm:overflow-hidden sm:text-ellipsis">
       {label}
       {!isOptional ? (
         <span className="text-[#dc2626] font-bold text-[14px] ml-[3px]">*</span>
@@ -466,6 +480,9 @@ export default function RegisterPage() {
       const trimmedLastName = formData.lastName.trim();
       const trimmedChurchName = formData.churchName.trim();
       const trimmedChurchCity = formData.churchCity.trim();
+      const trimmedChurchArea = (formData.churchArea || '').trim();
+      const trimmedPastorName = (formData.pastorName || '').trim();
+      const trimmedPastorNumber = (formData.pastorNumber || '').trim();
 
       // Update form state with trimmed values
       setFormData(prev => ({
@@ -473,10 +490,17 @@ export default function RegisterPage() {
         name: trimmedName,
         lastName: trimmedLastName,
         churchName: trimmedChurchName,
-        churchCity: trimmedChurchCity
+        churchCity: trimmedChurchCity,
+        churchArea: trimmedChurchArea,
+        pastorName: trimmedPastorName,
+        pastorNumber: trimmedPastorNumber
       }));
 
-      const required = ['profileFor', 'profileType', 'name', 'lastName', 'email', 'mobileNumber', 'dob', 'citizenship', 'countryLiving', 'cityLiving', 'denomination', 'churchName', 'churchCity'];
+      const required = [
+        'profileFor', 'profileType', 'name', 'lastName', 'email', 'mobileNumber', 
+        'dob', 'citizenship', 'countryLiving', 'cityLiving', 'denomination', 
+        'churchName', 'churchCity', 'baptized', 'churchArea', 'pastorName', 'pastorNumber'
+      ];
 
       const valMap: Record<string, string> = {
         profileFor: formData.profileFor,
@@ -491,7 +515,11 @@ export default function RegisterPage() {
         cityLiving: formData.cityLiving,
         denomination: formData.denomination,
         churchName: trimmedChurchName,
-        churchCity: trimmedChurchCity
+        churchCity: trimmedChurchCity,
+        baptized: formData.baptized,
+        churchArea: trimmedChurchArea,
+        pastorName: trimmedPastorName,
+        pastorNumber: trimmedPastorNumber
       };
 
       errors = required.filter(f => !valMap[f]);
@@ -499,6 +527,14 @@ export default function RegisterPage() {
         setInvalidFields(errors);
         setErrorMsg("Please fill in all mandatory fields.");
         scrollToFirstError(errors);
+        return;
+      }
+
+      // Pastor Number Format Validation (exactly 10 digits)
+      if (!/^[0-9]{10}$/.test(trimmedPastorNumber)) {
+        setErrorMsg("Pastor Number must be exactly 10 digits.");
+        setInvalidFields(['pastorNumber']);
+        scrollToFirstError(['pastorNumber']);
         return;
       }
 
@@ -664,6 +700,7 @@ export default function RegisterPage() {
       const prefRequired = ['ageMin', 'ageMax', 'heightMin', 'heightMax', 'educationLevel', 'country', 'city'];
       errors = prefRequired.filter(f => !pref[f as keyof typeof pref]);
       if (pref.maritalStatus.length === 0) errors.push('pref-maritalStatus');
+      if (pref.denominations.length === 0) errors.push('pref-denominations');
 
       if (errors.length > 0) {
         setInvalidFields(errors);
@@ -705,8 +742,6 @@ export default function RegisterPage() {
       if (!activeUser && savedCredsStr) {
         const creds = JSON.parse(savedCredsStr);
         if (creds.authProvider === 'email') {
-          // Perform the Firebase Auth registration
-          const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
           const userCredential = await createUserWithEmailAndPassword(auth, creds.email, creds.password);
           activeUser = userCredential.user;
 
@@ -739,6 +774,7 @@ export default function RegisterPage() {
         // Create photoModeration document
         await addDoc(collection(db, 'photoModeration'), {
           uid: activeUser.uid,
+          userId: activeUser.uid,
           userName: userName,
           photoURL: url,
           photoType: 'profilePhoto',
@@ -767,6 +803,7 @@ export default function RegisterPage() {
           // Create photoModeration document for each gallery photo
           await addDoc(collection(db, 'photoModeration'), {
             uid: activeUser.uid,
+            userId: activeUser.uid,
             userName: userName,
             photoURL: url,
             photoType: 'galleryPhoto',
@@ -814,6 +851,9 @@ export default function RegisterPage() {
         numberOfSiblings: formData.numberOfSiblings,
         diocese: formData.diocese,
         baptized: formData.baptized,
+        pastorName: formData.pastorName || '',
+        pastorNumber: formData.pastorNumber || '',
+        churchArea: formData.churchArea || '',
         spiritualInvolvement: formData.spiritualInvolvement,
         motherTongue: formData.motherTongue,
         languagesKnown: formData.languagesKnown,
@@ -848,20 +888,22 @@ export default function RegisterPage() {
           smokingHabits: formData.partnerPreferences.smokingHabits,
           country: formData.partnerPreferences.country,
           city: formData.partnerPreferences.city,
-          relocationPreference: formData.partnerPreferences.relocationPreference
+          relocationPreference: formData.partnerPreferences.relocationPreference,
+          otherPreferences: formData.partnerPreferences.otherPreferences || ''
         },
         uid: activeUser.uid,
         email: formData.email || activeUser.email || '',
         emailVerified: emailVerifiedLocal,
         authProvider: authProvider,
         role: 'user',
-        isSuspended: false,
         isBanned: false,
+        isSuspended: false,
         onboardingComplete: true,
         approvalStatus: 'pending',
         submittedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
+        // Ensure createdAt is always present (in case user registered via a flow that missed it)
+        ...((profile && profile.createdAt) ? {} : { createdAt: serverTimestamp() }),
         lastActive: serverTimestamp(),
         profileId: await generateUniqueProfileId()
       };
@@ -890,10 +932,10 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen bg-surface flex flex-col items-center p-4">
         <header className="w-full h-16 bg-surface border-b border-outline-variant flex items-center justify-center mb-8">
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
             <KingdomCrossIcon size="md" />
-            <span className="font-headline text-2xl text-primary font-bold tracking-tight">Kingdom Alliance</span>
-          </div>
+            <span className="font-headline text-2xl text-primary font-bold tracking-tight">{settings.siteName}</span>
+          </Link>
         </header>
         <main className="flex-1 w-full max-w-lg flex flex-col items-center justify-center">
           <div className="bg-surface-container-lowest rounded-[2rem] p-10 border border-outline-variant shadow-lg text-center space-y-6">
@@ -914,7 +956,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col items-center">
+    <div className="min-h-screen flex flex-col items-center relative overflow-hidden font-body"
+      style={{
+        background: 'linear-gradient(135deg, #fff0f3 0%, #ffe3e8 40%, #ffccd5 70%, #fff0f3 100%)'
+      }}
+    >
       <style>{`
         @keyframes mandatoryFlash {
           0%   { border-color: #dc2626; box-shadow: 0 0 0 0 rgba(220,38,38,0); }
@@ -932,19 +978,90 @@ export default function RegisterPage() {
           box-shadow: 0 0 0 3px rgba(220,38,38,0.15) !important;
         }
       `}</style>
+
+      {/* Ambient background orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-45"
+          style={{ background: 'radial-gradient(circle, #ffccd5 0%, transparent 70%)' }} />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl opacity-35"
+          style={{ background: 'radial-gradient(circle, #d4af3725 0%, transparent 70%)' }} />
+        <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full blur-3xl opacity-20"
+          style={{ background: 'radial-gradient(circle, #ffe5ec 0%, transparent 70%)' }} />
+      </div>
+
+      {/* Decorative SVG Roses & Leaves - Top Left */}
+      <svg className="absolute -top-10 -left-10 w-48 h-48 md:w-80 md:h-80 opacity-25 pointer-events-none select-none" viewBox="0 0 100 100" fill="none">
+        <path d="M30 20C20 30 15 50 35 70C55 50 45 35 30 20Z" fill="url(#rose-pink)" opacity="0.8"/>
+        <path d="M15 45C5 55 10 70 25 75C40 65 30 50 15 45Z" fill="url(#rose-red)" opacity="0.7"/>
+        <path d="M50 15C60 25 55 40 40 45C35 30 40 20 50 15Z" fill="url(#leaf-green)" opacity="0.5"/>
+        <path d="M25 60C35 75 55 70 65 85" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+
+      {/* Decorative SVG Roses & Leaves - Bottom Right */}
+      <svg className="absolute -bottom-10 -right-10 w-48 h-48 md:w-80 md:h-80 opacity-25 pointer-events-none select-none" viewBox="0 0 100 100" fill="none">
+        <path d="M70 80C80 70 85 50 65 30C45 50 55 65 70 80Z" fill="url(#rose-pink)" opacity="0.8"/>
+        <path d="M85 55C95 45 90 30 75 25C60 35 70 50 85 55Z" fill="url(#rose-red)" opacity="0.7"/>
+        <path d="M50 85C40 75 45 60 60 55C65 70 60 80 50 85Z" fill="url(#leaf-green)" opacity="0.5"/>
+        <path d="M75 40C65 25 45 30 35 15" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round"/>
+        <defs>
+          <radialGradient id="rose-pink" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fff0f3" />
+            <stop offset="50%" stopColor="#ffb3c1" />
+            <stop offset="100%" stopColor="#ff4d6d" />
+          </radialGradient>
+          <radialGradient id="rose-red" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ffb3c1" />
+            <stop offset="100%" stopColor="#c9184a" />
+          </radialGradient>
+          <linearGradient id="leaf-green" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#a3b18a" />
+            <stop offset="100%" stopColor="#588157" />
+          </linearGradient>
+        </defs>
+      </svg>
+
       {/* Header */}
-      <header className="w-full h-16 bg-surface border-b border-outline-variant flex items-center justify-center relative z-10">
-        <div className="flex items-center gap-2">
+      <header className="w-full h-16 bg-transparent border-b border-white/10 flex items-center justify-center relative z-10">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
           <KingdomCrossIcon size="md" />
-          <span className="font-headline text-2xl text-primary font-bold tracking-tight">Kingdom Alliance</span>
-        </div>
+          <span className="font-headline text-2xl text-on-surface font-bold tracking-tight">{settings.siteName}</span>
+        </Link>
       </header>
 
-
-
       <main className="flex-1 w-full max-w-6xl px-4 py-8 lg:py-16 flex flex-col lg:flex-row gap-12 relative z-0">
-        {/* Stepper Nav */}
-        <aside className="lg:w-1/4">
+        {/* Horizontal Mobile Stepper (Hidden on Desktop) */}
+        <div className="lg:hidden w-full flex flex-col items-center gap-4 mb-4">
+          <h2 className="font-headline text-2xl text-on-surface text-center">Registration</h2>
+          <div className="flex items-center justify-between w-full max-w-xs relative px-4">
+            {/* Background line connecting the steps */}
+            <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-outline-variant -translate-y-1/2 z-0" />
+            
+            {STEPS.map((step) => {
+              const isActive = currentStep === step.id;
+              const isCompleted = currentStep > step.id;
+              
+              return (
+                <div key={step.id} className="relative z-10 flex flex-col items-center">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 font-inter text-xs font-semibold",
+                    isActive ? "bg-primary border-primary text-on-primary shadow-lg shadow-primary/20" :
+                      isCompleted ? "bg-secondary border-secondary text-on-secondary" :
+                        "bg-surface border-outline-variant text-on-surface-variant"
+                  )}>
+                    {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : step.id}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-center px-4">
+            <p className="font-bold text-primary text-sm">{STEPS[currentStep - 1].title}</p>
+            <p className="text-xs text-on-surface-variant">{STEPS[currentStep - 1].description}</p>
+          </div>
+        </div>
+
+        {/* Stepper Nav (Hidden on Mobile, Visible on Desktop) */}
+        <aside className="hidden lg:block lg:w-1/4">
           <div className="sticky top-8 space-y-8">
             <h2 className="font-headline text-3xl text-on-surface">Registration</h2>
             <div className="space-y-6">
@@ -987,8 +1104,19 @@ export default function RegisterPage() {
         </aside>
 
         {/* Form Area */}
-        <div className="flex-1 bg-surface-container-lowest rounded-3xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col">
-          <div className="p-8 lg:p-12 bg-surface-container-low border-b border-outline-variant">
+        <div 
+          className="flex-1 rounded-[2.5rem] overflow-hidden flex flex-col"
+          style={{
+            background: 'rgba(255, 255, 255, 0.62)',
+            backdropFilter: 'blur(40px)',
+            WebkitBackdropFilter: 'blur(40px)',
+            border: '1px solid rgba(255, 255, 255, 0.85)',
+            boxShadow: '0 32px 64px -12px rgba(26,46,74,0.12), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 -1px 0 rgba(0,0,0,0.04)'
+          }}
+        >
+          <div className="p-8 lg:p-12 border-b border-white/20"
+            style={{ background: 'rgba(255, 255, 255, 0.3)' }}
+          >
             <h3 className="font-headline text-3xl text-on-surface mb-2">{STEPS[currentStep - 1].title}</h3>
             <p className="text-on-surface-variant">{STEPS[currentStep - 1].description}</p>
           </div>
@@ -1107,7 +1235,7 @@ export default function RegisterPage() {
                           value={formData.email}
                           placeholder="Email address"
                           readOnly
-                          className="w-full px-4 py-3 bg-surface-variant/30 text-on-surface-variant border border-outline-variant rounded-xl outline-none cursor-not-allowed"
+                          className="w-full pl-4 pr-32 py-3 bg-surface-variant/30 text-on-surface-variant border border-outline-variant rounded-xl outline-none cursor-not-allowed"
                         />
                         {isGoogleUser ? (
                           <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-[10px] font-bold text-primary bg-primary/5 px-2 py-1 rounded-md border border-primary/10">
@@ -1194,8 +1322,11 @@ export default function RegisterPage() {
                           )}
                         >
                           <option value="">Select Country</option>
-                          {WORLD_COUNTRIES.map(country => <option key={country} value={country}>{country}</option>)}
+                          <option value="Saudi Arabia">Saudi Arabia</option>
                         </select>
+                        <p className="text-xs text-on-surface-variant/80 italic mt-1 font-medium">
+                          Only applicants living in Saudi Arabia may register.
+                        </p>
                         <ErrorMessage field="countryLiving" message="Please select your country." />
                       </div>
                       <div className="space-y-2" id="field-cityLiving">
@@ -1218,7 +1349,7 @@ export default function RegisterPage() {
 
                     <h4 className="font-headline text-2xl text-on-surface mt-6">Religion & Church</h4>
 
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-denomination">
                         <FieldLabel label="Denomination" field="denomination" />
                         <select
@@ -1249,7 +1380,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-churchCity">
                         <FieldLabel label="Church City" field="churchCity" />
                         <select
@@ -1266,6 +1397,80 @@ export default function RegisterPage() {
                         </select>
                         <ErrorMessage field="churchCity" message="Required." />
                       </div>
+
+                      <div className="space-y-1" id="field-churchArea">
+                        <FieldLabel label="Church in Area" field="churchArea" />
+                        <input
+                          type="text"
+                          value={formData.churchArea || ''}
+                          onChange={(e) => updateFormData('churchArea', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('churchArea') && "field-error-animation"
+                          )}
+                          placeholder="e.g. Downtown, Sector 4"
+                        />
+                        <ErrorMessage field="churchArea" message="Required." />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-1" id="field-baptized">
+                        <FieldLabel label="Baptized" field="baptized" />
+                        <select
+                          value={formData.baptized}
+                          onChange={(e) => updateFormData('baptized', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('baptized') && "field-error-animation"
+                          )}
+                        >
+                          <option value="">Select Option</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </select>
+                        <ErrorMessage field="baptized" message="Required." />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-1" id="field-pastorName">
+                        <FieldLabel label="Pastor Name" field="pastorName" />
+                        <input
+                          type="text"
+                          value={formData.pastorName || ''}
+                          onChange={(e) => updateFormData('pastorName', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('pastorName') && "field-error-animation"
+                          )}
+                        />
+                        <ErrorMessage field="pastorName" message="Required." />
+                      </div>
+
+                      <div className="space-y-1" id="field-pastorNumber">
+                        <FieldLabel label="Pastor Number" field="pastorNumber" />
+                        <input
+                          type="text"
+                          value={formData.pastorNumber || ''}
+                          onChange={(e) => updateFormData('pastorNumber', e.target.value)}
+                          className={cn(
+                            "w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg outline-none text-sm",
+                            invalidFields.includes('pastorNumber') && "field-error-animation"
+                          )}
+                          placeholder="10-digit number"
+                        />
+                        <ErrorMessage field="pastorNumber" message="Required. Must be exactly 10 digits." />
+                      </div>
+                    </div>
+
+                    <div className="mt-8 p-4 bg-surface-variant/30 rounded-xl border border-outline-variant/30 flex items-start gap-3">
+                      <svg className="w-5 h-5 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <p className="text-xs text-on-surface-variant font-medium leading-relaxed">
+                        Your Email, Mobile number, Pastor Name & Number will not be visible to other users
+                      </p>
                     </div>
 
                   </div>
@@ -1274,7 +1479,7 @@ export default function RegisterPage() {
                 {currentStep === 2 && (
                   <div className="space-y-6">
                     <h4 className="font-headline text-xl text-on-surface">Personal Details</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1" id="field-maritalStatus">
                         <FieldLabel label="Marital Status" field="maritalStatus" />
                         <select
@@ -1306,7 +1511,7 @@ export default function RegisterPage() {
                         <ErrorMessage field="height" message="This field is required." />
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-1" id="field-weight">
                         <FieldLabel label="Weight (kg)" field="weight" />
                         <input
@@ -1450,7 +1655,7 @@ export default function RegisterPage() {
                     </div>
 
                     <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Career Path</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1" id="field-education">
                         <FieldLabel label="Education" field="education" />
                         <select
@@ -1481,7 +1686,7 @@ export default function RegisterPage() {
                         <ErrorMessage field="profession" message="This field is required." />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1" id="field-fieldOfStudy">
                         <FieldLabel label="Field of Study" field="fieldOfStudy" isOptional={true} />
                         <input
@@ -1509,7 +1714,7 @@ export default function RegisterPage() {
                     </div>
 
                     <h4 className="font-headline text-xl text-on-surface pt-4 border-t border-outline-variant">Lifestyle</h4>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-1" id="field-dietaryHabits">
                         <FieldLabel label="Diet" field="dietaryHabits" />
                         <select
@@ -1586,7 +1791,7 @@ export default function RegisterPage() {
                 {currentStep === 3 && (
                   <div className="space-y-8">
                     <h4 className="font-headline text-2xl text-on-surface">Family Background</h4>
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-fathersName">
                         <FieldLabel label="Father's Name" field="fathersName" />
                         <input
@@ -1615,7 +1820,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-mothersName">
                         <FieldLabel label="Mother's Name" field="mothersName" />
                         <input
@@ -1644,7 +1849,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-1" id="field-numberOfSiblings">
                         <FieldLabel label="Number of Siblings" field="numberOfSiblings" />
                         <select
@@ -1673,7 +1878,7 @@ export default function RegisterPage() {
                 {currentStep === 4 && (
                   <div className="space-y-8">
                     <h4 className="font-headline text-2xl text-on-surface">Age, Height & Language Preferences</h4>
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2" id="field-ageMin">
                         <FieldLabel label="Min Age" field="ageMin" />
                         <select
@@ -1705,7 +1910,7 @@ export default function RegisterPage() {
                         <ErrorMessage field="ageMax" message="Required." />
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <div className="space-y-2" id="field-heightMin">
                         <FieldLabel label="Min Height (ft)" field="heightMin" />
                         <select
@@ -1745,7 +1950,7 @@ export default function RegisterPage() {
                             className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary"
                           >
                             <span className="truncate">
-                              {formData.partnerPreferences.motherTongue.length > 0
+                              {formData.partnerPreferences.motherTongue.length > 0 && !formData.partnerPreferences.motherTongue.includes('Any')
                                 ? formData.partnerPreferences.motherTongue.join(', ')
                                 : "Any"
                               }
@@ -1754,9 +1959,24 @@ export default function RegisterPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                             </svg>
                           </button>
-
+ 
                           {showPrefMotherTongueDropdown && (
                             <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-xl shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
+                              {/* "Any" Option */}
+                              <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm font-semibold border-b border-outline-variant pb-2 mb-1">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.partnerPreferences.motherTongue.includes('Any')}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    const next = checked ? ['Any'] : [];
+                                    updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
+                                  }}
+                                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                />
+                                <span className="text-on-surface">Any</span>
+                              </label>
+
                               <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
                                 <input
                                   type="checkbox"
@@ -1764,7 +1984,7 @@ export default function RegisterPage() {
                                   onChange={(e) => {
                                     const checked = e.target.checked;
                                     const next = checked
-                                      ? [...formData.partnerPreferences.motherTongue, 'English']
+                                      ? [...formData.partnerPreferences.motherTongue.filter(l => l !== 'Any'), 'English']
                                       : formData.partnerPreferences.motherTongue.filter(l => l !== 'English');
                                     updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
                                   }}
@@ -1781,7 +2001,7 @@ export default function RegisterPage() {
                                     onChange={(e) => {
                                       const checked = e.target.checked;
                                       const next = checked
-                                        ? [...formData.partnerPreferences.motherTongue, lang]
+                                        ? [...formData.partnerPreferences.motherTongue.filter(l => l !== 'Any'), lang]
                                         : formData.partnerPreferences.motherTongue.filter(l => l !== lang);
                                       updateFormData('partnerPreferences', { ...formData.partnerPreferences, motherTongue: next });
                                     }}
@@ -1797,7 +2017,7 @@ export default function RegisterPage() {
                     </div>
 
                     <h4 className="font-headline text-2xl text-on-surface">Lifestyle & References</h4>
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2" id="field-dietaryHabits-pref">
                         <FieldLabel label="Dietary Habits" field="dietaryHabits-pref" isOptional={true} />
                         <select value={formData.partnerPreferences.dietaryHabits} onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, dietaryHabits: e.target.value })} className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none">
@@ -1821,8 +2041,70 @@ export default function RegisterPage() {
                       </select>
                     </div>
 
-                    <h4 className="font-headline text-2xl text-on-surface">Background & Location</h4>
-                    <div className="grid grid-cols-2 gap-6">
+                     <h4 className="font-headline text-2xl text-on-surface">Background & Location</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div ref={prefDenominationDropdownRef} className="space-y-2 relative" id="field-pref-denominations">
+                        <FieldLabel label="Denomination Preference" field="pref-denominations" />
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setShowPrefDenominationDropdown(!showPrefDenominationDropdown)}
+                            className={cn(
+                              "w-full px-4 py-3 bg-surface border rounded-xl outline-none text-sm text-left flex justify-between items-center transition-all focus:border-primary",
+                              invalidFields.includes('pref-denominations') ? "border-[#dc2626] field-error-animation" : "border-outline-variant"
+                            )}
+                          >
+                            <span className="truncate">
+                              {formData.partnerPreferences.denominations.length > 0
+                                ? formData.partnerPreferences.denominations.join(', ')
+                                : "Select Denominations"
+                              }
+                            </span>
+                            <svg className="w-4 h-4 text-on-surface-variant transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+
+                           {showPrefDenominationDropdown && (
+                            <div className="absolute z-50 w-full mt-1 bg-surface border border-outline-variant rounded-xl shadow-lg max-h-60 overflow-y-auto p-2 space-y-1 font-sans">
+                              {/* "Any" Option */}
+                              <label className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm font-semibold border-b border-outline-variant pb-2 mb-1">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.partnerPreferences.denominations.includes('Any')}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    const next = checked ? ['Any'] : [];
+                                    updateFormData('partnerPreferences', { ...formData.partnerPreferences, denominations: next });
+                                  }}
+                                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                />
+                                <span className="text-on-surface">Any</span>
+                              </label>
+
+                              {POPULAR_DENOMINATIONS.map(denom => (
+                                <label key={denom} className="flex items-center space-x-2 p-1.5 rounded hover:bg-surface-variant cursor-pointer text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={formData.partnerPreferences.denominations.includes(denom)}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      const next = checked
+                                        ? [...formData.partnerPreferences.denominations.filter(d => d !== 'Any'), denom]
+                                        : formData.partnerPreferences.denominations.filter(d => d !== denom);
+                                      updateFormData('partnerPreferences', { ...formData.partnerPreferences, denominations: next });
+                                    }}
+                                    className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  <span className="text-on-surface">{denom}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <ErrorMessage field="pref-denominations" message="Required." />
+                      </div>
+
                       <div className="space-y-2" id="field-educationLevel">
                         <FieldLabel label="Education Level" field="educationLevel" />
                         <select
@@ -1849,13 +2131,12 @@ export default function RegisterPage() {
                           )}
                         >
                           <option value="">Select Country</option>
-                          <option value="Any">Any</option>
-                          {WORLD_COUNTRIES.map(country => <option key={country} value={country}>{country}</option>)}
+                          <option value="Saudi Arabia">Saudi Arabia</option>
                         </select>
                         <ErrorMessage field="country" message="Required." />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2" id="field-city">
                         <FieldLabel label="City Preference" field="city" />
                         <select
@@ -1902,6 +2183,17 @@ export default function RegisterPage() {
                         ))}
                       </div>
                       <ErrorMessage field="pref-maritalStatus" message="Please select at least one option." />
+                    </div>
+
+                    <div className="space-y-2" id="field-pref-otherPreferences">
+                      <FieldLabel label="My Desired Partner" field="pref-otherPreferences" isOptional={true} />
+                      <textarea
+                        value={formData.partnerPreferences.otherPreferences || ''}
+                        onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, otherPreferences: e.target.value })}
+                        placeholder="Describe any additional qualities, background, or criteria you are looking for in a partner..."
+                        rows={4}
+                        className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl outline-none resize-none focus:ring-2 focus:ring-primary text-on-surface"
+                      />
                     </div>
                   </div>
                 )}
@@ -2048,14 +2340,17 @@ export default function RegisterPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="p-8 lg:p-12 bg-surface-container-low border-t border-outline-variant flex justify-between items-center mt-auto">
+          <div className="p-8 lg:p-12 border-t border-white/20 flex justify-between items-center mt-auto"
+            style={{ background: 'rgba(255, 255, 255, 0.3)' }}
+          >
             <button
               onClick={handleBack}
               disabled={currentStep === 1}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl font-label-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant disabled:opacity-0 transition-all font-inter"
+              className="flex items-center gap-2 px-10 py-3 bg-primary text-on-primary rounded-xl font-label-lg shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5 disabled:opacity-0 transition-all font-inter"
             >
               <ArrowLeft className="w-5 h-5" /> Back
             </button>
+
             <button
               onClick={handleNext}
               disabled={loading}

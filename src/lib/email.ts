@@ -8,14 +8,17 @@ interface EmailPayload {
 }
 
 export const sendEmail = async (payload: EmailPayload): Promise<void> => {
-  // Use relative path for local Vite proxy, or absolute URL for Firebase production
-  const baseUrl = import.meta.env.MODE === 'development' 
-    ? '/api' 
-    : (import.meta.env.VITE_PRODUCTION_API || '');
+  const isDev = import.meta.env.MODE === 'development';
+  
+  // Dynamically resolve the correct Gen 2 function URL depending on environment
+  const endpoint = isDev
+    ? '/api/send-email'
+    : window.location.hostname.includes('staging')
+      ? 'https://sendemailapi-2wu7cebqxq-uc.a.run.app'
+      : 'https://sendemailapi-zqwxjtgara-uc.a.run.app';
 
   try {
-    // The fetch path dynamically adapts based on the environment
-    const response = await fetch(`${baseUrl}/send-email`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

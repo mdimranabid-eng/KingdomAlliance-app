@@ -12,7 +12,8 @@ import {
   Activity, 
   Quote, 
   Heart,
-  Loader2
+  Loader2,
+  GraduationCap
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { generateBiodataPDF } from '../../lib/BiodataGenerator';
@@ -56,6 +57,10 @@ export interface UserProfile {
   faithBackground?: string;
   churchName?: string;
   churchAddress?: string;
+  churchCity?: string;
+  churchArea?: string;
+  pastorName?: string;
+  pastorNumber?: string;
   diocese?: string;
   baptized?: string;
   baptismYear?: string;
@@ -113,6 +118,7 @@ export interface UserProfile {
     country?: string;
     city?: string;
     relocationPreference?: string;
+    otherPreferences?: string;
   };
 }
 
@@ -264,7 +270,10 @@ export default function AdminUserDetailModal({
                   <DetailItem label="Physical Status" value={user.physicalStatus} colSpan={2} />
                   {user.physicalStatusDesc && <DetailItem label="Disability Info" value={user.physicalStatusDesc} colSpan={2} />}
                   <DetailItem label="Mother Tongue" value={Array.isArray(user.motherTongue) ? user.motherTongue.join(', ') : user.motherTongue} />
+                  <DetailItem label="Languages Known" value={user.languagesKnown?.join(', ')} colSpan={2} />
                   <DetailItem label="Citizenship" value={user.citizenship} />
+                  <DetailItem label="Country Living" value={user.countryLiving} />
+                  <DetailItem label="City Living" value={user.cityLiving} colSpan={2} />
                 </div>
               </div>
 
@@ -279,11 +288,31 @@ export default function AdminUserDetailModal({
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                   <DetailItem label="Denomination" value={user.denomination} />
                   <DetailItem label="Baptized" value={user.baptized} />
-                  <DetailItem label="Church" value={user.churchName} colSpan={2} />
+                  <DetailItem label="Baptism Year" value={user.baptismYear} />
+                  <DetailItem label="Church Name" value={user.churchName} colSpan={2} />
+                  <DetailItem label="Church City" value={user.churchCity} />
+                  <DetailItem label="Church Area" value={user.churchArea} />
                   <DetailItem label="Diocese" value={user.diocese} colSpan={2} />
-                  <DetailItem label="Spiritual Involvement" value={user.spiritualInvolvement?.join(', ') || 'None'} colSpan={2} />
-                  <DetailItem label="Spiritual Gifts" value={user.spiritualGifts} colSpan={2} />
-                  <DetailItem label="Faith Background" value={user.faithBackground} colSpan={2} />
+                  <DetailItem label="Pastor Name" value={user.pastorName} />
+                  <DetailItem label="Pastor Number" value={user.pastorNumber} />
+                </div>
+              </div>
+
+              {/* Education & Career */}
+              <div className="space-y-5">
+                <div className="flex items-center gap-2 text-primary">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <h4 className="font-bold text-sm uppercase tracking-wider">Education & Career</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <DetailItem label="Education" value={user.education} />
+                  <DetailItem label="Field of Study" value={user.fieldOfStudy} />
+                  <DetailItem label="College" value={user.college} colSpan={2} />
+                  <DetailItem label="Profession" value={user.profession} />
+                  <DetailItem label="Employment Type" value={user.employmentType} />
+                  <DetailItem label="Annual Income" value={user.annualIncome} colSpan={2} />
                 </div>
               </div>
 
@@ -296,30 +325,27 @@ export default function AdminUserDetailModal({
                   <h4 className="font-bold text-sm uppercase tracking-wider">Family Background</h4>
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <DetailItem label="Father's Name" value={user.fathersName || user.fatherName} />
-                  <DetailItem label="Father's Job" value={user.fathersOccupation || user.fatherOccupation} />
-                  <DetailItem label="Mother's Name" value={user.mothersName || user.motherName} />
-                  <DetailItem label="Mother's Job" value={user.mothersOccupation || user.motherOccupation} />
-                  <DetailItem label="Siblings" value={user.numberOfSiblings || user.noOfSiblings} />
-                  <DetailItem label="Family Type" value={user.familyType} />
-                  <DetailItem label="Family Faith" value={user.familyFaith} colSpan={2} />
+                  <DetailItem label="Father's Name" value={user.fathersName} />
+                  <DetailItem label="Father's Occupation" value={user.fathersOccupation} />
+                  <DetailItem label="Mother's Name" value={user.mothersName} />
+                  <DetailItem label="Mother's Occupation" value={user.mothersOccupation} />
+                  <DetailItem label="Number of Siblings" value={user.numberOfSiblings} colSpan={2} />
                 </div>
               </div>
 
               {/* Lifestyle & Hobbies */}
-              <div className="space-y-5">
+              <div className="space-y-5 col-span-full">
                 <div className="flex items-center gap-2 text-primary">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Activity className="w-4 h-4" />
                   </div>
                   <h4 className="font-bold text-sm uppercase tracking-wider">Lifestyle & Hobbies</h4>
                 </div>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
                   <DetailItem label="Dietary Habits" value={user.dietaryHabits} />
                   <DetailItem label="Drinking" value={user.drinkingHabits} />
                   <DetailItem label="Smoking" value={user.smokingHabits} />
-                  <DetailItem label="Languages" value={user.languagesKnown?.join(', ') || 'N/A'} />
-                  <DetailItem label="Hobbies / Interests" value={user.hobbies?.join(', ') || 'None'} colSpan={2} />
+                  <DetailItem label="Hobbies / Interests" value={user.hobbies?.join(', ') || 'None'} />
                 </div>
               </div>
 
@@ -336,21 +362,6 @@ export default function AdminUserDetailModal({
                 </div>
               </div>
 
-              {/* Testimony / Church & Faith (For Approvals page support) */}
-              {user.testimony && (
-                <div className="col-span-full space-y-5">
-                  <div className="flex items-center gap-2 text-primary">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Church className="w-4 h-4" />
-                    </div>
-                    <h4 className="font-bold text-sm uppercase tracking-wider">Testimony</h4>
-                  </div>
-                  <div className="p-6 bg-surface-container-low rounded-2xl border border-outline-variant italic text-on-surface-variant leading-relaxed">
-                    {user.testimony}
-                  </div>
-                </div>
-              )}
-
               {/* Preferences */}
               <div className="col-span-full space-y-5">
                 <div className="flex items-center gap-2 text-secondary">
@@ -364,11 +375,13 @@ export default function AdminUserDetailModal({
                   <DetailItem label="Height Range" value={user.partnerPreferences?.heightMin ? `${user.partnerPreferences?.heightMin} - ${user.partnerPreferences?.heightMax} ft` : null} />
                   <DetailItem label="Marital Status" value={user.partnerPreferences?.maritalStatus?.join(', ') || 'Any'} />
                   <DetailItem label="Denominations" value={user.partnerPreferences?.denominations?.join(', ') || 'Any'} />
+                  <DetailItem label="Mother Tongue" value={user.partnerPreferences?.motherTongue?.join(', ') || 'Any'} />
                   <DetailItem label="Education" value={user.partnerPreferences?.educationLevel || 'Any'} />
                   <DetailItem label="Employment" value={user.partnerPreferences?.employmentStatus || 'Any'} />
                   <DetailItem label="Location" value={user.partnerPreferences?.city || user.partnerPreferences?.country ? `${user.partnerPreferences?.city || 'Any City'}, ${user.partnerPreferences?.country || 'Any Country'}` : 'Any'} />
                   <DetailItem label="Relocation" value={user.partnerPreferences?.relocationPreference || 'Any'} />
                   <DetailItem label="Diet/Drink/Smoke" value={user.partnerPreferences ? `${user.partnerPreferences?.dietaryHabits || 'Any'} / ${user.partnerPreferences?.drinkingHabits || 'Any'} / ${user.partnerPreferences?.smokingHabits || 'Any'}` : 'Any'} />
+                  <DetailItem label="My Desired Partner" value={user.partnerPreferences?.otherPreferences || 'None'} colSpan={3} />
                 </div>
               </div>
             </div>

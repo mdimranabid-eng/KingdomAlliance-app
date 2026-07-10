@@ -21,7 +21,8 @@ import {
   Star,
   MapPin,
   ChevronRight,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge, generateUniqueProfileId, isUserOnline } from '../lib/utils';
@@ -155,7 +156,7 @@ function calculateProfileStrength(profile: any): {
 }
 
 export default function DashboardPage() {
-  const { profile, loading: authLoading } = useAuth();
+  const { user: authUser, profile, loading: authLoading } = useAuth();
   const [suggestedMatches, setSuggestedMatches] = useState<any[]>([]);
   const [matchLoading, setMatchLoading] = useState(true);
   const [profileViewsCount, setProfileViewsCount] = useState(0);
@@ -166,13 +167,69 @@ export default function DashboardPage() {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  const [viewsModalOpen, setViewsModalOpen] = useState(false);
+  const [visitors, setVisitors] = useState<any[]>([]);
+  const [visitorsLoading, setVisitorsLoading] = useState(false);
+
+  const handleOpenViewsModal = async () => {
+    if (!authUser) return;
+    setViewsModalOpen(true);
+    setVisitorsLoading(true);
+    try {
+      const viewsSnap = await getDocs(
+        query(
+          collection(db, 'profileViews'),
+          where('profileId', '==', authUser.uid)
+        )
+      );
+
+      const sortedDocs = [...viewsSnap.docs].sort((a, b) => {
+        const aTime = a.data().viewedAt?.seconds || 0;
+        const bTime = b.data().viewedAt?.seconds || 0;
+        return bTime - aTime;
+      });
+
+      const enrichedVisitors: any[] = [];
+      for (const d of sortedDocs) {
+        const viewData = d.data();
+        const viewerId = viewData.viewerId;
+        if (!viewerId) continue;
+        
+        try {
+          const userDoc = await getDoc(doc(db, 'users', viewerId));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const age = calculateAge(userData.dob, userData.age);
+            enrichedVisitors.push({
+              id: viewerId,
+              name: userData.name || 'Someone',
+              age: age || '',
+              location: userData.cityLiving || userData.countryLiving || 'Unknown location',
+              denomination: userData.denomination || 'Unknown denomination',
+              photoUrl: getOptimizedImageUrl(userData.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${viewerId}`,
+              viewedAt: viewData.viewedAt?.toDate ? viewData.viewedAt.toDate() : new Date(),
+            });
+          }
+        } catch (err) {
+          console.error(`Error fetching user details for ${viewerId}:`, err);
+        }
+      }
+
+      setVisitors(enrichedVisitors);
+    } catch (err) {
+      console.error('Error fetching visitors list:', err);
+    } finally {
+      setVisitorsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchSuggestions = async () => {
-      if (!profile) return;
+      if (!profile || !authUser) return;
       try {
         if (!profile.profileId) {
           const newId = await generateUniqueProfileId();
-          await updateDoc(doc(db, 'users', profile.uid || profile.id), { profileId: newId });
+          await updateDoc(doc(db, 'users', authUser.uid), { profileId: newId });
         }
         setMatchLoading(true);
 
@@ -198,7 +255,7 @@ export default function DashboardPage() {
         // Force Cache Invalidation to purge legacy/unfiltered matches
         localStorage.removeItem('kingdomAlliance_dailyMatches');
 
-        const currentUserUid = profile.uid || profile.id;
+        const currentUserUid = authUser.uid;
 
         // Task 2: The Ultimate Privacy Shield (Exclusion Set)
         const excludedUids = new Set<string>();
@@ -322,110 +379,132 @@ export default function DashboardPage() {
       }
     };
 
-    if (profile) fetchSuggestions();
-  }, [profile]);
+    if (profile && authUser) fetchSuggestions();
+  }, [profile, authUser]);
 
   useEffect(() => {
-    if (!profile) return;
-    const uid = profile.uid || profile.id;
+    if (!profile || !authUser) return;
+    const uid = authUser.uid;
 
     const fetchStats = async () => {
       try {
         setStatsLoading(true);
 
         // 1. Profile Views
-        const viewsSnap = await getDocs(
-          query(
-            collection(db, 'profileViews'),
-            where('profileId', '==', uid)
-          )
-        );
-        setProfileViewsCount(viewsSnap.size);
+        try {
+          const viewsSnap = await getDocs(
+            query(
+              collection(db, 'profileViews'),
+              where('profileId', '==', uid)
+            )
+          );
+          setProfileViewsCount(viewsSnap.size);
+        } catch (err) {
+          console.error('Error fetching profile views:', err);
+        }
 
-        // 2. Interests Received
-        const interestsSnap = await getDocs(
-          query(
-            collection(db, 'interests'),
-            where('toId', '==', uid)
-          )
-        );
-        setInterestsCount(interestsSnap.size);
+        // 2. Interests Received (Pending Only)
+        try {
+          const interestsSnap = await getDocs(
+            query(
+              collection(db, 'interests'),
+              where('toId', '==', uid),
+              where('status', '==', 'pending')
+            )
+          );
+          setInterestsCount(interestsSnap.size);
+        } catch (err) {
+          console.error('Error fetching interests count:', err);
+        }
 
         // 3. Active Chats
-        const [chats1, chats2] = await Promise.all([
-          getDocs(query(
-            collection(db, 'interests'),
-            where('toId', '==', uid),
-            where('status', '==', 'accepted')
-          )),
-          getDocs(query(
-            collection(db, 'interests'),
-            where('fromId', '==', uid),
-            where('status', '==', 'accepted')
-          ))
-        ]);
-        setActiveChatsCount(chats1.size + chats2.size);
+        try {
+          const [chats1, chats2] = await Promise.all([
+            getDocs(query(
+              collection(db, 'interests'),
+              where('toId', '==', uid),
+              where('status', '==', 'accepted')
+            )),
+            getDocs(query(
+              collection(db, 'interests'),
+              where('fromId', '==', uid),
+              where('status', '==', 'accepted')
+            ))
+          ]);
+          setActiveChatsCount(chats1.size + chats2.size);
+        } catch (err) {
+          console.error('Error fetching active chats:', err);
+        }
 
         // 4. Unread Messages
-        const unreadSnap = await getDocs(
-          query(
-            collectionGroup(db, 'messages'),
-            where('receiverId', '==', uid),
-            where('read', '==', false)
-          )
-        );
-        setUnreadMessagesCount(unreadSnap.size);
+        try {
+          const unreadSnap = await getDocs(
+            query(
+              collectionGroup(db, 'messages'),
+              where('receiverId', '==', uid),
+              where('read', '==', false)
+            )
+          );
+          setUnreadMessagesCount(unreadSnap.size);
+        } catch (err) {
+          console.error('Error fetching unread messages:', err);
+        }
 
         // 5. Recent Activity from notifications
-        const activitySnap = await getDocs(
-          query(
-            collection(db, 'notifications'),
-            where('userId', '==', uid),
-            orderBy('createdAt', 'desc'),
-            limit(5)
-          )
-        );
+        try {
+          const activitySnap = await getDocs(
+            query(
+              collection(db, 'notifications'),
+              where('userId', '==', uid),
+              orderBy('createdAt', 'desc'),
+              limit(5)
+            )
+          );
 
-        const activities = await Promise.all(
-          activitySnap.docs.map(async (d) => {
-            const data = d.data();
-            const senderDoc = await getDoc(
-              doc(db, 'users', data.fromId)
-            );
-            const senderName = senderDoc.exists()
-              ? senderDoc.data()?.name
-              : 'Someone';
-            return {
-              id: d.id,
-              user: senderName,
-              action: data.type === 'interest'
-                ? 'sent an interest'
-                : data.type === 'accepted'
-                  ? 'accepted your interest'
-                  : 'sent a message',
-              time: data.createdAt?.toDate
-                ? timeAgo(data.createdAt.toDate())
-                : 'Recently',
-              icon: data.type === 'message'
-                ? 'message'
-                : data.type === 'accepted'
-                  ? 'accepted'
-                  : 'interest',
-              type: data.type
-            };
-          })
-        );
-        setRecentActivity(activities);
+          const activities = await Promise.all(
+            activitySnap.docs.map(async (d) => {
+              const data = d.data();
+              const senderDoc = await getDoc(
+                doc(db, 'users', data.fromId)
+              );
+              const senderName = senderDoc.exists()
+                ? senderDoc.data()?.name
+                : 'Someone';
+              return {
+                id: d.id,
+                user: senderName,
+                action: data.type === 'interest'
+                  ? 'sent an interest'
+                  : data.type === 'accepted'
+                    ? 'accepted your interest'
+                    : 'sent a message',
+                time: data.createdAt?.toDate
+                  ? timeAgo(data.createdAt.toDate())
+                  : 'Recently',
+                icon: data.type === 'message'
+                  ? 'message'
+                  : data.type === 'accepted'
+                    ? 'accepted'
+                    : 'interest',
+                type: data.type
+              };
+            })
+          );
+          setRecentActivity(activities);
+        } catch (err) {
+          console.error('Error fetching recent activity:', err);
+        }
 
       } catch (err) {
         console.error('Stats fetch error:', err);
+
       } finally {
         setStatsLoading(false);
       }
     };
 
     fetchStats();
-  }, [profile]);
+  }, [profile, authUser]);
 
   if (authLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -548,6 +627,7 @@ export default function DashboardPage() {
               icon={Eye}
               trend="Total profile views"
               color="primary"
+              onClick={handleOpenViewsModal}
             />
             <StatCard
               label="Interests Received"
@@ -555,6 +635,7 @@ export default function DashboardPage() {
               icon={Heart}
               trend="Total interests received"
               color="secondary"
+              to="/interests"
             />
             <StatCard
               label="Active Chats"
@@ -562,6 +643,7 @@ export default function DashboardPage() {
               icon={MessageSquare}
               trend={`${unreadMessagesCount} unread messages`}
               color="primary"
+              to="/messages"
             />
 
           </div>
@@ -605,13 +687,100 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+
+      {/* Views Modal Overlay */}
+      {viewsModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+          onClick={() => setViewsModalOpen(false)}
+        >
+          <div 
+            className="bg-surface-container-lowest border border-outline-variant rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-outline-variant flex items-center justify-between">
+              <div>
+                <h3 className="font-headline text-xl text-on-surface">Profile Viewers</h3>
+                <p className="text-xs text-on-surface-variant">People who viewed your profile recently</p>
+              </div>
+              <button 
+                onClick={() => setViewsModalOpen(false)}
+                className="p-2 hover:bg-surface-container-high rounded-full text-on-surface-variant hover:text-on-surface transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {visitorsLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-sm text-on-surface-variant">Loading viewers...</p>
+                </div>
+              ) : visitors.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                  <Users className="w-12 h-12 text-on-surface-variant/50" />
+                  <p className="text-on-surface-variant font-medium">No profile views yet</p>
+                  <p className="text-xs text-on-surface-variant max-w-xs">Complete and share your profile to gain more visibility!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {visitors.map((visitor) => (
+                    <div 
+                      key={visitor.id} 
+                      className="flex items-center gap-4 p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/50 hover:bg-surface-container/50 transition-colors"
+                    >
+                      <img 
+                        src={visitor.photoUrl} 
+                        alt={visitor.name} 
+                        className="w-12 h-12 rounded-full object-cover border border-outline-variant"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-1.5">
+                          <h4 className="font-bold text-on-surface truncate">{visitor.name}</h4>
+                          {visitor.age && <span className="text-sm text-on-surface-variant">({visitor.age})</span>}
+                        </div>
+                        <p className="text-xs text-on-surface-variant truncate">
+                          {visitor.denomination} • {visitor.location}
+                        </p>
+                        <p className="text-[10px] text-primary font-medium mt-1">
+                          Viewed {timeAgo(visitor.viewedAt)}
+                        </p>
+                      </div>
+                      <Link
+                        to={`/profile/${visitor.id}`}
+                        onClick={() => setViewsModalOpen(false)}
+                        className="px-4 py-2 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all"
+                      >
+                        View Profile
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-surface-container border-t border-outline-variant flex justify-end">
+              <button
+                onClick={() => setViewsModalOpen(false)}
+                className="px-5 py-2 bg-surface-container-high hover:bg-surface-variant text-sm font-medium rounded-xl text-on-surface transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function StatCard({ label, value, icon: Icon, trend, color }: any) {
-  return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+function StatCard({ label, value, icon: Icon, trend, color, to, onClick }: any) {
+  const CardContent = (
+    <>
       <div className={cn(
         "absolute top-0 left-0 w-1 h-full",
         color === 'primary' ? "bg-primary-container" : "bg-secondary"
@@ -629,6 +798,30 @@ function StatCard({ label, value, icon: Icon, trend, color }: any) {
       <p className="text-xs text-on-surface-variant flex items-center gap-1">
         <Bell className="w-3 h-3" /> {trend}
       </p>
+    </>
+  );
+
+  const classes = "block w-full text-left bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group cursor-pointer";
+
+  if (onClick) {
+    return (
+      <button onClick={onClick} className={classes} type="button">
+        {CardContent}
+      </button>
+    );
+  }
+
+  if (to) {
+    return (
+      <Link to={to} className={classes}>
+        {CardContent}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={classes}>
+      {CardContent}
     </div>
   );
 }

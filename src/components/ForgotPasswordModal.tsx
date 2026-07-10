@@ -4,7 +4,7 @@ import { Mail, Lock, Key, X, Loader2, CheckCircle2, ArrowRight } from 'lucide-re
 import { db } from '../lib/firebase';
 import { collection, addDoc, query, where, getDocs, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { sendEmail } from '../lib/email';
-import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -21,7 +21,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const { executeRecaptcha } = useGoogleReCaptcha();
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const generateOTP = () => {
     const array = new Uint32Array(1);
@@ -34,15 +34,15 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
     setLoading(true);
     setError(null);
 
-    if (!executeRecaptcha) {
-      setError("Security check loading, please try again in a second.");
+    if (!recaptchaToken) {
+      setError("Please check the reCAPTCHA box to verify you are human.");
       setLoading(false);
       return;
     }
 
     try {
       // 1. Validate the reCAPTCHA token
-      const token = await executeRecaptcha('forgot_password');
+      const token = recaptchaToken;
 
       // 2. Check if the user exists in Firestore users collection
       const userQuery = query(collection(db, 'users'), where('email', '==', email));
@@ -219,6 +219,12 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                   placeholder="name@example.com"
                   required
                   className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all text-on-surface"
+                />
+              </div>
+              <div className="flex justify-center py-2">
+                <ReCAPTCHA
+                  sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || ""}
+                  onChange={(token) => setRecaptchaToken(token)}
                 />
               </div>
               <button

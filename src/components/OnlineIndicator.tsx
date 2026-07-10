@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase'; 
+import { ref, onValue } from 'firebase/database';
+import { rtdb } from '../lib/firebase'; 
 import { isUserOnline } from '../lib/utils'; 
 
 export const OnlineIndicator = ({ uid, initialLastActive }: { uid: string, initialLastActive: any }) => {
@@ -14,11 +14,11 @@ export const OnlineIndicator = ({ uid, initialLastActive }: { uid: string, initi
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          // Attach listener just before card becomes visible
-          unsubscribe = onSnapshot(doc(db, 'users', uid), (docSnap) => {
-            if (docSnap.exists()) {
-              setIsOnline(isUserOnline(docSnap.data().lastActive));
-            }
+          // Attach RTDB listener just before card becomes visible
+          const statusRef = ref(rtdb, `/status/${uid}`);
+          unsubscribe = onValue(statusRef, (snapshot) => {
+            const val = snapshot.val();
+            setIsOnline(val?.state === 'online');
           });
         } else {
           // Detach listener to save memory when scrolled away

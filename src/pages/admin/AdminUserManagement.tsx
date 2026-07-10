@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, where, orderBy, limit, deleteDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Eye, UserX, UserCheck } from 'lucide-react';
-import { cn, handleFirestoreError, OperationType, calculateAge } from '../../lib/utils';
-import { Link } from 'react-router-dom';
-import { seedTestData } from '../../lib/seeder';
-import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
-import { deleteFromCloudinary } from '../../lib/cloudinary';
+import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Eye, UserX, UserCheck, Printer } from 'lucide-react';
+import { cn, handleFirestoreError, OperationType, calculateAge, parseFirestoreDate } from '../../lib/utils';
+import { Link, useSearchParams } from 'react-router-dom';
+import { secureDeletePhoto } from '../../lib/cloudinary';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 
 const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
 
@@ -30,6 +29,8 @@ interface UserProfile {
   photoStatus?: 'pending' | 'approved' | 'rejected' | 'none';
   pendingPhotoUrl?: string;
   gallery?: any[];
+  lastActive?: any;
+  updatedAt?: any;
   
   // Detailed Fields
   age?: string;
@@ -52,6 +53,10 @@ interface UserProfile {
   faithBackground?: string;
   churchName?: string;
   churchAddress?: string;
+  churchCity?: string;
+  churchArea?: string;
+  pastorName?: string;
+  pastorNumber?: string;
   diocese?: string;
   baptized?: string;
   baptismYear?: string;
@@ -91,6 +96,7 @@ interface UserProfile {
   // Contact
   address?: string;
   aboutMe?: string;
+  testimony?: string;
   
   partnerPreferences?: {
     ageMin: string;
@@ -113,16 +119,25 @@ interface UserProfile {
 
 export default function AdminUserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [interests, setInterests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'blocked'>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParam = searchParams.get('filter');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  useEffect(() => {
+    if (filterParam && ['all', 'active', 'inactive', 'suspended', 'blocked', 'active-today', 'new-this-week', 'interest-sent', 'connected-successfully'].includes(filterParam)) {
+      setFilterStatus(filterParam);
+    } else {
+      setFilterStatus('all');
+    }
+  }, [filterParam]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [showSeedConfirm, setShowSeedConfirm] = useState(false);
   const [showSuspendConfirm, setShowSuspendConfirm] = useState(false);
   const [pendingSuspendUserId, setPendingSuspendUserId] = useState<string | null>(null);
   const [pendingSuspendStatus, setPendingSuspendStatus] = useState<string | null>(null);
@@ -132,28 +147,14 @@ export default function AdminUserManagement() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleSeedConfirm = async () => {
-    setShowSeedConfirm(false);
-    setSeeding(true);
-    try {
-      const count = await seedTestData();
-      showToast(`Successfully seeded ${count} test profiles!`, 'success');
-      fetchUsers(); // Refresh list
-    } catch (err: any) {
-      showToast("Seeding failed: " + err.message, 'error');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
-  const handleSeed = () => setShowSeedConfirm(true);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const usersRef = collection(db, 'users');
-      // For now we fetch all, or we could add search/filter query
-      const q = query(usersRef, orderBy('createdAt', 'desc'), limit(100));
+      // Fetch up to 1000 users to make sure matches/interests display properly
+      const q = query(usersRef, orderBy('createdAt', 'desc'), limit(1000));
       const snap = await getDocs(q);
       const docs = snap.docs.map(d => {
         const data = d.data();
@@ -161,6 +162,10 @@ export default function AdminUserManagement() {
         return { id: d.id, ...data, age } as UserProfile;
       });
       setUsers(docs);
+
+      const interestsSnap = await getDocs(collection(db, 'interests'));
+      const interestsData = interestsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setInterests(interestsData);
     } catch (err) {
       console.error("Error fetching users:", err);
     } finally {
@@ -176,10 +181,11 @@ export default function AdminUserManagement() {
     try {
       await updateDoc(doc(db, 'users', userId), {
         status: newStatus,
+        isSuspended: newStatus === 'suspended',
         updatedAt: serverTimestamp()
       });
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-      if (selectedUser?.id === userId) setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus, isSuspended: newStatus === 'suspended' } : u));
+      if (selectedUser?.id === userId) setSelectedUser(prev => prev ? { ...prev, status: newStatus, isSuspended: newStatus === 'suspended' } : null);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     }
@@ -221,37 +227,23 @@ export default function AdminUserManagement() {
       
       // FALLBACK WORKFLOW: Perform client-side cascade deletions directly if the local Express API is not running
       try {
-        // 1. Fetch Cloudinary config credentials from Firestore setting
-        const configDoc = await getDoc(doc(db, 'settings', 'site_config'));
-        let cloudName = '';
-        let apiKey = '';
-        let apiSecret = '';
-        if (configDoc.exists()) {
-          const data = configDoc.data();
-          cloudName = data.cloudinaryCloudName || '';
-          apiKey = data.cloudinaryApiKey || '';
-          apiSecret = data.cloudinaryApiSecret || '';
+        // 1. Programmatically delete Cloudinary assets via secure backend endpoint
+        const urlsToDelete = new Set<string>();
+        if (selectedUser.photoUrl) urlsToDelete.add(selectedUser.photoUrl);
+        if (selectedUser.pendingPhotoUrl) urlsToDelete.add(selectedUser.pendingPhotoUrl);
+        if (Array.isArray(selectedUser.gallery)) {
+          selectedUser.gallery.forEach((p: any) => {
+            if (p && p.url) urlsToDelete.add(p.url);
+          });
         }
 
-        // 2. Programmatically delete Cloudinary assets if config is available
-        if (cloudName && apiKey && apiSecret) {
-          const urlsToDelete = new Set<string>();
-          if (selectedUser.photoUrl) urlsToDelete.add(selectedUser.photoUrl);
-          if (selectedUser.pendingPhotoUrl) urlsToDelete.add(selectedUser.pendingPhotoUrl);
-          if (Array.isArray(selectedUser.gallery)) {
-            selectedUser.gallery.forEach((p: any) => {
-              if (p && p.url) urlsToDelete.add(p.url);
-            });
-          }
-
-          // Delete each Cloudinary URL
-          for (const url of urlsToDelete) {
-            if (url && url.includes('cloudinary.com')) {
-              try {
-                await deleteFromCloudinary(url, cloudName, apiKey, apiSecret);
-              } catch (cloudinaryErr) {
-                console.error(`[Admin Delete Fallback] Failed Cloudinary asset purge: ${url}`, cloudinaryErr);
-              }
+        // Delete each Cloudinary URL securely
+        for (const url of urlsToDelete) {
+          if (url && url.includes('cloudinary.com')) {
+            try {
+              await secureDeletePhoto(url);
+            } catch (cloudinaryErr) {
+              console.error(`[Admin Delete Fallback] Failed Cloudinary asset secure deletion: ${url}`, cloudinaryErr);
             }
           }
         }
@@ -343,6 +335,118 @@ export default function AdminUserManagement() {
     return user.status || 'active';
   };
 
+  const connections = interests.map(interest => {
+    const sender = users.find(u => u.uid === interest.fromId || u.id === interest.fromId);
+    const receiver = users.find(u => u.uid === interest.toId || u.id === interest.toId);
+    return {
+      id: interest.id,
+      fromId: interest.fromId,
+      toId: interest.toId,
+      status: interest.status,
+      createdAt: interest.createdAt,
+      senderName: sender ? `${sender.name} ${sender.lastName || ''}`.trim() : 'Unknown User',
+      senderEmail: sender?.email || 'N/A',
+      senderType: sender?.profileType || 'N/A',
+      receiverName: receiver ? `${receiver.name} ${receiver.lastName || ''}`.trim() : 'Unknown User',
+      receiverEmail: receiver?.email || 'N/A',
+      receiverType: receiver?.profileType || 'N/A',
+    };
+  });
+
+  const filteredConnections = connections.filter(conn => {
+    if (filterStatus === 'interest-sent' && conn.status !== 'pending') return false;
+    if (filterStatus === 'connected-successfully' && conn.status !== 'accepted') return false;
+    
+    const term = searchTerm.toLowerCase();
+    return conn.senderName.toLowerCase().includes(term) ||
+           conn.receiverName.toLowerCase().includes(term) ||
+           conn.senderEmail.toLowerCase().includes(term) ||
+           conn.receiverEmail.toLowerCase().includes(term);
+  });
+
+  const handlePrintConnections = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    const title = filterStatus === 'interest-sent' ? 'Interest Sent (Pending)' : 'Connected Successfully';
+    
+    const htmlRows = filteredConnections.map((conn, idx) => `
+      <tr style="border-bottom: 1px solid #e2e8f0; height: 40px; font-size: 13px;">
+        <td style="padding: 8px; font-weight: bold;">${idx + 1}</td>
+        <td style="padding: 8px;">
+          <strong>${conn.senderName}</strong><br/>
+          <span style="font-size: 11px; color: #4a5568;">${conn.senderEmail} (Gender: ${conn.senderType})</span>
+        </td>
+        <td style="padding: 8px; text-align: center; font-weight: bold; color: #a0aec0;">&rarr;</td>
+        <td style="padding: 8px;">
+          <strong>${conn.receiverName}</strong><br/>
+          <span style="font-size: 11px; color: #4a5568;">${conn.receiverEmail} (Gender: ${conn.receiverType})</span>
+        </td>
+        <td style="padding: 8px;">
+          ${conn.createdAt?.seconds ? new Date(conn.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+        </td>
+        <td style="padding: 8px; text-transform: uppercase; font-weight: bold; font-size: 11px; color: ${conn.status === 'accepted' ? '#16a34a' : '#d97706'};">
+          ${conn.status === 'accepted' ? 'Connected' : 'Pending'}
+        </td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; color: #1a202c; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #f7fafc; text-align: left; padding: 8px; border-bottom: 2px solid #e2e8f0; font-size: 12px; text-transform: uppercase; color: #4a5568; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #040e2a; padding-bottom: 10px; }
+            .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #718096; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h2 style="margin: 0; color: #040e2a;">The Kingdom Alliances</h2>
+              <p style="margin: 5px 0 0 0; font-size: 12px; color: #718096;">Matrimonial Platform — Admin Connections Directory</p>
+            </div>
+            <div style="text-align: right;">
+              <h3 style="margin: 0; color: #d4af37;">${title}</h3>
+              <p style="margin: 5px 0 0 0; font-size: 11px; color: #718096;">Generated: ${new Date().toLocaleString()}</p>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 40%;">Sender (Initiated By)</th>
+                <th style="width: 5%;"></th>
+                <th style="width: 40%;">Receiver (Recipient)</th>
+                <th style="width: 10%;">Date</th>
+                <th style="width: 10%;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${htmlRows.length > 0 ? htmlRows : '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #a0aec0;">No records found.</td></tr>'}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            Confidential Report &copy; 2026 The Kingdom Alliances. All rights reserved.
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   const filteredUsers = users.filter(u => {
     // Exclude users awaiting approval as they belong in the Approvals page
     if (u.approvalStatus === 'pending' || !u.isApproved) {
@@ -350,8 +454,27 @@ export default function AdminUserManagement() {
     }
     const matchesSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           u.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const effectiveStatus = getEffectiveStatus(u);
-    const matchesFilter = filterStatus === 'all' || effectiveStatus === filterStatus;
+    let matchesFilter = false;
+    if (filterStatus === 'all') {
+      matchesFilter = true;
+    } else if (filterStatus === 'active-today') {
+      const lastActive = parseFirestoreDate(u.lastActive);
+      if (lastActive) {
+        const activeDate = new Date(lastActive);
+        const today = new Date();
+        matchesFilter = activeDate.getDate() === today.getDate() &&
+                        activeDate.getMonth() === today.getMonth() &&
+                        activeDate.getFullYear() === today.getFullYear();
+      }
+    } else if (filterStatus === 'new-this-week') {
+      const createdDate = parseFirestoreDate(u.createdAt);
+      if (createdDate) {
+        matchesFilter = (Date.now() - createdDate.getTime()) < 7 * 24 * 60 * 60 * 1000;
+      }
+    } else {
+      const effectiveStatus = getEffectiveStatus(u);
+      matchesFilter = effectiveStatus === filterStatus;
+    }
     return matchesSearch && matchesFilter;
   });
 
@@ -370,20 +493,26 @@ export default function AdminUserManagement() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="font-headline text-4xl text-on-surface">User Management</h1>
-          <p className="text-on-surface-variant">Search, edit, and manage user accounts</p>
+          <h1 className="font-headline text-4xl text-on-surface">
+            {filterStatus === 'interest-sent' ? 'Pending Interests' :
+             filterStatus === 'connected-successfully' ? 'Successful Connections' :
+             'User Management'}
+          </h1>
+          <p className="text-on-surface-variant">
+            {filterStatus === 'interest-sent' ? 'View and print sent requests waiting for response' :
+             filterStatus === 'connected-successfully' ? 'View and print successfully accepted matches' :
+             'Search, edit, and manage user accounts'}
+          </p>
         </div>
-        <button 
-          onClick={handleSeed}
-          disabled={seeding}
-          className="flex items-center gap-2 px-6 py-3 bg-secondary-container text-on-secondary-container rounded-2xl font-bold hover:bg-secondary-container/80 transition-all disabled:opacity-50 shadow-sm"
-        >
-          {seeding ? (
-            <><Loader2 className="w-5 h-5 animate-spin" /> Seeding...</>
-          ) : (
-            <><Database className="w-5 h-5" /> Seed Test Data</>
-          )}
-        </button>
+        {(filterStatus === 'interest-sent' || filterStatus === 'connected-successfully') && (
+          <button
+            onClick={handlePrintConnections}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-[#040e2a] hover:bg-[#040e2a]/90 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0"
+          >
+            <Printer className="w-5 h-5" />
+            Print Report
+          </button>
+        )}
       </div>
 
       {/* Controls */}
@@ -402,7 +531,16 @@ export default function AdminUserManagement() {
           <Filter className="w-5 h-5 text-on-surface-variant ml-2" />
           <select 
             value={filterStatus}
-            onChange={(e: any) => setFilterStatus(e.target.value)}
+            onChange={(e: any) => {
+              const val = e.target.value;
+              setFilterStatus(val);
+              if (val === 'all') {
+                searchParams.delete('filter');
+              } else {
+                searchParams.set('filter', val);
+              }
+              setSearchParams(searchParams);
+            }}
             className="flex-1 px-4 py-3 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
           >
             <option value="all">All Status</option>
@@ -410,6 +548,8 @@ export default function AdminUserManagement() {
             <option value="inactive">Inactive (&gt;40 days)</option>
             <option value="suspended">Suspended</option>
             <option value="blocked">Blocked</option>
+            <option value="active-today">Active Today</option>
+            <option value="new-this-week">New This Week</option>
           </select>
         </div>
       </div>
@@ -417,15 +557,25 @@ export default function AdminUserManagement() {
       {/* User Table */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[750px]">
             <thead className="bg-surface-container border-b border-outline-variant">
-              <tr>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">User Details</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Type</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Photos</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-right">Actions</th>
-              </tr>
+              {filterStatus === 'interest-sent' || filterStatus === 'connected-successfully' ? (
+                <tr>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Sender (Initiated By)</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-center">Direction</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Receiver (Recipient)</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Date</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-right">Status</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">User Details</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Type</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Photos</th>
+                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-right">Actions</th>
+                </tr>
+              )}
             </thead>
             <tbody className="divide-y divide-outline-variant/30">
               {loading ? (
@@ -434,6 +584,45 @@ export default function AdminUserManagement() {
                     <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
+              ) : (filterStatus === 'interest-sent' || filterStatus === 'connected-successfully') ? (
+                filteredConnections.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-on-surface-variant">
+                      No records found matching your criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredConnections.map((conn) => (
+                    <tr key={conn.id} className="hover:bg-surface-variant/5">
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="text-sm font-bold text-on-surface">{conn.senderName}</p>
+                          <p className="text-xs text-on-surface-variant">{conn.senderEmail} <span className="capitalize">({conn.senderType})</span></p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center text-on-surface-variant font-bold text-lg">
+                        &rarr;
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="text-sm font-bold text-on-surface">{conn.receiverName}</p>
+                          <p className="text-xs text-on-surface-variant">{conn.receiverEmail} <span className="capitalize">({conn.receiverType})</span></p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant">
+                        {conn.createdAt?.seconds ? new Date(conn.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className={cn(
+                          "text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full",
+                          conn.status === 'accepted' ? "bg-green-100 text-green-700" : "bg-gold/10 text-gold"
+                        )}>
+                          {conn.status === 'accepted' ? 'Connected' : 'Pending'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-on-surface-variant">
@@ -511,27 +700,32 @@ export default function AdminUserManagement() {
                             <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">View Details</span>
                           </button>
                           
-                          <button 
-                            onClick={() => {
-                              if (user.status === 'active') {
-                                setPendingSuspendUserId(user.id);
-                                setPendingSuspendStatus('suspended');
-                                setShowSuspendConfirm(true);
-                              } else {
-                                handleUpdateStatus(user.id, 'active');
-                              }
-                            }}
-                            className={cn(
-                              "p-2.5 text-white rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm group relative",
-                              user.status === 'active' ? "bg-[#dc2626] hover:bg-[#b91c1c]" : "bg-[#d97706] hover:bg-[#c2410c]"
-                            )}
-                            title={user.status === 'active' ? 'Suspend User' : 'Re-activate User'}
-                          >
-                            {user.status === 'active' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
-                              {user.status === 'active' ? 'Suspend User' : 'Re-activate User'}
-                            </span>
-                          </button>
+                          {(() => {
+                            const isActive = user.status !== 'suspended' && user.status !== 'blocked';
+                            return (
+                              <button 
+                                onClick={() => {
+                                  if (isActive) {
+                                    setPendingSuspendUserId(user.id);
+                                    setPendingSuspendStatus('suspended');
+                                    setShowSuspendConfirm(true);
+                                  } else {
+                                    handleUpdateStatus(user.id, 'active');
+                                  }
+                                }}
+                                className={cn(
+                                  "p-2.5 text-white rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm group relative",
+                                  isActive ? "bg-[#dc2626] hover:bg-[#b91c1c]" : "bg-[#d97706] hover:bg-[#c2410c]"
+                                )}
+                                title={isActive ? 'Suspend User' : 'Re-activate User'}
+                              >
+                                {isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
+                                  {isActive ? 'Suspend User' : 'Re-activate User'}
+                                </span>
+                              </button>
+                            );
+                          })()}
 
                           <button 
                             onClick={() => {
@@ -645,50 +839,7 @@ export default function AdminUserManagement() {
         )}
       </AnimatePresence>
 
-      {/* Custom Seed Confirmation Modal */}
-      <AnimatePresence>
-        {showSeedConfirm && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => !seeding && setShowSeedConfirm(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl z-10 text-center"
-            >
-              <div className="w-16 h-16 bg-secondary-container/20 rounded-full flex items-center justify-center text-secondary mx-auto mb-6">
-                <Database className="w-8 h-8" />
-              </div>
-              <h3 className="text-2xl font-bold text-[#040e2a]">Seed Test Data?</h3>
-              <p className="text-on-surface-variant mt-4 leading-relaxed">
-                This will add 20 dummy matrimonial profiles to your database. Would you like to continue?
-              </p>
-              <div className="grid grid-cols-2 gap-4 mt-8">
-                <button
-                  disabled={seeding}
-                  onClick={() => setShowSeedConfirm(false)}
-                  className="px-6 py-3 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={seeding}
-                  onClick={handleSeedConfirm}
-                  className="px-6 py-3 bg-[#004b87] text-white rounded-xl font-bold hover:bg-[#003a6a] transition-all flex items-center justify-center gap-2"
-                >
-                  {seeding ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+
 
       <ConfirmationModal
         isOpen={showSuspendConfirm}

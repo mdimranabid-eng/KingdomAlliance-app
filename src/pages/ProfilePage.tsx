@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
 import { useSettings } from '../lib/SettingsContext';
-import { uploadToCloudinary } from '../lib/cloudinary';
+import { uploadToCloudinary, secureDeletePhoto } from '../lib/cloudinary';
 import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'motion/react';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -281,6 +281,7 @@ export default function ProfilePage() {
         // Create photoModeration document for gallery photo
         await addDoc(collection(db, 'photoModeration'), {
           uid: currentUser.uid,
+          userId: currentUser.uid,
           userName: userName,
           photoURL: url,
           photoType: 'galleryPhoto',
@@ -301,6 +302,7 @@ export default function ProfilePage() {
         // Create photoModeration document for profile photo
         await addDoc(collection(db, 'photoModeration'), {
           uid: currentUser.uid,
+          userId: currentUser.uid,
           userName: userName,
           photoURL: url,
           photoType: 'profilePhoto',
@@ -343,6 +345,9 @@ export default function ProfilePage() {
 
     const updatedGallery = profile.gallery.filter((p: any) => p.id !== photoToDelete);
     try {
+      // Delete from Cloudinary securely
+      await secureDeletePhoto(deletedPhotoUrl);
+
       await updateDoc(doc(db, 'users', currentUser.uid), {
         gallery: updatedGallery,
         updatedAt: serverTimestamp()
@@ -567,8 +572,6 @@ export default function ProfilePage() {
 
   const tabs = [
     { id: 'about', label: 'About Me', icon: User },
-    { id: 'lifestyle', label: 'Lifestyle', icon: Activity },
-    { id: 'faith', label: 'Faith Journey', icon: Church },
     ...(isOwnProfile ? [{ id: 'privacy', label: 'Privacy / Blocked', icon: ShieldAlert }] : [])
   ];
 
@@ -923,7 +926,7 @@ export default function ProfilePage() {
                       <InfoRow label="Age / Height" value={`${profile.age} Yrs, ${profile.height || 'N/A'}`} />
                       <InfoRow label="Mother Tongue" value={profile.motherTongue || 'English'} />
                       <InfoRow label="Marital Status" value={profile.maritalStatus} />
-                      <InfoRow label="Eating Habits" value={profile.diet || 'N/A'} />
+                      <InfoRow label="Eating Habits" value={profile.dietaryHabits || profile.diet || 'N/A'} />
                       {/* --- EXACT INSERTION STARTS HERE --- */}
                       {profile.familyBackground && (
                         <div className="flex flex-col gap-1">
@@ -932,26 +935,15 @@ export default function ProfilePage() {
                         </div>
                       )}
                       {/* --- EXACT INSERTION ENDS HERE --- */}
-                      {/* --- EXACT INSERTION STARTS HERE --- */}
                       {profile.fathersOccupation && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Father's Profession</span>
-                          <p className="text-base text-gray-800">{profile.fathersOccupation}</p>
-                        </div>
+                        <InfoRow label="Father's Profession" value={profile.fathersOccupation} />
                       )}
                       {profile.mothersOccupation && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Mother's Profession</span>
-                          <p className="text-base text-gray-800">{profile.mothersOccupation}</p>
-                        </div>
+                        <InfoRow label="Mother's Profession" value={profile.mothersOccupation} />
                       )}
-                      {profile.numberOfSiblings && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Siblings</span>
-                          <p className="text-base text-gray-800">{profile.numberOfSiblings}</p>
-                        </div>
+                      {(profile.numberOfSiblings !== undefined && profile.numberOfSiblings !== '') && (
+                        <InfoRow label="Siblings" value={String(profile.numberOfSiblings)} />
                       )}
-                      {/* --- EXACT INSERTION ENDS HERE --- */}
                     </div>
                   </div>
 
@@ -1039,39 +1031,7 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {activeTab === 'lifestyle' && (
-                <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-sm border border-slate-100">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-                    <Briefcase className="w-7 h-7 text-primary" /> Career & Education
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                    <div className="space-y-6">
-                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-wider">Education</h3>
-                      <InfoRow label="Qualification" value={profile.education} />
-                      <InfoRow label="School/College" value={profile.college || 'N/A'} />
-                    </div>
-                    <div className="space-y-6">
-                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-wider">Profession</h3>
-                      <InfoRow label="Occupation" value={profile.occupation} />
-                      <InfoRow label="Income" value={profile.income || 'N/A'} />
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {activeTab === 'faith' && (
-                <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-sm border border-slate-100">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-                    <Church className="w-7 h-7 text-primary" /> Faith Journey
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                    <InfoRow label="Denomination" value={profile.denomination} />
-                    <InfoRow label="Baptized" value={profile.baptized || 'Yes'} />
-                    <InfoRow label="Church Name" value={profile.churchName || 'N/A'} />
-                    <InfoRow label="Ministry Involvement" value={profile.spiritualInvolvement || 'N/A'} />
-                  </div>
-                </div>
-              )}
 
               {activeTab === 'privacy' && isOwnProfile && (
                 <BlockedUsersList />
@@ -1094,6 +1054,12 @@ export default function ProfilePage() {
                 <PreferenceItem label="Denomination" value={profile.partnerPreferences?.denomination || 'Open to all'} />
                 <PreferenceItem label="Education" value={profile.partnerPreferences?.education || 'Graduate & Above'} />
                 <PreferenceItem label="Location" value={profile.partnerPreferences?.location || 'Anywhere'} />
+                {profile.partnerPreferences?.otherPreferences && (
+                  <div className="pt-4 border-t border-slate-100 mt-2 space-y-1 text-left">
+                    <span className="text-sm font-bold text-slate-500 block">My Desired Partner</span>
+                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">{profile.partnerPreferences.otherPreferences}</p>
+                  </div>
+                )}
               </div>
               
               {currentProfile && (
@@ -1117,28 +1083,69 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Quick Actions Card */}
-            <div className="bg-slate-900 rounded-[2rem] p-8 shadow-2xl text-white">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Star className="w-6 h-6 text-secondary fill-current" /> Premium Benefits
-              </h2>
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-start gap-3">
-                  <span className="w-5 h-5 text-secondary shrink-0 mt-0.5"><CheckCircle2 className="w-full h-full" /></span>
-                  <span className="text-slate-300 font-medium">Direct contact information access</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="w-5 h-5 text-secondary shrink-0 mt-0.5"><CheckCircle2 className="w-full h-full" /></span>
-                  <span className="text-slate-300 font-medium">Chat without restrictions</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="w-5 h-5 text-secondary shrink-0 mt-0.5"><CheckCircle2 className="w-full h-full" /></span>
-                  <span className="text-slate-300 font-medium">View detailed verified background</span>
-                </li>
-              </ul>
-              <button className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl hover:bg-secondary hover:text-white transition-all shadow-lg active:scale-95">
-                Upgrade to Premium
-              </button>
+            {/* Lifestyle & Faith Journey Card */}
+            <div className="bg-slate-900 rounded-[2rem] p-8 shadow-2xl text-white space-y-6">
+              <div>
+                <h2 className="text-lg font-bold mb-1 flex items-center gap-2 text-secondary">
+                  <Church className="w-5 h-5" /> Faith Journey
+                </h2>
+                <div className="mt-4 space-y-3">
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Denomination</span>
+                    <span className="text-sm font-semibold">{profile.denomination || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Baptized</span>
+                    <span className="text-sm font-semibold">{profile.baptized || 'N/A'}</span>
+                  </div>
+                  {(isOwnProfile || isAdmin) && (
+                    <>
+                      <div className="flex justify-between border-b border-slate-800 pb-2">
+                        <span className="text-sm text-slate-400">Church Name</span>
+                        <span className="text-sm font-semibold">{profile.churchName || 'N/A'}</span>
+                      </div>
+                      {profile.churchArea && (
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                          <span className="text-sm text-slate-400">Church Area</span>
+                          <span className="text-sm font-semibold">{profile.churchArea}</span>
+                        </div>
+                      )}
+                      {profile.pastorName && (
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                          <span className="text-sm text-slate-400">Pastor Name</span>
+                          <span className="text-sm font-semibold">{profile.pastorName}</span>
+                        </div>
+                      )}
+                      {profile.pastorNumber && (
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                          <span className="text-sm text-slate-400">Pastor Number</span>
+                          <span className="text-sm font-semibold">{profile.pastorNumber}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-lg font-bold mb-1 flex items-center gap-2 text-secondary">
+                  <Briefcase className="w-5 h-5" /> Lifestyle
+                </h2>
+                <div className="mt-4 space-y-3">
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Qualification</span>
+                    <span className="text-sm font-semibold">{profile.education || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Occupation</span>
+                    <span className="text-sm font-semibold">{profile.profession || profile.occupation || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Income</span>
+                    <span className="text-sm font-semibold">{profile.annualIncome || profile.income || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
           </div>
