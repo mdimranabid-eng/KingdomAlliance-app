@@ -285,12 +285,7 @@ export default function Layout() {
 
   if (isAdmin) {
     navItems = [
-      { label: 'Admin Panel', path: '/admin', icon: ShieldCheck },
-      { label: 'User Approvals', path: '/admin/approvals', icon: CheckCircle, badgeCount: pendingApprovalsCount || undefined },
-      { label: 'Photo Moderation', path: '/admin/photos', icon: Camera },
-      { label: 'User Management', path: '/admin/users', icon: Users },
-      { label: 'Rejected Profiles', path: '/admin/rejected', icon: Ban },
-      { label: 'Pastor & Church Info', path: '/admin/church-info', icon: Church },
+      { label: 'Admin Panel', path: '/admin', icon: ShieldCheck }
     ];
   }
 

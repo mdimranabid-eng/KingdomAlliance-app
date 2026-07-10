@@ -1,27 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, limit, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { motion } from 'motion/react';
 import { 
   Users, 
   Hourglass, 
-  CheckCircle, 
   TrendingUp, 
-  Search, 
-  MoreVertical,
-  Filter,
-  ArrowRight,
-  ShieldCheck,
-  AlertCircle,
+  ShieldCheck, 
+  Heart, 
+  CheckCircle,
   UserCheck,
   Image,
-  Camera,
-  Heart
+  Ban,
+  Church,
+  Info,
+  Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AdminReportModal from '../../components/admin/AdminReportModal';
-import { parseFirestoreDate, resolveApprovalStatus } from '../../lib/utils';
-
+import { parseFirestoreDate } from '../../lib/utils';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -36,6 +32,7 @@ export default function AdminDashboard() {
   const [maleFemaleRatio, setMaleFemaleRatio] = useState({ male: 0, female: 0 });
   const [photoPendingCount, setPhotoPendingCount] = useState(0);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'connections'>('overview');
 
   useEffect(() => {
     // Real-time listener for general stats
@@ -126,218 +123,362 @@ export default function AdminDashboard() {
     };
   }, []);
 
+  if (loading) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-slate-400">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        <p className="font-headline text-lg">Loading Administrator Panel...</p>
+      </div>
+    );
+  }
+
+  // Circular Chart math
+  const totalProfiles = maleFemaleRatio.male + maleFemaleRatio.female;
+  const malePercentage = totalProfiles > 0 ? (maleFemaleRatio.male / totalProfiles) * 100 : 0;
+  const radius = 60;
+  const circumference = 2 * Math.PI * radius;
+  const maleStrokeDash = (malePercentage / 100) * circumference;
+  const femaleStrokeDash = circumference - maleStrokeDash;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-6 bg-[#edf5f0]/80 rounded-[2.5rem] border border-[#d6ebd9]/50 min-h-screen text-slate-800">
+      
+      {/* Title Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline text-3xl md:text-4xl text-on-surface">Admin Overview</h1>
-          <p className="text-on-surface-variant">Manage approvals and community health</p>
+          <h1 className="font-serif text-4xl text-[#0d2a1d] font-bold leading-tight">Administrator Panel</h1>
+          <p className="text-slate-500 font-medium text-sm mt-1">User Profile Management</p>
         </div>
         <button 
           onClick={() => setIsReportModalOpen(true)}
-          className="bg-primary text-on-primary px-6 py-2.5 rounded-xl font-label-lg shadow-lg flex items-center gap-2 hover:shadow-primary/20 hover:-translate-y-0.5 transition-all"
+          className="bg-[#0b291a] text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-[#0b291a]/90 hover:-translate-y-0.5 transition-all"
         >
           Generate Report
         </button>
       </div>
 
+      {/* Top 6 Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-5">
+        
+        {/* Total Users */}
+        <Link 
+          to="/admin/users" 
+          className="bg-white border border-[#e4ebe6] rounded-3xl p-5 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#3b82f6]/40 hover:bg-[#e8f0fe]/10 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-[#e8f0fe] text-[#2563eb] rounded-2xl group-hover:bg-[#2563eb] group-hover:text-white transition-colors duration-300">
+            <Users className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 group-hover:text-slate-500 transition-colors">Total Users</p>
+            <p className="text-3xl font-extrabold text-slate-800 leading-tight mt-0.5">{stats.totalUsers}</p>
+          </div>
+        </Link>
 
+        {/* Pending Approvals */}
+        <Link 
+          to="/admin/approvals" 
+          className="bg-white border border-[#e4ebe6] rounded-3xl p-5 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#d97706]/40 hover:bg-[#fef3c7]/10 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-[#fef3c7] text-[#d97706] rounded-2xl group-hover:bg-[#d97706] group-hover:text-white transition-colors duration-300">
+            <Hourglass className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 group-hover:text-slate-500 transition-colors">Pending Approvals</p>
+            <p className="text-3xl font-extrabold text-slate-800 leading-tight mt-0.5">{stats.pendingApprovals}</p>
+          </div>
+        </Link>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-6">
-        <AdminStatCard label="Total Users" value={stats.totalUsers} icon={Users} to="/admin/users" hoverScheme="navy" />
-        <AdminStatCard label="Pending Approvals" value={stats.pendingApprovals} icon={Hourglass} to="/admin/approvals" hoverScheme="gold" />
-        <AdminStatCard label="Active Today" value={stats.activeToday} icon={TrendingUp} to="/admin/users?filter=active-today" hoverScheme="purple" />
-        <AdminStatCard label="New This Week" value={stats.newThisWeek} icon={ShieldCheck} to="/admin/users?filter=new-this-week" hoverScheme="emerald" />
-        <AdminStatCard label="Interest Sent" value={stats.interestsSent} icon={Heart} to="/admin/users?filter=interest-sent" hoverScheme="purple" />
-        <AdminStatCard label="Connected Successfully" value={stats.connectedSuccessfully} icon={CheckCircle} to="/admin/users?filter=connected-successfully" hoverScheme="emerald" />
+        {/* Active Today */}
+        <Link 
+          to="/admin/users?filter=active-today" 
+          className="bg-white border border-[#e4ebe6] rounded-3xl p-5 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#7c3aed]/40 hover:bg-[#f3e8ff]/10 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-[#f3e8ff] text-[#7c3aed] rounded-2xl group-hover:bg-[#7c3aed] group-hover:text-white transition-colors duration-300">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 group-hover:text-slate-500 transition-colors">Active Today</p>
+            <p className="text-3xl font-extrabold text-slate-800 leading-tight mt-0.5">{stats.activeToday}</p>
+          </div>
+        </Link>
+
+        {/* New This Week - Solid Green Card */}
+        <Link 
+          to="/admin/users?filter=new-this-week" 
+          className="bg-[#139c5a] border border-[#139c5a] rounded-3xl p-5 shadow-md flex items-center gap-4 text-white hover:-translate-y-1 hover:shadow-lg hover:bg-[#118f51] hover:border-[#118f51] transition-all duration-300 group"
+        >
+          <div className="p-3 bg-white/20 text-white rounded-2xl group-hover:bg-white group-hover:text-[#139c5a] transition-colors duration-300">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-white/80">New This Week</p>
+            <p className="text-3xl font-extrabold text-white leading-tight mt-0.5">{stats.newThisWeek}</p>
+          </div>
+        </Link>
+
+        {/* Interests Sent */}
+        <Link 
+          to="/admin/users?filter=interest-sent" 
+          className="bg-white border border-[#e4ebe6] rounded-3xl p-5 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#e11d48]/40 hover:bg-[#ffe4e6]/10 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-[#ffe4e6] text-[#e11d48] rounded-2xl group-hover:bg-[#e11d48] group-hover:text-white transition-colors duration-300">
+            <Heart className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 group-hover:text-slate-500 transition-colors">Interests Sent</p>
+            <p className="text-3xl font-extrabold text-slate-800 leading-tight mt-0.5">{stats.interestsSent}</p>
+          </div>
+        </Link>
+
+        {/* Matches Made */}
+        <Link 
+          to="/admin/users?filter=connected-successfully" 
+          className="bg-white border border-[#e4ebe6] rounded-3xl p-5 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#16a34a]/40 hover:bg-[#dcfce7]/10 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-[#dcfce7] text-[#16a34a] rounded-2xl group-hover:bg-[#16a34a] group-hover:text-white transition-colors duration-300">
+            <CheckCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 group-hover:text-slate-500 transition-colors">Matches Made</p>
+            <p className="text-3xl font-extrabold text-slate-800 leading-tight mt-0.5">{stats.connectedSuccessfully}</p>
+          </div>
+        </Link>
       </div>
 
-      {/* System Health / Ratio */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-8">
-          <div className="bg-surface-container rounded-3xl p-8 border border-outline-variant shadow-sm space-y-6">
-            <h2 className="font-headline text-2xl text-on-surface">Community Composition</h2>
-            <div className="space-y-4">
-               <div className="flex justify-between text-sm font-bold">
-                 <span>Grooms (Male)</span>
-                 <span>{maleFemaleRatio.male}</span>
-               </div>
-               <div className="w-full h-4 bg-surface-container-highest rounded-full overflow-hidden flex">
-                 <div 
-                   className="h-full bg-primary-container" 
-                   style={{ width: `${(maleFemaleRatio.male / ((maleFemaleRatio.male + maleFemaleRatio.female) || 1)) * 100}%` }} 
-                 />
-                 <div 
-                   className="h-full bg-secondary-container" 
-                   style={{ width: `${(maleFemaleRatio.female / ((maleFemaleRatio.male + maleFemaleRatio.female) || 1)) * 100}%` }} 
-                 />
-               </div>
-               <div className="flex justify-between text-sm font-bold">
-                  <span>Brides (Female)</span>
-                  <span>{maleFemaleRatio.female}</span>
-               </div>
-            </div>
-            <div className="pt-4 flex gap-4 text-xs">
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-primary-container" /> Male</div>
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-secondary-container" /> Female</div>
-            </div>
+      {/* Row 1 Navigation Cards (2 Columns) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* User Approvals Action Card */}
+        <Link 
+          to="/admin/approvals"
+          className="relative bg-white border border-[#e4ebe6] rounded-[1.75rem] p-6 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#0b291a]/40 hover:bg-[#0b291a]/5 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-slate-100 text-[#475569] rounded-2xl flex-shrink-0 group-hover:bg-[#0b291a] group-hover:text-white transition-colors duration-300">
+            <UserCheck className="w-6 h-6" />
           </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">User Approvals</p>
+            <p className="text-lg font-bold text-slate-800 mt-0.5">Review & Approve</p>
+          </div>
+          {stats.pendingApprovals > 0 && (
+            <div className="absolute top-4 right-4 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {stats.pendingApprovals} pending
+            </div>
+          )}
+        </Link>
 
-          {/* Quick Actions Card */}
-          <div className="bg-surface-container rounded-3xl p-8 border border-outline-variant shadow-sm space-y-6">
-            <h2 className="font-headline text-2xl text-on-surface">Quick Actions</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* User Approvals Button */}
-              <Link 
-                to="/admin/approvals"
-                className="relative bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 shadow-sm flex items-center gap-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:bg-[#040e2a] hover:border-[#040e2a] hover:text-white group"
-              >
-                <div className="p-3 bg-[#040e2a]/10 text-[#040e2a] rounded-2xl transition-all duration-300 group-hover:bg-white/10 group-hover:text-white flex-shrink-0">
-                  <UserCheck className="w-6 h-6" />
+        {/* Photo Moderation Action Card */}
+        <Link 
+          to="/admin/photos"
+          className="relative bg-white border border-[#e4ebe6] rounded-[1.75rem] p-6 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#0b291a]/40 hover:bg-[#0b291a]/5 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-slate-100 text-[#475569] rounded-2xl flex-shrink-0 group-hover:bg-[#0b291a] group-hover:text-white transition-colors duration-300">
+            <Image className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Photo Moderation</p>
+            <p className="text-lg font-bold text-slate-800 mt-0.5">Moderate Photos</p>
+          </div>
+          {photoPendingCount > 0 && (
+            <div className="absolute top-4 right-4 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {photoPendingCount} pending
+            </div>
+          )}
+        </Link>
+      </div>
+
+      {/* Row 2 Navigation Cards (3 Columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        {/* User Management Action Card */}
+        <Link 
+          to="/admin/users"
+          className="bg-white border border-[#e4ebe6] rounded-[1.75rem] p-6 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#0b291a]/40 hover:bg-[#0b291a]/5 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-slate-100 text-[#475569] rounded-2xl flex-shrink-0 group-hover:bg-[#0b291a] group-hover:text-white transition-colors duration-300">
+            <Users className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Management</p>
+            <p className="text-lg font-bold text-slate-800 mt-0.5">User Management</p>
+          </div>
+        </Link>
+
+        {/* Rejected Profiles Action Card */}
+        <Link 
+          to="/admin/rejected"
+          className="bg-white border border-[#e4ebe6] rounded-[1.75rem] p-6 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#0b291a]/40 hover:bg-[#0b291a]/5 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-slate-100 text-[#475569] rounded-2xl flex-shrink-0 group-hover:bg-[#0b291a] group-hover:text-white transition-colors duration-300">
+            <Ban className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Moderation</p>
+            <p className="text-lg font-bold text-slate-800 mt-0.5">Rejected Profiles</p>
+          </div>
+        </Link>
+
+        {/* Pastor & Church Info Action Card */}
+        <Link 
+          to="/admin/church-info"
+          className="bg-white border border-[#e4ebe6] rounded-[1.75rem] p-6 shadow-sm flex items-center gap-4 hover:-translate-y-1 hover:shadow-md hover:border-[#0b291a]/40 hover:bg-[#0b291a]/5 transition-all duration-300 group"
+        >
+          <div className="p-3 bg-slate-100 text-[#475569] rounded-2xl flex-shrink-0 group-hover:bg-[#0b291a] group-hover:text-white transition-colors duration-300">
+            <Church className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Configuration</p>
+            <p className="text-lg font-bold text-slate-800 mt-0.5">Church Info</p>
+          </div>
+        </Link>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-6 border-b border-[#d6ebd9] pb-3 mt-4">
+        <button 
+          onClick={() => setActiveTab('overview')}
+          className={`text-sm font-extrabold pb-3 -mb-[13px] relative transition-colors ${
+            activeTab === 'overview' ? 'text-[#0d2a1d] border-b-2 border-[#0d2a1d]' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          General Overview
+        </button>
+        <button 
+          onClick={() => setActiveTab('connections')}
+          className={`text-sm font-extrabold pb-3 -mb-[13px] relative transition-colors ${
+            activeTab === 'connections' ? 'text-[#0d2a1d] border-b-2 border-[#0d2a1d]' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Connections Log ({stats.interestsSent + stats.connectedSuccessfully})
+        </button>
+      </div>
+
+      {/* Tab Contents */}
+      {activeTab === 'overview' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* User Profiles Composition (Donut Chart) */}
+          <div className="bg-white rounded-[2.25rem] p-8 border border-[#e4ebe6] shadow-sm space-y-6">
+            <h2 className="font-serif text-2xl text-[#0d2a1d] font-bold">User Profiles Composition</h2>
+            <div className="flex flex-col sm:flex-row items-center justify-around gap-8">
+              
+              {/* Donut Chart SVG */}
+              <div className="relative w-44 h-44">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+                  <circle 
+                    cx="80" 
+                    cy="80" 
+                    r={radius} 
+                    fill="none" 
+                    stroke="#f472b6" 
+                    strokeWidth="16" 
+                  />
+                  {totalProfiles > 0 && (
+                    <circle 
+                      cx="80" 
+                      cy="80" 
+                      r={radius} 
+                      fill="none" 
+                      stroke="#3b82f6" 
+                      strokeWidth="16" 
+                      strokeDasharray={circumference}
+                      strokeDashoffset={femaleStrokeDash}
+                    />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <p className="text-2xl font-extrabold text-slate-800 leading-none">{totalProfiles}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mt-1">Profiles</p>
                 </div>
-                <div className="text-left flex-grow">
-                  <p className="text-xs font-label-lg text-on-surface-variant uppercase tracking-widest transition-colors duration-300 group-hover:text-white/70">User Approvals</p>
-                  <p className="text-base font-bold text-on-surface transition-colors duration-300 group-hover:text-white leading-tight">Review & Approve</p>
-                </div>
-                
-                {stats.pendingApprovals > 0 && (
-                  <div className="absolute -top-2 -right-2 flex items-center gap-1.5 px-3 py-1 bg-error text-white text-[10px] font-bold rounded-full animate-pulse-red shadow-lg border-2 border-surface animate-bounce">
-                    {stats.pendingApprovals} pending
+              </div>
+
+              {/* Composition Details */}
+              <div className="space-y-4 w-full max-w-[200px]">
+                <div className="flex items-center justify-between p-3 bg-[#e8f0fe] rounded-2xl border border-[#dbe8fc]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
+                    <span className="text-xs font-bold text-slate-700">Grooms (Male)</span>
                   </div>
-                )}
-              </Link>
-
-              {/* Photo Moderation Button */}
-              <Link 
-                to="/admin/photos"
-                className="relative bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 shadow-sm flex items-center gap-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:bg-[#d4af37] hover:border-[#d4af37] hover:text-[#040e2a] group"
-              >
-                <div className="p-3 bg-[#d4af37]/10 text-[#d4af37] rounded-2xl transition-all duration-300 group-hover:bg-[#040e2a]/10 group-hover:text-[#040e2a] flex-shrink-0">
-                  <Image className="w-6 h-6" />
+                  <span className="text-sm font-extrabold text-slate-900">{maleFemaleRatio.male}</span>
                 </div>
-                <div className="text-left flex-grow">
-                  <p className="text-xs font-label-lg text-on-surface-variant uppercase tracking-widest transition-colors duration-300 group-hover:text-[#040e2a]/70">Photo Moderation</p>
-                  <p className="text-base font-bold text-on-surface transition-colors duration-300 group-hover:text-[#040e2a] leading-tight">Moderate Photos</p>
-                </div>
-                
-                {photoPendingCount > 0 && (
-                  <div className="absolute -top-2 -right-2 flex items-center gap-1.5 px-3 py-1 bg-error text-white text-[10px] font-bold rounded-full animate-pulse-red shadow-lg border-2 border-surface animate-bounce">
-                    {photoPendingCount} pending
+                <div className="flex items-center justify-between p-3 bg-[#fdf2f8] rounded-2xl border border-[#fbcfe8]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#f472b6]" />
+                    <span className="text-xs font-bold text-slate-700">Brides (Female)</span>
                   </div>
-                )}
-              </Link>
+                  <span className="text-sm font-extrabold text-slate-900">{maleFemaleRatio.female}</span>
+                </div>
+              </div>
+
             </div>
           </div>
-        </div>
 
-        {/* System Health / Logs */}
-        <div className="bg-surface-container rounded-3xl p-6 border border-outline-variant flex flex-col gap-6 shadow-sm">
-          <h2 className="font-headline text-2xl text-on-surface">System Health</h2>
-          <div className="space-y-4">
-            <HealthItem label="Firestore Latency" status="optimal" value="45ms" />
-            <HealthItem label="Auth Services" status="optimal" value="Active" />
-            <HealthItem 
-              label="Image Verification" 
-              status={photoPendingCount > 0 ? "warning" : "optimal"} 
-              value={photoPendingCount > 0 ? `${photoPendingCount} queued` : "Clean"} 
-            />
-          </div>
-          <div className="mt-4 p-4 bg-primary-container/10 rounded-2xl border border-primary-container/20 flex items-start gap-4">
-            <AlertCircle className="w-6 h-6 text-primary-container flex-shrink-0" />
+          {/* System Health */}
+          <div className="bg-white rounded-[2.25rem] p-8 border border-[#e4ebe6] shadow-sm flex flex-col justify-between gap-6">
             <div>
-              <p className="text-sm font-bold text-primary-container">
-                {stats.pendingApprovals > 0 ? "Approval Queue Growing" : "Queue Healthy"}
-              </p>
-              <p className="text-xs text-on-surface-variant">
-                {stats.pendingApprovals > 0 
-                  ? `There are ${stats.pendingApprovals} members waiting for verification.` 
-                  : "All registration requests have been processed."}
-              </p>
+              <h2 className="font-serif text-2xl text-[#0d2a1d] font-bold mb-6">System Health</h2>
+              <div className="grid grid-cols-3 gap-4">
+                
+                {/* Latency */}
+                <div className="bg-[#e8f5e9]/50 border border-[#c8e6c9]/50 rounded-2xl p-4 flex flex-col gap-1 items-center justify-center text-center">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Firestore Latency</span>
+                  <span className="text-base font-extrabold text-[#2e7d32] mt-1">45ms</span>
+                  <span className="text-[9px] text-[#2e7d32]/70 font-semibold mt-0.5">(Optimal)</span>
+                </div>
+
+                {/* Auth */}
+                <div className="bg-[#e8f5e9]/50 border border-[#c8e6c9]/50 rounded-2xl p-4 flex flex-col gap-1 items-center justify-center text-center">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Auth Services</span>
+                  <span className="text-base font-extrabold text-[#2e7d32] mt-1">Active</span>
+                  <span className="text-[9px] text-[#2e7d32]/70 font-semibold mt-0.5">(Optimal)</span>
+                </div>
+
+                {/* Verification */}
+                <div className="bg-[#e8f5e9]/50 border border-[#c8e6c9]/50 rounded-2xl p-4 flex flex-col gap-1 items-center justify-center text-center">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Image Verification</span>
+                  <span className="text-base font-extrabold text-[#2e7d32] mt-1">
+                    {photoPendingCount > 0 ? `${photoPendingCount} queued` : "Clean"}
+                  </span>
+                  <span className="text-[9px] text-[#2e7d32]/70 font-semibold mt-0.5">
+                    {photoPendingCount > 0 ? "(Reviewing)" : "(Optimal)"}
+                  </span>
+                </div>
+
+              </div>
             </div>
+
+            {/* Health Alert Box */}
+            <div className="p-4 bg-[#e8eedc] rounded-2xl border border-[#ceddb2]/40 flex items-start gap-4 text-slate-700">
+              <Info className="w-5 h-5 text-[#42591e] flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-extrabold text-[#42591e]">
+                  {stats.pendingApprovals > 0 ? "Approval Queue Growing" : "Queue Healthy"}
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium mt-1">
+                  {stats.pendingApprovals > 0 
+                    ? `There are ${stats.pendingApprovals} members waiting for verification.` 
+                    : "All registration requests have been processed."}
+                </p>
+              </div>
+            </div>
+
           </div>
+
         </div>
-      </div>
+      ) : (
+        <div className="bg-white rounded-[2.25rem] p-8 border border-[#e4ebe6] shadow-sm text-center py-16 text-slate-400">
+          <Info className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+          <p className="font-bold text-lg text-slate-600">Connections Log Viewer</p>
+          <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
+            To view detailed pending requests and connected pairs, use the <strong>Interest Sent</strong> or <strong>Connected Successfully</strong> stats cards above.
+          </p>
+        </div>
+      )}
+
       <AdminReportModal 
         isOpen={isReportModalOpen} 
         onClose={() => setIsReportModalOpen(false)} 
       />
     </div>
   );
-}
-
-function AdminStatCard({ label, value, icon: Icon, to, hoverScheme }: any) {
-  const schemes: any = {
-    navy: {
-      iconBg: 'bg-[#040e2a]/10 text-[#040e2a]',
-      hoverClass: 'hover:bg-[#040e2a] hover:border-[#040e2a]',
-      hoverIconBg: 'group-hover:bg-white/10 group-hover:text-white',
-      textClass: 'group-hover:text-white',
-      labelClass: 'group-hover:text-white/70'
-    },
-    gold: {
-      iconBg: 'bg-[#d4af37]/10 text-[#d4af37]',
-      hoverClass: 'hover:bg-[#d4af37] hover:border-[#d4af37]',
-      hoverIconBg: 'group-hover:bg-[#040e2a]/10 group-hover:text-[#040e2a]',
-      textClass: 'group-hover:text-[#040e2a]',
-      labelClass: 'group-hover:text-[#040e2a]/70'
-    },
-    purple: {
-      iconBg: 'bg-[#6750A4]/10 text-[#6750A4]',
-      hoverClass: 'hover:bg-[#6750A4] hover:border-[#6750A4]',
-      hoverIconBg: 'group-hover:bg-white/10 group-hover:text-white',
-      textClass: 'group-hover:text-white',
-      labelClass: 'group-hover:text-white/70'
-    },
-    emerald: {
-      iconBg: 'bg-[#16a34a]/10 text-[#16a34a]',
-      hoverClass: 'hover:bg-[#16a34a] hover:border-[#16a34a]',
-      hoverIconBg: 'group-hover:bg-white/10 group-hover:text-white',
-      textClass: 'group-hover:text-white',
-      labelClass: 'group-hover:text-white/70'
-    }
-  };
-
-  const scheme = schemes[hoverScheme] || schemes.navy;
-
-  return (
-    <Link 
-      to={to} 
-      className={cn(
-        "bg-surface-container-lowest border border-outline-variant rounded-2xl md:rounded-3xl p-2 md:p-6 shadow-sm flex flex-col md:flex-row items-center justify-center md:justify-start gap-2 md:gap-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg group",
-        scheme.hoverClass
-      )}
-    >
-      <div className={cn(
-        "p-2 md:p-3 rounded-xl md:rounded-2xl transition-all duration-300 flex-shrink-0",
-        scheme.iconBg,
-        scheme.hoverIconBg
-      )}>
-        <Icon className="w-5 h-5 md:w-6 md:h-6" />
-      </div>
-      <div className="text-center md:text-left min-w-0">
-        <p className={cn("text-[10px] md:text-xs font-label-lg text-on-surface-variant uppercase tracking-widest transition-colors duration-300 hidden md:block", scheme.labelClass)}>{label}</p>
-        <p className={cn("text-lg md:text-3xl font-headline text-on-surface transition-colors duration-300 leading-none", scheme.textClass)}>{value}</p>
-      </div>
-    </Link>
-  );
-}
-
-function HealthItem({ label, status, value }: any) {
-  return (
-    <div className="flex items-center justify-between p-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/30">
-      <div className="flex items-center gap-3">
-        <div className={cn(
-          "w-2 h-2 rounded-full",
-          status === 'optimal' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-primary-container shadow-[0_0_8px_rgba(212,175,55,0.5)]"
-        )} />
-        <span className="text-sm font-label-lg text-on-surface">{label}</span>
-      </div>
-      <span className="text-sm text-on-surface-variant font-inter">{value}</span>
-    </div>
-  );
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
 }
