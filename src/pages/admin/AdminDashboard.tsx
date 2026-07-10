@@ -32,7 +32,7 @@ export default function AdminDashboard() {
   const [maleFemaleRatio, setMaleFemaleRatio] = useState({ male: 0, female: 0 });
   const [photoPendingCount, setPhotoPendingCount] = useState(0);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'connections'>('overview');
+
 
   useEffect(() => {
     // Real-time listener for general stats
@@ -333,29 +333,7 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-6 border-b border-[#d6ebd9] pb-3 mt-4">
-        <button 
-          onClick={() => setActiveTab('overview')}
-          className={`text-sm font-extrabold pb-3 -mb-[13px] relative transition-colors ${
-            activeTab === 'overview' ? 'text-[#0d2a1d] border-b-2 border-[#0d2a1d]' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          General Overview
-        </button>
-        <button 
-          onClick={() => setActiveTab('connections')}
-          className={`text-sm font-extrabold pb-3 -mb-[13px] relative transition-colors ${
-            activeTab === 'connections' ? 'text-[#0d2a1d] border-b-2 border-[#0d2a1d]' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          Connections Log ({stats.interestsSent + stats.connectedSuccessfully})
-        </button>
-      </div>
-
-      {/* Tab Contents */}
-      {activeTab === 'overview' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           {/* User Profiles Composition (Donut Chart) */}
           <div className="bg-white rounded-[2.25rem] p-8 border border-[#e4ebe6] shadow-sm space-y-6">
@@ -464,16 +442,7 @@ export default function AdminDashboard() {
 
           </div>
 
-        </div>
-      ) : (
-        <div className="bg-white rounded-[2.25rem] p-8 border border-[#e4ebe6] shadow-sm text-center py-16 text-slate-400">
-          <Info className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-          <p className="font-bold text-lg text-slate-600">Connections Log Viewer</p>
-          <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
-            To view detailed pending requests and connected pairs, use the <strong>Interest Sent</strong> or <strong>Connected Successfully</strong> stats cards above.
-          </p>
-        </div>
-      )}
+      </div>
 
       <AdminReportModal 
         isOpen={isReportModalOpen} 
