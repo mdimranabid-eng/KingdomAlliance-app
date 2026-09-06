@@ -12,8 +12,13 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 async function run() {
-  const email = "admin@kingdomalliance.com";
-  const password = "Admin123!";
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  
+  if (!email || !password) {
+    console.error("Set ADMIN_EMAIL and ADMIN_PASSWORD environment variables");
+    process.exit(1);
+  }
   
   console.log(`Checking/Registering admin: ${email}...`);
   

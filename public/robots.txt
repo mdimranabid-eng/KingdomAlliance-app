@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Private App Routes
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /profile/
+Disallow: /messages
+Disallow: /interests
+Disallow: /shortlist
+Disallow: /waiting-room
+Disallow: /onboarding
+
+# Sitemap Reference
+Sitemap: https://kingdom-alliance-v2.web.app/sitemap.xml
