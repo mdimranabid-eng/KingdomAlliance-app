@@ -14,8 +14,6 @@ interface Settings {
   enableNotifications: boolean;
   requireAdminApproval: boolean;
   minAge: number;
-  cloudinaryCloudName: string;
-  cloudinaryUploadPreset: string;
   adminNotificationEmails: string;
 }
 
@@ -38,8 +36,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     enableNotifications: DEFAULT_CONFIG.features.enableNotifications,
     requireAdminApproval: DEFAULT_CONFIG.features.requireAdminApproval,
     minAge: DEFAULT_CONFIG.minAge,
-    cloudinaryCloudName: DEFAULT_CONFIG.cloudinaryCloudName || '',
-    cloudinaryUploadPreset: DEFAULT_CONFIG.cloudinaryUploadPreset || '',
     adminNotificationEmails: 'stars@thekingdomalliances.com',
   });
   const [loading, setLoading] = useState(true);
@@ -52,9 +48,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setSettings(prev => ({
           ...prev,
           ...data,
-          // Explicitly preserve Cloudinary settings if Firestore doesn't have them
-          cloudinaryCloudName: data.cloudinaryCloudName || prev.cloudinaryCloudName,
-          cloudinaryUploadPreset: data.cloudinaryUploadPreset || prev.cloudinaryUploadPreset,
           adminNotificationEmails: data.adminNotificationEmails || 'stars@thekingdomalliances.com',
         }));
         

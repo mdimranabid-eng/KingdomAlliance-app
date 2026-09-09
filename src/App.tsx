@@ -7,6 +7,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import NotificationListener from './components/NotificationListener';
+import ForegroundNotificationListener from './components/ForegroundNotificationListener';
 import { AuthGuard } from './components/AuthGuard';
 import Layout from './components/Layout';
 import LandingPage from './pages/LandingPage';
@@ -22,6 +23,7 @@ import OnboardingPage from './pages/OnboardingPage';
 import TermsPage from './pages/TermsPage';
 import ContactPage from './pages/ContactPage';
 import AboutPage from './pages/AboutPage';
+import FaqPage from './pages/FaqPage';
 
 // Status Pages
 import PendingApprovalPage from './pages/status/PendingApprovalPage';
@@ -37,6 +39,9 @@ import AdminUserManagement from './pages/admin/AdminUserManagement';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import RejectedProfilesPage from './pages/admin/RejectedProfilesPage';
 import AdminChurchInfo from './pages/admin/AdminChurchInfo';
+import AdminSettings from './pages/admin/AdminSettings';
+import AdminAnnouncements from './pages/admin/AdminAnnouncements';
+import AdminHelpCenter from './pages/admin/AdminHelpCenter';
 
 import { multiFactor } from 'firebase/auth';
 
@@ -66,6 +71,7 @@ export default function App() {
       <Router>
         <Toaster position="bottom-right" />
         <NotificationListener />
+        <ForegroundNotificationListener />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
@@ -74,6 +80,7 @@ export default function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/faq" element={<FaqPage />} />
           
           {/* Status Routes (Publicly accessible but usually redirected to) */}
           <Route path="/pending-approval" element={<PendingApprovalPage />} />
@@ -108,6 +115,9 @@ export default function App() {
             <Route path="/admin/users" element={<AdminUserManagement />} />
             <Route path="/admin/rejected" element={<RejectedProfilesPage />} />
             <Route path="/admin/church-info" element={<AdminChurchInfo />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+            <Route path="/admin/help" element={<AdminHelpCenter />} />
           </Route>
         </Routes>
       </Router>

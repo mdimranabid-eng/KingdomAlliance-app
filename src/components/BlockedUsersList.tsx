@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, onSnapshot, updateDoc, arrayRemove } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, arrayRemove, collection, query, where, getDocs, deleteField } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import toast from 'react-hot-toast';
@@ -78,11 +78,27 @@ export default function BlockedUsersList() {
     setBlockedUsers(prev => prev.filter(u => u.uid !== targetUid));
 
     try {
+      // 1. Remove from blockedUsers array
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
         blockedUsers: arrayRemove(targetUid)
       });
-      toast.success('User unblocked successfully');
+
+      // 2. Restore interest to accepted
+      const interestsRef = collection(db, 'interests');
+      const q1 = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', targetUid));
+      const q2 = query(interestsRef, where('fromId', '==', targetUid), where('toId', '==', currentUser.uid));
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const interestDoc = snap1.docs[0] || snap2.docs[0];
+      if (interestDoc) {
+        await updateDoc(interestDoc.ref, {
+          status: 'accepted',
+          blocked: deleteField(),
+          declinedBy: deleteField()
+        });
+      }
+
+      toast.success('User unblocked and connection restored');
     } catch (err) {
       console.error("Error unblocking user:", err);
       toast.error('Failed to unblock user');

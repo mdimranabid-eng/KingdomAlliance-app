@@ -106,7 +106,7 @@ const sendAdminAlert = async (
         ${photosSection}
 
         <div style="text-align: center; margin-top: 8px;">
-          <a href="https://kingdom-alliance-v2.web.app/admin/approvals"
+          <a href="https://thekingdomalliances.com/admin/approvals"
             style="display: inline-block;
               background: linear-gradient(135deg, #040e2a, #1a2e4a);
               color: #ffffff; padding: 13px 28px; border-radius: 8px;
@@ -114,7 +114,7 @@ const sendAdminAlert = async (
               margin-right: 10px;">
             Review Profiles
           </a>
-          <a href="https://kingdom-alliance-v2.web.app/admin/photos"
+          <a href="https://thekingdomalliances.com/admin/photos"
             style="display: inline-block;
               background: linear-gradient(135deg, #d4af37, #b8860b);
               color: #040e2a; padding: 13px 28px; border-radius: 8px;

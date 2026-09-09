@@ -27,9 +27,11 @@ import {
   Loader2,
   Clock,
   Filter,
-  ChevronDown
+  ChevronDown,
+  ArrowLeft
 } from 'lucide-react';
 import { cn, formatRelativeTime } from '../../lib/utils';
+import { useNavigate } from 'react-router-dom';
 import { sendEmail } from '../../lib/email';
 
 // Dynamic environment-aware backend URL to prevent Mixed Content errors under HTTPS
@@ -61,6 +63,7 @@ const REJECTION_REASONS = [
 ];
 
 export default function AdminPhotos() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<ModerationItem[]>([]);
   const [stats, setStats] = useState({
     pending: 0,
@@ -257,43 +260,67 @@ export default function AdminPhotos() {
   return (
     <div className="space-y-8 pb-20">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-3">
-          <h1 className="font-playfair text-4xl font-bold text-[#040e2a]">Photo Moderation</h1>
-          <span className="bg-[#d4af37]/20 text-[#d4af37] px-4 py-1 rounded-full text-sm font-bold border border-[#d4af37]/30">
-            {stats.pending} Pending
-          </span>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate('/admin')}
+          className="mt-1 p-2 hover:bg-[#1a2e4a]/5 rounded-full transition-colors text-[#64748b]"
+          title="Back to Dashboard"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-[28px] font-semibold text-[#0f172a] tracking-tight">Photo Moderation</h1>
+            <span className="bg-[#1a2e4a]/10 text-[#1a2e4a] px-3 py-1 rounded-full text-xs font-bold">
+              {stats.pending} Pending
+            </span>
+          </div>
+          <p className="text-sm text-[#64748b] mt-0.5">Review and approve member photo uploads</p>
         </div>
-        <p className="text-on-surface-variant mt-2 text-lg">Review and approve member photo uploads</p>
       </div>
 
       {/* Summary Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#d4af37] p-6 rounded-2xl shadow-lg text-[#040e2a]">
-          <p className="text-sm font-bold uppercase tracking-wider opacity-80">Pending Photos</p>
-          <p className="text-4xl font-black mt-1">{stats.pending}</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="admin-card p-5 flex items-center gap-4" style={{ borderLeftWidth: '3px', borderLeftColor: '#f59e0b' }}>
+          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+            <Camera className="w-5 h-5 text-amber-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-[#64748b] uppercase tracking-wider">Pending Photos</p>
+            <p className="text-[28px] font-semibold text-[#0f172a] leading-none mt-0.5">{stats.pending}</p>
+          </div>
         </div>
-        <div className="bg-[#16a34a] p-6 rounded-2xl shadow-lg text-white">
-          <p className="text-sm font-bold uppercase tracking-wider opacity-80">Approved Today</p>
-          <p className="text-4xl font-black mt-1">{stats.approvedToday}</p>
+        <div className="admin-card p-5 flex items-center gap-4" style={{ borderLeftWidth: '3px', borderLeftColor: '#10b981' }}>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <CheckCircle className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-[#64748b] uppercase tracking-wider">Approved Today</p>
+            <p className="text-[28px] font-semibold text-[#0f172a] leading-none mt-0.5">{stats.approvedToday}</p>
+          </div>
         </div>
-        <div className="bg-[#dc2626] p-6 rounded-2xl shadow-lg text-white">
-          <p className="text-sm font-bold uppercase tracking-wider opacity-80">Rejected Today</p>
-          <p className="text-4xl font-black mt-1">{stats.rejectedToday}</p>
+        <div className="admin-card p-5 flex items-center gap-4" style={{ borderLeftWidth: '3px', borderLeftColor: '#ef4444' }}>
+          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+            <XCircle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-[#64748b] uppercase tracking-wider">Rejected Today</p>
+            <p className="text-[28px] font-semibold text-[#0f172a] leading-none mt-0.5">{stats.rejectedToday}</p>
+          </div>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 bg-surface-container p-1 rounded-2xl w-fit">
+      <div className="flex items-center gap-1 bg-white p-1 rounded-xl ring-1 ring-black/[0.04] w-fit shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
         {(['all', 'profile', 'gallery'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setFilterTab(tab)}
             className={cn(
-              "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+              "px-4 py-2 rounded-lg text-[13px] font-medium transition-all",
               filterTab === tab 
-                ? "bg-white text-[#040e2a] shadow-sm" 
-                : "text-on-surface-variant hover:text-on-surface"
+                ? "bg-[#1a2e4a] text-white shadow-sm" 
+                : "text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]"
             )}
           >
             {tab === 'all' && 'All Pending'}
@@ -306,17 +333,17 @@ export default function AdminPhotos() {
       {/* Main Grid */}
       <div className="space-y-4">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            <p className="text-on-surface-variant font-medium">Loading photos...</p>
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-[#1a2e4a]" />
+            <p className="text-sm text-[#64748b]">Loading photos...</p>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 bg-surface-container rounded-3xl border border-dashed border-outline-variant text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-6">
-              <CheckCircle className="w-10 h-10" />
+          <div className="admin-card p-16 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 mb-4">
+              <CheckCircle className="w-8 h-8" />
             </div>
-            <h3 className="text-2xl font-bold text-on-surface">No photos awaiting moderation.</h3>
-            <p className="text-on-surface-variant mt-2">All uploads have been processed.</p>
+            <h3 className="text-lg font-semibold text-[#0f172a]">No photos awaiting moderation</h3>
+            <p className="text-sm text-[#64748b] mt-1">All uploads have been processed.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -328,18 +355,18 @@ export default function AdminPhotos() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-white border border-outline-variant rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all flex flex-col group"
+                  className="admin-card overflow-hidden flex flex-col group"
                 >
                   {/* Photo Preview */}
-                  <div className="relative h-[240px] bg-surface-container overflow-hidden flex items-center justify-center">
+                  <div className="relative h-[220px] bg-[#f1f5f9] overflow-hidden flex items-center justify-center">
                     {!item.pendingPhotoUrl || imageErrors[item.id] ? (
-                      <div className="w-full h-full bg-gradient-to-br from-[#040e2a] to-[#0d2159] p-6 flex flex-col items-center justify-center text-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center border border-white/20 text-[#d4af37]">
-                          <Camera className="w-7 h-7" />
+                      <div className="w-full h-full bg-gradient-to-br from-[#1a2e4a] to-[#2d4a6f] p-6 flex flex-col items-center justify-center text-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+                          <Camera className="w-6 h-6 text-white/70" />
                         </div>
                         <div>
-                          <p className="text-white font-bold text-sm">No Image Data Found</p>
-                          <p className="text-white/60 text-xs mt-1 font-medium">{item.userName}</p>
+                          <p className="text-white/90 font-medium text-sm">No Image Data</p>
+                          <p className="text-white/50 text-xs mt-0.5">{item.userName}</p>
                         </div>
                       </div>
                     ) : (
@@ -347,50 +374,50 @@ export default function AdminPhotos() {
                         src={item.pendingPhotoUrl} 
                         alt={item.userName} 
                         onError={() => setImageErrors(prev => ({ ...prev, [item.id]: true }))}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     )}
-                    <div className="absolute top-4 left-4 z-10">
+                    <div className="absolute top-3 left-3 z-10">
                       <span className={cn(
-                        "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg backdrop-blur-md",
-                        item.photoType === 'profilePhoto' ? "bg-[#040e2a] text-white" : "bg-purple-600 text-white"
+                        "px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider shadow-sm backdrop-blur-md",
+                        item.photoType === 'profilePhoto' ? "bg-[#1a2e4a]/90 text-white" : "bg-purple-600/90 text-white"
                       )}>
-                        {item.photoType === 'profilePhoto' ? 'Profile Photo' : `Gallery — Pos ${item.galleryPosition}`}
+                        {item.photoType === 'profilePhoto' ? 'Profile' : `Gallery #${item.galleryPosition}`}
                       </span>
                     </div>
                     {item.pendingPhotoUrl && !imageErrors[item.id] && (
                       <button
                         onClick={() => window.open(item.pendingPhotoUrl, '_blank')}
-                        className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-md transition-colors z-10"
+                        className="absolute top-3 right-3 p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg backdrop-blur-md transition-colors z-10"
                       >
-                        <ExternalLink className="w-4 h-4" />
+                        <ExternalLink className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
 
                   {/* Content */}
-                  <div className="p-5 flex-1 flex flex-col">
+                  <div className="p-4 flex-1 flex flex-col">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-[#040e2a]">{item.userName}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-[13px] font-semibold text-[#0f172a] truncate">{item.userName}</h4>
                         <button onClick={() => window.open(`/profile/${item.uid}`, '_blank')}>
-                          <ExternalLink className="w-3 h-3 text-on-surface-variant hover:text-primary" />
+                          <ExternalLink className="w-3 h-3 text-[#94a3b8] hover:text-[#1a2e4a]" />
                         </button>
                       </div>
-                      <span className="text-[10px] text-on-surface-variant font-medium">
+                      <span className="text-[11px] text-[#94a3b8]">
                         {formatRelativeTime(item.uploadedAt)}
                       </span>
                     </div>
 
                     {/* Actions */}
-                    <div className="mt-6 space-y-3">
+                    <div className="mt-4 space-y-2">
                       <button
                         onClick={() => handleApprove(item)}
                         disabled={!!processingId}
-                        className="w-full py-3 bg-[#16a34a] text-white rounded-2xl font-bold text-sm hover:bg-[#15803d] transition-all flex items-center justify-center gap-2 shadow-md"
+                        className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-[13px] font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
                       >
-                        {processingId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                        Approve Photo
+                        {processingId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        Approve
                       </button>
 
                       <div className="relative">
@@ -398,20 +425,20 @@ export default function AdminPhotos() {
                           <button
                             onClick={() => setRejectionStates(prev => ({ ...prev, [item.id]: { isOpen: true, reason: '', customReason: '' } }))}
                             disabled={!!processingId}
-                            className="w-full py-3 bg-[#dc2626] text-white rounded-2xl font-bold text-sm hover:bg-[#b91c1c] transition-all flex items-center justify-center gap-2 shadow-md"
+                            className="w-full py-2.5 bg-red-50 text-red-600 rounded-xl text-[13px] font-medium hover:bg-red-100 transition-all flex items-center justify-center gap-2"
                           >
-                            <X className="w-4 h-4" />
-                            Reject Photo
+                            <X className="w-3.5 h-3.5" />
+                            Reject
                           </button>
                         ) : (
-                          <div className="bg-surface-container p-3 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="bg-[#f8fafc] p-3 rounded-xl space-y-2.5 ring-1 ring-black/[0.04]">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-on-surface-variant uppercase">Reject Reason</span>
+                              <span className="text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Reject Reason</span>
                               <button 
                                 onClick={() => setRejectionStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], isOpen: false } }))}
-                                className="text-on-surface-variant hover:text-on-surface"
+                                className="text-[#94a3b8] hover:text-[#0f172a]"
                               >
-                                <X className="w-4 h-4" />
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
                             
@@ -421,7 +448,7 @@ export default function AdminPhotos() {
                                 ...prev, 
                                 [item.id]: { ...prev[item.id], reason: e.target.value } 
                               }))}
-                              className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-error outline-none"
+                              className="w-full bg-white rounded-lg px-3 py-2 text-[13px] ring-1 ring-black/[0.06] focus:ring-2 focus:ring-red-500/40 outline-none"
                             >
                               <option value="">Select reason...</option>
                               {REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
@@ -436,14 +463,14 @@ export default function AdminPhotos() {
                                   ...prev, 
                                   [item.id]: { ...prev[item.id], customReason: e.target.value } 
                                 }))}
-                                className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-error outline-none"
+                                className="w-full bg-white rounded-lg px-3 py-2 text-[13px] ring-1 ring-black/[0.06] focus:ring-2 focus:ring-red-500/40 outline-none"
                               />
                             )}
 
                             <button
                               onClick={() => handleReject(item)}
                               disabled={!!processingId || !rejectionStates[item.id].reason || (rejectionStates[item.id].reason === "Other (type reason)" && !rejectionStates[item.id].customReason)}
-                              className="w-full py-2 bg-[#dc2626] text-white rounded-xl font-bold text-xs hover:bg-[#b91c1c] transition-all disabled:opacity-50"
+                              className="w-full py-2 bg-red-500 text-white rounded-lg text-[12px] font-medium hover:bg-red-600 transition-all disabled:opacity-40"
                             >
                               {processingId === item.id ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Confirm Rejection'}
                             </button>

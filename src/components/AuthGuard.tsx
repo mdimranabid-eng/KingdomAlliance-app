@@ -5,6 +5,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
 import { KingdomCrossIcon } from './KingdomCrossIcon';
 import { resolveApprovalStatus } from '../lib/utils';
+import AccountDeletionPrompt from './AccountDeletionPrompt';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -110,8 +111,21 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     return <Navigate to="/onboarding" replace />;
   }
 
+  // 0. Pending Account Deletion — offer reactivation (7-day grace window)
+  if (profile.deletionStatus === 'pending_deletion') {
+    return (
+      <AccountDeletionPrompt
+        scheduledDeletionAtMs={profile.scheduledDeletionAt?.toMillis?.()}
+        onReactivated={() => { /* profile onSnapshot listener auto-refreshes */ }}
+      />
+    );
+  }
+
   // 1. Strict Email Verification Check (Email Auth Users)
-  if (profile.authProvider === 'email' && !profile.emailVerified) {
+  // Accept either the Firestore flag or the Firebase Auth token flag — the
+  // server-side OTP flow marks the Auth user verified, so trusting both
+  // prevents an infinite /register <-> /onboarding redirect loop.
+  if (profile.authProvider === 'email' && !profile.emailVerified && !user.emailVerified) {
     return <Navigate to="/register" replace />;
   }
 
@@ -128,7 +142,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   if (isOnboardingPath) {
     if (profile.onboardingComplete) {
       if (status === 'approved') {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to="/profile" replace />;
       }
       return <Navigate to="/waiting-room" replace />;
     }

@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Kingdom Alliances — Christian Matrimony</title>
+  <meta name="description" content="A private, faith-centered community where Christian singles meet with intention, guided by prayer and rooted in shared values.">
+  <meta name="keywords" content="christian matrimony, christian dating, faith-based dating, christian singles, kingdom alliance">
+  <link rel="icon" type="image/png" href="images/logo2.png">
+  <!-- Open Graph -->
+  <meta property="og:title" content="The Kingdom Alliances — Christian Matrimony">
+  <meta property="og:description" content="Find your God-given partner. A private, faith-centered community for Christian singles.">
+  <meta property="og:image" content="images/logo2.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kingdom-alliance-v2.web.app">
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The Kingdom Alliances — Christian Matrimony">
+  <meta name="twitter:description" content="Find your God-given partner. A private, faith-centered community for Christian singles.">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf4ea;
+      --bg-warm: #f6ecdd;
+      --bg-rose: #f0e2cc;
+      --terracotta: #C4856A;
+      --terracotta-soft: #F5E6DE;
+      --coral: #D4967E;
+      --coral-soft: #F8ECE6;
+      --sand: #B89A72;
+      --sand-soft: #F0E8DC;
+      --blush: #CCA098;
+      --blush-soft: #F2E6E2;
+      --sage: #8CA888;
+      --sage-soft: #E2EDE0;
+      --cream: #F5F0E8;
+      --text: #4a3521;
+      --text-light: #7A6E68;
+      --text-muted: #AEA49E;
+      --white: #FFFFFF;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html {
+      scroll-behavior: auto;
+      scroll-snap-type: y mandatory;
+      scroll-padding-top: 0;
+      interpolate-size: allow-keywords;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 300;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior-y: contain;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ===== NAV ===== */
+    .nav {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      padding: 12px 24px;
+      background: rgba(255,255,255,0.80);
+      backdrop-filter: blur(24px) saturate(1.6);
+      -webkit-backdrop-filter: blur(24px) saturate(1.6);
+      border: 1px solid rgba(0,0,0,0.05);
+      border-radius: 100px;
+      box-shadow: 0 2px 20px -4px rgba(0,0,0,0.06);
+      transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .nav-logo img { width: 30px; height: 30px; object-fit: contain; }
+
+    .nav-logo span {
+      font-weight: 600;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--text-light);
+      text-decoration: none;
+      transition: color 0.3s;
+      position: relative;
+    }
+
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 1.5px;
+      background: var(--terracotta);
+      transition: width 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .nav-links a:hover { color: var(--terracotta); }
+    .nav-links a:hover::after { width: 100%; }
+
+    .nav-cta {
+      padding: 9px 20px !important;
+      background: var(--text) !important;
+      color: var(--white) !important;
+      border-radius: 100px !important;
+      font-weight: 500 !important;
+      transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1) !important;
+    }
+
+    .nav-cta::after { display: none !important; }
+
+    .nav-cta:hover {
+      background: var(--terracotta) !important;
+      transform: scale(1.04);
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 120px 24px 80px;
+      scroll-snap-align: start;
+    }
+
+    .hero-video-wrap {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+    }
+
+    .hero-video-wrap iframe {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 1920px;
+      height: 1080px;
+      min-width: 100vw;
+      min-height: 100vh;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      border: none;
+    }
+
+    .hero-video-wrap .hero-fallback {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: url('https://img.youtube.com/vi/szWKep4LpVk/maxresdefault.jpg') center center / cover no-repeat;
+      z-index: 0;
+      animation: kenBurns 20s ease-in-out infinite alternate;
+    }
+
+    @keyframes kenBurns {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.08); }
+    }
+
+    .hero-video-wrap::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: linear-gradient(
+        180deg,
+        rgba(74,53,33,0.50) 0%,
+        rgba(196,133,106,0.15) 40%,
+        rgba(74,53,33,0.55) 100%
+      );
+      z-index: 1;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      max-width: 760px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      background: rgba(255,255,255,0.18);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 100px;
+      margin-bottom: 28px;
+      box-shadow: 0 2px 12px -2px rgba(0,0,0,0.10);
+    }
+
+    .hero-badge span {
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--white);
+    }
+
+    .hero-badge-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--terracotta);
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    .hero-title {
+      font-weight: 200;
+      font-size: clamp(52px, 8vw, 90px);
+      line-height: 1.06;
+      margin-bottom: 28px;
+      color: var(--white);
+      letter-spacing: -0.035em;
+    }
+
+    .hero-title em {
+      font-style: normal;
+      font-weight: 300;
+      color: var(--terracotta-soft);
+    }
+
+    .hero-sub {
+      font-size: clamp(16px, 2vw, 20px);
+      color: rgba(255,255,255,0.82);
+      max-width: 520px;
+      margin: 0 auto 48px;
+      font-weight: 300;
+      line-height: 1.85;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-fill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 34px;
+      background: var(--terracotta);
+      color: var(--white);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      font-size: 15px;
+      border: none;
+      border-radius: 100px;
+      cursor: pointer;
+      transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+      text-decoration: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-fill::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: rgba(255,255,255,0.15);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+
+    .btn-fill:hover::before { width: 300px; height: 300px; }
+
+    .btn-fill:hover {
+      background: var(--coral);
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 12px 32px -8px rgba(192,120,80,0.40);
+    }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 34px;
+      background: transparent;
+      color: var(--white);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      font-size: 15px;
+      border: 1.5px solid rgba(255,255,255,0.30);
+      border-radius: 100px;
+      cursor: pointer;
+      transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+      text-decoration: none;
+    }
+
+    .btn-outline:hover {
+      border-color: var(--terracotta-soft);
+      color: var(--terracotta-soft);
+      transform: translateY(-2px);
+    }
+
+    .btn-icon-circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .btn-fill:hover .btn-icon-circle {
+      background: rgba(255,255,255,0.28);
+      transform: translate(2px, -1px);
+    }
+
+    /* ===== SCRIPTURE QUOTE ===== */
+    .verse-section {
+      min-height: 100vh;
+      padding: 80px 24px;
+      background: linear-gradient(135deg, #f0e2cc 0%, #faf4ea 50%, #f6ecdd 100%);
+      scroll-snap-align: start;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .verse-inner {
+      max-width: 700px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 48px;
+    }
+
+    .verse-deco {
+      flex-shrink: 0;
+      width: 100px;
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .verse-cross {
+      width: 64px;
+      height: 64px;
+      color: var(--terracotta);
+      opacity: 0.7;
+      animation: gentlePulse 4s ease-in-out infinite;
+    }
+
+    .verse-ornament {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      border: 1px solid var(--terracotta-soft);
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0.3;
+    }
+
+    @keyframes gentlePulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.05); }
+    }
+
+    .verse-content {
+      flex: 1;
+    }
+
+    .verse-ref {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--terracotta);
+      background: var(--terracotta-soft);
+      padding: 5px 14px;
+      border-radius: 100px;
+      margin-bottom: 18px;
+      transition: all 0.4s;
+    }
+
+    .verse-text {
+      font-size: clamp(22px, 3.5vw, 30px);
+      font-weight: 300;
+      color: var(--text);
+      line-height: 1.6;
+      letter-spacing: -0.01em;
+      font-style: italic;
+      margin-bottom: 24px;
+      border: none;
+      padding: 0;
+      min-height: 100px;
+      transition: opacity 0.5s ease-in-out;
+    }
+
+    .verse-text.fade-out {
+      opacity: 0;
+    }
+
+    .verse-divider {
+      width: 40px;
+      height: 1.5px;
+      background: linear-gradient(90deg, var(--terracotta), var(--coral));
+      margin-bottom: 16px;
+      border-radius: 2px;
+    }
+
+    .verse-sub {
+      font-size: 16px;
+      color: var(--text-light);
+      line-height: 1.7;
+    }
+
+    @media (max-width: 600px) {
+      .verse-inner {
+        flex-direction: column;
+        text-align: center;
+        gap: 24px;
+      }
+
+      .verse-divider {
+        margin-left: auto;
+        margin-right: auto;
+      }
+    }
+
+    /* ===== SECTIONS ===== */
+    section {
+      min-height: 100vh;
+      padding: 100px 24px;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 560px;
+      margin: 0 auto 56px;
+    }
+
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 13px;
+      background: var(--terracotta-soft);
+      border-radius: 100px;
+      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .section-tag span {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--terracotta);
+    }
+
+    .section-title {
+      font-weight: 200;
+      font-size: clamp(36px, 5vw, 54px);
+      color: var(--text);
+      line-height: 1.12;
+      margin-bottom: 18px;
+      letter-spacing: -0.025em;
+    }
+
+    .section-desc {
+      font-size: 17px;
+      color: var(--text-light);
+      line-height: 1.85;
+    }
+
+    /* ===== HOW IT WORKS ===== */
+    .how {
+      background: linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%);
+    }
+
+    .how-grid {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      position: relative;
+    }
+
+    .how-grid::before {
+      content: '';
+      position: absolute;
+      top: 48px;
+      left: calc(33.33% - 10px);
+      width: calc(33.33% + 20px);
+      height: 1px;
+      background: linear-gradient(90deg, var(--terracotta-soft), var(--coral-soft));
+    }
+
+    .how-grid::after {
+      content: '';
+      position: absolute;
+      top: 48px;
+      left: calc(66.66% - 10px);
+      width: calc(33.33% + 20px);
+      height: 1px;
+      background: linear-gradient(90deg, var(--coral-soft), var(--sage-soft));
+    }
+
+    .how-card {
+      position: relative;
+      padding: 40px 28px;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(16px);
+      border-radius: 20px;
+      border: 1px solid rgba(0,0,0,0.04);
+      transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+      transform-style: preserve-3d;
+      perspective: 1000px;
+    }
+
+    .how-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 48px -12px rgba(0,0,0,0.08);
+      border-color: rgba(0,0,0,0.06);
+    }
+
+    .how-num {
+      position: absolute;
+      top: -14px;
+      left: 28px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--terracotta) 0%, var(--coral) 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px -2px rgba(196,133,106,0.3);
+    }
+
+    .how-card:nth-child(2) .how-num {
+      background: linear-gradient(135deg, var(--coral) 0%, var(--sand) 100%);
+      box-shadow: 0 4px 12px -2px rgba(212,150,126,0.3);
+    }
+
+    .how-card:nth-child(3) .how-num {
+      background: linear-gradient(135deg, var(--sand) 0%, var(--sage) 100%);
+      box-shadow: 0 4px 12px -2px rgba(184,154,114,0.3);
+    }
+
+    .how-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: var(--terracotta-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .how-card:nth-child(2) .how-icon { background: var(--coral-soft); }
+    .how-card:nth-child(3) .how-icon { background: var(--sage-soft); }
+
+    .how-card:hover .how-icon { transform: scale(1.06) rotate(-2deg); }
+
+    .how-card:nth-child(1) .how-icon svg { color: var(--terracotta); }
+    .how-card:nth-child(2) .how-icon svg { color: var(--coral); }
+    .how-card:nth-child(3) .how-icon svg { color: var(--sage); }
+
+    .how-icon svg { width: 20px; height: 20px; }
+
+    .how-card h3 {
+      font-weight: 600;
+      font-size: 20px;
+      color: var(--text);
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .how-card p {
+      font-size: 16px;
+      color: var(--text-light);
+      line-height: 1.7;
+    }
+
+    /* ===== BENEFITS ===== */
+    .benefits {
+      background: linear-gradient(135deg, #f6ecdd 0%, #faf4ea 50%, #f0e2cc 100%);
+    }
+
+    .benefits-grid {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .benefit-card {
+      padding: 36px;
+      border-radius: 20px;
+      border: 1px solid rgba(0,0,0,0.04);
+      background: rgba(255,255,255,0.5);
+      transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .benefit-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px -10px rgba(0,0,0,0.06);
+    }
+
+    .benefit-card.featured {
+      grid-column: span 2;
+      background: linear-gradient(135deg, var(--terracotta-soft) 0%, var(--coral-soft) 40%, var(--sand-soft) 100%);
+      border: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+      padding: 44px;
+    }
+
+    .benefit-card.featured .benefit-content h3 { font-size: 24px; }
+
+    .benefit-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 8px -2px rgba(192,120,80,0.10);
+    }
+
+    .benefit-icon svg { width: 22px; height: 22px; color: var(--terracotta); }
+
+    .benefit-card h3 {
+      font-weight: 600;
+      font-size: 20px;
+      color: var(--text);
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .benefit-card p {
+      font-size: 16px;
+      color: var(--text-light);
+      line-height: 1.7;
+    }
+
+    .benefit-features {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .benefit-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 14px;
+      background: rgba(255,255,255,0.65);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+
+    .benefit-feature:hover {
+      background: rgba(255,255,255,0.85);
+      transform: translateX(4px);
+    }
+
+    .benefit-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--sage);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .benefit-check svg { width: 10px; height: 10px; color: white; }
+
+    .benefit-feature span {
+      font-size: 16px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* ===== TESTIMONIALS ===== */
+    .testimonials {
+      background: linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%);
+    }
+
+    .testimonial-grid {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .testimonial-card {
+      padding: 32px;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(16px);
+      border-radius: 20px;
+      border: 1px solid rgba(0,0,0,0.04);
+      transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+      transform-style: preserve-3d;
+      perspective: 1000px;
+    }
+
+    .testimonial-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 36px -8px rgba(0,0,0,0.07);
+    }
+
+    .testimonial-stars {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 14px;
+    }
+
+    .testimonial-stars svg {
+      width: 14px;
+      height: 14px;
+      color: var(--sand);
+      fill: var(--sand);
+    }
+
+    .testimonial-text {
+      font-size: 16px;
+      color: var(--text);
+      line-height: 1.7;
+      margin-bottom: 22px;
+      font-style: italic;
+    }
+
+    .testimonial-author {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .testimonial-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--terracotta-soft) 0%, var(--coral-soft) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 11px;
+      color: var(--terracotta);
+    }
+
+    .testimonial-name {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    /* ===== TRUST ===== */
+    .trust {
+      background: linear-gradient(135deg, #f6ecdd 0%, #faf4ea 50%, #f0e2cc 100%);
+    }
+
+    .trust-grid {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    .trust-card {
+      padding: 32px;
+      border-radius: 20px;
+      border: 1px solid rgba(0,0,0,0.04);
+      background: rgba(255,255,255,0.5);
+      transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .trust-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px -8px rgba(0,0,0,0.06);
+      border-color: rgba(0,0,0,0.06);
+    }
+
+    .trust-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .trust-card:hover .trust-icon { transform: scale(1.08) rotate(-3deg); }
+
+    .trust-icon.terracotta { background: var(--terracotta-soft); }
+    .trust-icon.terracotta svg { color: var(--terracotta); }
+    .trust-icon.coral { background: var(--coral-soft); }
+    .trust-icon.coral svg { color: var(--coral); }
+    .trust-icon.sand { background: var(--sand-soft); }
+    .trust-icon.sand svg { color: var(--sand); }
+    .trust-icon.sage { background: var(--sage-soft); }
+    .trust-icon.sage svg { color: var(--sage); }
+
+    .trust-icon svg { width: 22px; height: 22px; }
+
+    .trust-card h3 {
+      font-weight: 600;
+      font-size: 20px;
+      color: var(--text);
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .trust-card p {
+      font-size: 16px;
+      color: var(--text-light);
+      line-height: 1.7;
+    }
+
+    /* ===== FAQ ===== */
+    .faq {
+      background: linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%);
+    }
+
+    .faq-list { max-width: 640px; margin: 0 auto; }
+
+    .faq-item { border-bottom: 1px solid rgba(0,0,0,0.06); }
+
+    .faq-item summary {
+      padding: 22px 0;
+      font-weight: 500;
+      font-size: 17px;
+      color: var(--text);
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: color 0.3s;
+    }
+
+    .faq-item summary::-webkit-details-marker { display: none; }
+
+    .faq-item summary::after {
+      content: '+';
+      font-size: 16px;
+      font-weight: 300;
+      color: var(--terracotta);
+      transition: transform 0.3s;
+      flex-shrink: 0;
+    }
+
+    .faq-item[open] summary::after { transform: rotate(45deg); }
+    .faq-item[open] summary { color: var(--terracotta); }
+
+    .faq-answer {
+      font-size: 16px;
+      color: var(--text-light);
+      line-height: 1.8;
+    }
+
+    .faq-item[open] .faq-answer {
+      animation: faqSlide 0.4s cubic-bezier(0.32, 0.72, 0, 1) both;
+    }
+
+    @keyframes faqSlide {
+      from {
+        height: 0;
+        opacity: 0;
+      }
+      to {
+        height: auto;
+        opacity: 1;
+      }
+    }
+
+    /* Smooth height animation using interpolate-size */
+    .faq-item {
+      interpolate-size: allow-keywords;
+    }
+
+    .faq-more { text-align: center; margin-top: 36px; }
+
+    /* ===== CTA ===== */
+    .cta {
+      min-height: 100vh;
+      background: linear-gradient(160deg, var(--terracotta-soft) 0%, var(--coral-soft) 40%, var(--sand-soft) 80%, var(--blush-soft) 100%);
+      text-align: center;
+      padding: 100px 24px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      scroll-snap-align: start;
+    }
+
+    .cta-shape {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .cta-shape-1 {
+      width: 300px;
+      height: 300px;
+      background: var(--terracotta-soft);
+      top: -20%;
+      right: -5%;
+    }
+
+    .cta-shape-2 {
+      width: 250px;
+      height: 250px;
+      background: var(--blush-soft);
+      bottom: -15%;
+      left: 10%;
+    }
+
+    .cta-title {
+      font-weight: 200;
+      font-size: clamp(36px, 6vw, 58px);
+      color: var(--text);
+      margin-bottom: 18px;
+      letter-spacing: -0.025em;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta-desc {
+      font-size: 18px;
+      color: var(--text-light);
+      max-width: 480px;
+      margin: 0 auto 40px;
+      line-height: 1.85;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta .btn-fill, .cta .btn-outline { position: relative; z-index: 1; }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      background: linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%);
+      padding: 44px 24px 28px;
+      border-top: 1px solid rgba(0,0,0,0.04);
+      scroll-snap-align: start;
+      min-height: auto;
+    }
+
+    .footer-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .footer-brand img { width: 36px; height: 36px; object-fit: contain; }
+    .footer-brand span { font-weight: 600; font-size: 14px; }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 18px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: 15px;
+      color: var(--text-light);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .footer-links a:hover { color: var(--terracotta); }
+
+    .footer-copy { font-size: 11.5px; color: var(--text-muted); }
+
+    /* ===== SECTION DIVIDERS ===== */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 0 24px;
+      min-height: auto;
+      scroll-snap-align: none;
+      background: transparent;
+    }
+
+    .section-divider .divider-line {
+      width: 60px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--terracotta-soft), transparent);
+    }
+
+    .section-divider .divider-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--terracotta-soft);
+    }
+
+    /* ===== HOVER TRANSITIONS ===== */
+    .how-card,
+    .benefit-card,
+    .testimonial-card,
+    .trust-card {
+      transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+                  box-shadow 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+                  border-color 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(36px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes scrollPulse {
+      0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+      50% { opacity: 1; transform: scaleY(1); }
+    }
+
+    .hero-content > * {
+      opacity: 0;
+      animation: fadeUp 0.9s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+    }
+
+    .hero-content > *:nth-child(1) { animation-delay: 0.3s; }
+    .hero-content > *:nth-child(2) { animation-delay: 0.5s; }
+    .hero-content > *:nth-child(3) { animation-delay: 0.7s; }
+    .hero-content > *:nth-child(4) { animation-delay: 0.9s; }
+
+    .nav {
+      opacity: 0;
+      animation: fadeUp 0.7s cubic-bezier(0.32, 0.72, 0, 1) 0.15s forwards;
+    }
+
+    /* ===== SCROLL-DRIVEN REVEAL ANIMATIONS (Pure CSS) ===== */
+    @keyframes revealUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes revealLeft {
+      from { opacity: 0; transform: translateX(-40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes revealRight {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes revealScale {
+      from { opacity: 0; transform: scale(0.92); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes tagLineGrow {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    .reveal {
+      animation: revealUp ease-out both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+
+    .reveal-d1 { animation-range: entry 5% entry 40%; }
+    .reveal-d2 { animation-range: entry 10% entry 45%; }
+    .reveal-d3 { animation-range: entry 15% entry 50%; }
+    .reveal-d4 { animation-range: entry 20% entry 55%; }
+
+    .reveal-left {
+      animation: revealLeft ease-out both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+
+    .reveal-right {
+      animation: revealRight ease-out both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+
+    .reveal-scale {
+      animation: revealScale ease-out both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+
+    .section-header .section-tag { position: relative; overflow: hidden; }
+
+    .section-header .section-tag::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--terracotta), var(--coral));
+      animation: tagLineGrow 0.8s cubic-bezier(0.32, 0.72, 0, 1) both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 45%;
+    }
+
+    .scroll-down {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 2;
+    }
+
+    .scroll-down span {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .scroll-down .scroll-line-sm {
+      width: 1px;
+      height: 28px;
+      background: linear-gradient(to bottom, var(--terracotta), transparent);
+      animation: scrollPulse 2s ease-in-out infinite;
+    }
+
+    .scroll-down.to-top .scroll-line-sm {
+      background: linear-gradient(to top, var(--terracotta), transparent);
+      animation: scrollPulseReverse 2s ease-in-out infinite;
+    }
+
+    @keyframes scrollPulseReverse {
+      0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+      50% { opacity: 1; transform: scaleY(1); }
+    }
+
+    .how-grid .how-card:nth-child(1) { transition-delay: 0.04s; }
+    .how-grid .how-card:nth-child(2) { transition-delay: 0.12s; }
+    .how-grid .how-card:nth-child(3) { transition-delay: 0.20s; }
+
+    .testimonial-grid .testimonial-card:nth-child(1) { transition-delay: 0.04s; }
+    .testimonial-grid .testimonial-card:nth-child(2) { transition-delay: 0.12s; }
+    .testimonial-grid .testimonial-card:nth-child(3) { transition-delay: 0.20s; }
+
+    .trust-grid .trust-card:nth-child(1) { transition-delay: 0.04s; }
+    .trust-grid .trust-card:nth-child(2) { transition-delay: 0.10s; }
+    .trust-grid .trust-card:nth-child(3) { transition-delay: 0.16s; }
+    .trust-grid .trust-card:nth-child(4) { transition-delay: 0.22s; }
+
+    .benefits-grid .benefit-card:nth-child(1) { transition-delay: 0.04s; }
+    .benefits-grid .benefit-card:nth-child(2) { transition-delay: 0.10s; }
+    .benefits-grid .benefit-card:nth-child(3) { transition-delay: 0.16s; }
+
+    /* ===== MOBILE ===== */
+    @media (max-width: 768px) {
+      .nav { padding: 10px 18px; gap: 12px; }
+      .nav-links { display: none; }
+
+      .hero { padding: 100px 20px 60px; }
+      .hero-title { font-size: 36px; }
+
+      .stats-inner { grid-template-columns: repeat(2, 1fr); }
+      .stat-item:nth-child(2) { border-right: none; }
+      .stat-number { font-size: 30px; }
+
+      .how-grid { grid-template-columns: 1fr; max-width: 380px; }
+      .how-grid::before, .how-grid::after { display: none; }
+      .benefits-grid { grid-template-columns: 1fr; }
+      .benefit-card.featured { grid-column: auto; grid-template-columns: 1fr; }
+      .testimonial-grid { grid-template-columns: 1fr; max-width: 380px; }
+      .trust-grid { grid-template-columns: 1fr; }
+
+      section { padding: 68px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <a href="/" class="nav-logo">
+      <img src="images/logo2.png" alt="Kingdom Alliance">
+      <span>The Kingdom Alliances</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#how">How It Works</a></li>
+      <li><a href="#benefits">Why Us</a></li>
+      <li><a href="#stories">Stories</a></li>
+      <li><a href="/faq">Help</a></li>
+      <li><a href="/login" class="nav-cta">Sign In</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-video-wrap">
+      <div class="hero-fallback"></div>
+      <iframe
+        src="https://www.youtube.com/embed/szWKep4LpVk?v=szWKep4LpVk&autoplay=1&mute=1&loop=1&playlist=szWKep4LpVk&controls=0&modestbranding=1&origin=localhost"
+        allow="autoplay; encrypted-media; fullscreen"
+        allowfullscreen
+        loading="lazy"
+      ></iframe>
+    </div>
+
+    <div class="hero-content">
+      <div class="hero-badge">
+        <div class="hero-badge-dot"></div>
+        <span>Faith-Led Matchmaking</span>
+      </div>
+
+      <h1 class="hero-title">Find Your<br><em>God-Given</em> Partner</h1>
+
+      <p class="hero-sub">A private, faith-centered community where Christian singles meet with intention, guided by prayer and rooted in shared values.</p>
+
+      <div class="hero-actions">
+        <a href="/register" class="btn-fill">
+          Begin Your Journey
+          <span class="btn-icon-circle">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+        </a>
+        <a href="https://www.youtube.com/watch?v=szWKep4LpVk" target="_blank" class="btn-outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16" fill="currentColor" stroke="none"/></svg>
+          Watch Our Story
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider"><span class="divider-line"></span><span class="divider-dot"></span><span class="divider-line"></span></div>
+
+  <!-- SCRIPTURE QUOTE -->
+  <section class="verse-section">
+    <div class="verse-inner reveal">
+      <div class="verse-deco">
+        <div class="verse-ornament"></div>
+        <svg class="verse-cross" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 8 L32 56" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M18 24 L46 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M32 8 L28 14 M32 8 L36 14" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <path d="M18 24 L22 20 M18 24 L22 28" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <path d="M46 24 L42 20 M46 24 L42 28" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <circle cx="32" cy="24" r="3" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="verse-content">
+        <span class="verse-ref" id="verse-ref">Proverbs 18:22</span>
+        <blockquote class="verse-text" id="verse-text">"He who finds a wife finds a good thing and obtains favor from the Lord."</blockquote>
+        <div class="verse-divider"></div>
+        <p class="verse-sub">Every love story on Kingdom Alliance begins with prayer and ends with purpose.</p>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <span>Scroll</span>
+      <div class="scroll-line-sm"></div>
+    </div>
+  </section>
+
+  <div class="section-divider"><span class="divider-line"></span><span class="divider-dot"></span><span class="divider-line"></span></div>
+
+  <!-- HOW IT WORKS -->
+  <section class="how" id="how">
+    <div class="section-header reveal">
+      <div class="section-tag"><span>How It Works</span></div>
+      <h2 class="section-title">Three Steps to<br>Meaningful Connection</h2>
+      <p class="section-desc">No swiping. No games. Just intentional people seeking God-centered relationships.</p>
+    </div>
+
+    <div class="how-grid">
+      <div class="how-card reveal reveal-d1">
+        <div class="how-num">1</div>
+        <div class="how-icon">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="96" r="56"/><path d="M40,216c0-48.6,39.4-88,88-88s88,39.4,88,88"/></svg>
+        </div>
+        <h3>Create Your Profile</h3>
+        <p>Share your faith journey, values, and what you're looking for. Every profile is personally reviewed.</p>
+      </div>
+
+      <div class="how-card reveal reveal-d2">
+        <div class="how-num">2</div>
+        <div class="how-icon">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M128,224S24,160,24,96A56,56,0,0,1,128,52h0A56,56,0,0,1,232,96C232,160,128,224,128,224Z"/></svg>
+        </div>
+        <h3>Send Interests</h3>
+        <p>Browse matches and send interests to people who share your faith. Up to 5 per day.</p>
+      </div>
+
+      <div class="how-card reveal reveal-d3">
+        <div class="how-num">3</div>
+        <div class="how-icon">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M216,128A88,88,0,0,1,79.9,200.2L48,224l23.8-31.9A88,88,0,1,1,216,128Z"/></svg>
+        </div>
+        <h3>Connect & Chat</h3>
+        <p>Once interests are accepted, start meaningful conversations in a secure environment.</p>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <span>Scroll</span>
+      <div class="scroll-line-sm"></div>
+    </div>
+  </section>
+
+  <div class="section-divider"><span class="divider-line"></span><span class="divider-dot"></span><span class="divider-line"></span></div>
+
+  <!-- BENEFITS -->
+  <section class="benefits" id="benefits">
+    <div class="section-header reveal">
+      <div class="section-tag"><span>Why Kingdom Alliances</span></div>
+      <h2 class="section-title">Built on Values,<br>Rooted in Trust</h2>
+    </div>
+
+    <div class="benefits-grid">
+      <div class="benefit-card featured reveal">
+        <div class="benefit-content">
+          <div class="benefit-icon">
+            <svg width="22" height="22" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M128,24S24,72,24,128a104,104,0,0,0,208,0C232,72,128,24,128,24Z"/><path d="M128,136v-56"/></svg>
+          </div>
+          <h3>Your Privacy is Sacred</h3>
+          <p>We believe your journey should be private until you're ready. Every feature is built with discretion in mind.</p>
+        </div>
+        <div class="benefit-features">
+          <div class="benefit-feature">
+            <div class="benefit-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <span>Photos blur until connections are accepted</span>
+          </div>
+          <div class="benefit-feature">
+            <div class="benefit-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <span>Block anyone discreetly — they'll never know</span>
+          </div>
+          <div class="benefit-feature">
+            <div class="benefit-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <span>Decline interests silently — no notifications</span>
+          </div>
+          <div class="benefit-feature">
+            <div class="benefit-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <span>Your data is never shared or sold</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="benefit-card reveal reveal-d1">
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="96" r="64"/><path d="M168,168l40,40"/><path d="M128,160v48"/></svg>
+        </div>
+        <h3>Admin-Verified Profiles</h3>
+        <p>Every profile is manually reviewed. No catfish, no scammers — just real Christians seeking real relationships.</p>
+      </div>
+
+      <div class="benefit-card reveal reveal-d2">
+        <div class="benefit-icon">
+          <svg width="22" height="22" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cx="96" cy="96" r="48"/><circle cx="176" cy="112" r="40"/><path d="M24,216c0-44.2,31.8-80,72-80"/><path d="M152,216c0-39.8,26.9-72,60-72"/></svg>
+        </div>
+        <h3>Denomination Focus</h3>
+        <p>Find someone who shares your specific theological background — Catholic, Protestant, Orthodox, or non-denominational.</p>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <span>Scroll</span>
+      <div class="scroll-line-sm"></div>
+    </div>
+  </section>
+
+  <div class="section-divider"><span class="divider-line"></span><span class="divider-dot"></span><span class="divider-line"></span></div>
+
+  <!-- TESTIMONIALS -->
+  <section class="testimonials" id="stories">
+    <div class="section-header reveal">
+      <div class="section-tag"><span>Success Stories</span></div>
+      <h2 class="section-title">Love Stories That<br>Began in Faith</h2>
+      <p class="section-desc">Real couples who found their God-given partner through our community.</p>
+    </div>
+
+    <div class="testimonial-grid">
+      <div class="testimonial-card reveal reveal-d1">
+        <div class="testimonial-stars">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <p class="testimonial-text">"We connected on Kingdom Alliance and knew from our first conversation that God had brought us together. We're now married and expecting our first child."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">S&R</div>
+          <div>
+            <div class="testimonial-name">Sarah & Rebecca</div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card reveal reveal-d2">
+        <div class="testimonial-stars">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <p class="testimonial-text">"After years of dating apps that led nowhere, I found someone who shared my faith and values. The intentional approach made all the difference."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">D&M</div>
+          <div>
+            <div class="testimonial-name">David & Maria</div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card reveal reveal-d3">
+        <div class="testimonial-stars">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <p class="testimonial-text">"The privacy features gave me confidence to be myself. I didn't feel pressured. When I was ready, I found someone truly special."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">J&A</div>
+          <div>
+            <div class="testimonial-name">James & Anna</div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <span>Scroll</span>
+      <div class="scroll-line-sm"></div>
+    </div>
+  </section>
+
+  <div class="section-divider"><span class="divider-line"></span><span class="divider-dot"></span><span class="divider-line"></span></div>
+
+  <!-- TRUST -->
+  <section class="trust" id="trust">
+    <div class="section-header reveal">
+      <div class="section-tag"><span>Privacy & Safety</span></div>
+      <h2 class="section-title">Your Journey,<br>Protected</h2>
+      <p class="section-desc">Every feature is designed to keep you safe and in control.</p>
+    </div>
+
+    <div class="trust-grid">
+      <div class="trust-card reveal reveal-d1">
+        <div class="trust-icon terracotta">
+          <svg width="22" height="22" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><rect x="40" y="88" width="176" height="128" rx="16"/><path d="M80,88V64a48,48,0,0,1,96,0V88"/></svg>
+        </div>
+        <h3>Photo Privacy</h3>
+        <p>Your photos blur until you accept a connection. You control who sees you.</p>
+      </div>
+
+      <div class="trust-card reveal reveal-d2">
+        <div class="trust-icon coral">
+          <svg width="22" height="22" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="88"/><circle cx="128" cy="128" r="40"/><circle cx="128" cy="128" r="8"/></svg>
+        </div>
+        <h3>Discreet Blocking</h3>
+        <p>Block anyone silently. They'll never know, and can't contact you again.</p>
+      </div>
+
+      <div class="trust-card reveal reveal-d3">
+        <div class="trust-icon sage">
+          <svg width="22" height="22" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="88"/><circle cx="128" cy="128" r="56"/><path d="M128,96v32l24,16"/></svg>
+        </div>
+        <h3>Admin Moderation</h3>
+        <p>Every profile and photo is reviewed by our team before going live.</p>
+      </div>
+
+      <div class="trust-card reveal reveal-d4">
+        <div class="trust-icon sand">
+          <svg width="22" height="22" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M128,24S24,72,24,128a104,104,0,0,0,208,0C232,72,128,24,128,24Z"/><path d="M96,128l24,24,48-48"/></svg>
+        </div>
+        <h3>Data Protection</h3>
+        <p>Your information is encrypted, never shared, and never sold.</p>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <span>Scroll</span>
+      <div class="scroll-line-sm"></div>
+    </div>
+  </section>
+
+  <div class="section-divider"><span class="divider-line"></span><span class="divider-dot"></span><span class="divider-line"></span></div>
+
+  <!-- FAQ -->
+  <section class="faq" id="faq">
+    <div class="section-header reveal">
+      <div class="section-tag"><span>Common Questions</span></div>
+      <h2 class="section-title">Frequently Asked</h2>
+    </div>
+
+    <div class="faq-list">
+      <details class="faq-item reveal reveal-d1">
+        <summary>How does photo privacy work?</summary>
+        <div class="faq-answer">Your photos are automatically blurred until you both accept a connection. You can also set your visibility to "Accepted Connections Only" in Privacy Settings.</div>
+      </details>
+      <details class="faq-item reveal reveal-d2">
+        <summary>Is there a limit to how many people I can contact?</summary>
+        <div class="faq-answer">Yes, you can send up to 5 interests per day. This encourages quality over quantity. The limit resets 24 hours after your first interest of the day.</div>
+      </details>
+      <details class="faq-item reveal reveal-d3">
+        <summary>How do you verify profiles?</summary>
+        <div class="faq-answer">Every profile is manually reviewed by our admin team. We check for completeness, photo quality, and authenticity. This usually takes within 24 hours.</div>
+      </details>
+      <details class="faq-item reveal reveal-d4">
+        <summary>Can I block someone without them knowing?</summary>
+        <div class="faq-answer">Yes. When you block someone, they receive no notification. They simply can't see your profile or send you messages anymore.</div>
+      </details>
+    </div>
+
+    <div class="faq-more reveal">
+      <a href="/faq" class="btn-outline" style="border-color: rgba(0,0,0,0.10); color: var(--terracotta);">
+        View All Questions
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </div>
+    <div class="scroll-down">
+      <span>Scroll</span>
+      <div class="scroll-line-sm"></div>
+    </div>
+  </section>
+
+  <div class="section-divider"><span class="divider-line"></span><span class="divider-dot"></span><span class="divider-line"></span></div>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="cta-shape cta-shape-1"></div>
+    <div class="cta-shape cta-shape-2"></div>
+    <div class="reveal">
+      <div class="section-tag" style="margin-bottom: 20px;"><span>Start Today</span></div>
+      <h2 class="cta-title">Your God-Given Partner<br>Is Waiting</h2>
+      <p class="cta-desc">Join thousands of Christian singles seeking meaningful, faith-centered relationships. Your journey begins with one step.</p>
+      <a href="/register" class="btn-fill">
+        Create Your Profile
+        <span class="btn-icon-circle">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </span>
+      </a>
+    </div>
+    <div class="scroll-down to-top" onclick="window.scrollTo({top:0, behavior:'auto'})" style="cursor:pointer;">
+      <div class="scroll-line-sm"></div>
+      <span>Top</span>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <a href="/" class="footer-brand">
+        <img src="images/logo2.png" alt="Kingdom Alliance">
+        <span>The Kingdom Alliances</span>
+      </a>
+      <ul class="footer-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/about">About</a></li>
+        <li><a href="/faq">FAQ</a></li>
+        <li><a href="/terms">Terms</a></li>
+        <li><a href="/contact">Contact</a></li>
+        <li><a href="/login">Sign In</a></li>
+        <li><a href="/register">Register</a></li>
+      </ul>
+      <p class="footer-copy">&copy; 2026 The Kingdom Alliances. Built on Faith, Rooted in Love.</p>
+    </div>
+  </footer>
+
+  <script>
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const t = document.querySelector(a.getAttribute('href'));
+        if (t) t.scrollIntoView({ behavior: 'auto' });
+      });
+    });
+
+    const heroContent = document.querySelector('.hero-content');
+
+    window.addEventListener('scroll', () => {
+      const scrollY = window.scrollY;
+
+      const nav = document.querySelector('.nav');
+      if (nav) {
+        if (scrollY > 80) {
+          nav.style.background = 'rgba(255,255,255,0.95)';
+          nav.style.boxShadow = '0 4px 32px -4px rgba(0,0,0,0.08)';
+        } else {
+          nav.style.background = 'rgba(255,255,255,0.80)';
+          nav.style.boxShadow = '0 2px 20px -4px rgba(0,0,0,0.06)';
+        }
+      }
+    });
+
+    document.querySelectorAll('.btn-fill, .btn-outline').forEach(btn => {
+      btn.addEventListener('mousemove', (e) => {
+        const rect = btn.getBoundingClientRect();
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        btn.style.transform = `translate(${x * 0.12}px, ${y * 0.12}px)`;
+      });
+
+      btn.addEventListener('mouseleave', () => {
+        btn.style.transform = 'translate(0, 0)';
+        btn.style.transition = 'all 0.5s cubic-bezier(0.32, 0.72, 0, 1)';
+      });
+
+      btn.addEventListener('mouseenter', () => {
+        btn.style.transition = 'all 0.15s ease-out';
+      });
+    });
+
+    document.querySelectorAll('.how-card, .testimonial-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        card.style.transform = `perspective(800px) rotateY(${x * 5}deg) rotateX(${-y * 5}deg) translateY(-5px)`;
+      });
+
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(800px) rotateY(0) rotateX(0) translateY(0)';
+        card.style.transition = 'all 0.5s cubic-bezier(0.32, 0.72, 0, 1)';
+      });
+
+      card.addEventListener('mouseenter', () => {
+        card.style.transition = 'all 0.15s ease-out';
+      });
+    });
+
+    // Fallback: if YouTube embed fails, show the thumbnail
+    setTimeout(() => {
+      const iframe = document.querySelector('.hero-video-wrap iframe');
+      const fallback = document.querySelector('.hero-fallback');
+      if (iframe && fallback) {
+        try {
+          if (!iframe.contentWindow || iframe.contentWindow.document.body.innerHTML === '') {
+            fallback.style.zIndex = '1';
+            iframe.style.display = 'none';
+          }
+        } catch(e) {
+          // Cross-origin, assume video loaded
+        }
+      }
+    }, 3000);
+
+    // ===== ROTATING PROVERBS =====
+    const proverbs = [
+      { ref: "Proverbs 18:22", text: "He who finds a wife finds a good thing and obtains favor from the Lord." },
+      { ref: "Proverbs 3:3-4", text: "Let love and faithfulness never leave you; bind them around your neck. Then you will win favor and a good name in the sight of God and man." },
+      { ref: "Proverbs 12:4", text: "A wife of noble character is worth more than rubies." },
+      { ref: "Proverbs 19:14", text: "Houses and wealth are inherited from parents, but a prudent wife is from the Lord." },
+      { ref: "Proverbs 31:10", text: "A wife of noble character who can find? She is worth far more than rubies." },
+      { ref: "Proverbs 31:11-12", text: "Her husband has full confidence in her and lacks nothing of value. She brings him good, not harm, all the days of her life." },
+      { ref: "Proverbs 31:26", text: "She speaks with wisdom, and faithful instruction is on her tongue." },
+      { ref: "Proverbs 31:28-29", text: "Her children arise and call her blessed; her husband also, and he praises her: 'Many women have done excellently, but you surpass them all.'" },
+      { ref: "Proverbs 3:5-6", text: "Trust in the Lord with all your heart and lean not on your own understanding; in all your ways submit to him, and he will make your paths straight." },
+      { ref: "Proverbs 4:23", text: "Above all else, guard your heart, for everything you do flows from it." },
+      { ref: "Proverbs 10:12", text: "Hatred stirs up conflict, but love covers over all wrongs." },
+      { ref: "Proverbs 13:3", text: "Those who guard their lips preserve their lives, but those who speak rashly will come to ruin." },
+      { ref: "Proverbs 15:1", text: "A gentle answer turns away wrath, but a harsh word stirs up anger." },
+      { ref: "Proverbs 15:13", text: "A happy heart makes the face cheerful, but by sorrow of the heart the spirit is crushed." },
+      { ref: "Proverbs 15:17", text: "Better a small serving of vegetables with love than a fattened calf with hatred." },
+      { ref: "Proverbs 16:3", text: "Commit to the Lord whatever you do, and he will establish your plans." },
+      { ref: "Proverbs 16:24", text: "Gracious words are a honeycomb, sweet to the soul and healing to the bones." },
+      { ref: "Proverbs 17:17", text: "A friend loves at all times, and a brother is born for a time of adversity." },
+      { ref: "Proverbs 20:5", text: "The purposes of a person's heart are deep waters, but one who has insight draws them out." },
+      { ref: "Proverbs 21:21", text: "Whoever pursues righteousness and love finds life, prosperity and honor." },
+      { ref: "Proverbs 22:1", text: "A good name is more desirable than great riches; to be esteemed is better than silver or gold." },
+      { ref: "Proverbs 22:6", text: "Start children off on the way they should go, and even when they are old they will not turn from it." },
+      { ref: "Proverbs 25:11", text: "A word fitly spoken is like apples of gold in a setting of silver." },
+      { ref: "Proverbs 27:17", text: "As iron sharpens iron, so one person sharpens another." },
+      { ref: "Proverbs 27:19", text: "As water reflects the face, so one's life reflects the heart." },
+      { ref: "Proverbs 29:25", text: "Fear of man will prove to be a snare, but whoever trusts in the Lord is kept safe." },
+      { ref: "Proverbs 30:18-19", text: "There are three things that amaze me — no, four things that I don't understand: how an eagle glides through the sky, how a snake slithers on a rock, how a ship navigates the ocean, and how a man loves a woman." },
+      { ref: "Proverbs 2:2", text: "Turn your ear to wisdom and apply your heart to understanding." },
+      { ref: "Proverbs 2:6", text: "For the Lord gives wisdom; from his mouth come knowledge and understanding." },
+      { ref: "Proverbs 2:10-11", text: "For wisdom will enter your heart, and knowledge will be pleasant to your soul. Discretion will protect you, and understanding will guard you." },
+      { ref: "Proverbs 3:1-2", text: "My son, do not forget my teaching, but keep my commands in your heart, for they will prolong your life many years and bring you peace and prosperity." },
+      { ref: "Proverbs 3:7-8", text: "Do not be wise in your own eyes; fear the Lord and shun evil. This will bring health to your body and nourishment to your bones." },
+      { ref: "Proverbs 3:11-12", text: "My son, do not despise the Lord's discipline, and do not resent his rebuke, because the Lord disciplines those he loves, as a father the son he delights in." },
+      { ref: "Proverbs 3:25-26", text: "Have no fear of sudden disaster or of the ruin that overtakes the wicked, for the Lord will be at your side and will keep your foot from being snared." },
+      { ref: "Proverbs 4:7", text: "The beginning of wisdom is this: Get wisdom. Though it cost all you have, get understanding." },
+      { ref: "Proverbs 4:13", text: "Hold on to instruction, do not let it go; guard it well, for it is your life." },
+      { ref: "Proverbs 4:20-22", text: "My son, pay attention to what I say; turn your ear to my words. Do not let them out of your sight, keep them within your heart; for they are life to those who find them and health to one's whole body." },
+      { ref: "Proverbs 5:18-19", text: "May your fountain be blessed, and may you rejoice in the wife of your youth. A loving doe, a graceful deer — may her breasts satisfy you always, may you ever be intoxicated with her love." },
+      { ref: "Proverbs 6:20", text: "My son, keep your father's command and do not forsake your mother's teaching." },
+      { ref: "Proverbs 8:10-11", text: "Choose my instruction instead of silver, knowledge rather than choice gold, for wisdom is more precious than rubies, and nothing you desire can compare with her." },
+      { ref: "Proverbs 8:17", text: "I love those who love me, and those who seek me find me." },
+      { ref: "Proverbs 8:32-34", text: "Now then, my children, listen to me; blessed are those who keep my ways. Listen to my instruction and be wise; do not disregard it. Blessed are those who listen to me, watching daily at my doors, waiting at my doorway." },
+      { ref: "Proverbs 9:9", text: "Instruct the wise and they will be wiser still; teach the righteous and they will add to their learning." },
+      { ref: "Proverbs 9:10", text: "The fear of the Lord is the beginning of wisdom, and knowledge of the Holy One is understanding." },
+      { ref: "Proverbs 10:1", text: "A wise son brings joy to his father, but a foolish son brings grief to his mother." },
+      { ref: "Proverbs 10:11", text: "The mouth of the righteous is a fountain of life, but the mouth of the wicked conceals violence." },
+      { ref: "Proverbs 10:14", text: "The wise store up knowledge, but the mouth of a fool invites ruin." },
+      { ref: "Proverbs 10:17", text: "Whoever heeds discipline shows the way to life, but whoever ignores correction leads others astray." },
+      { ref: "Proverbs 10:19", text: "Sin is not ended by multiplying words, but the prudent hold their tongues." },
+      { ref: "Proverbs 10:20-21", text: "The tongue of the righteous is choice silver, but the heart of the wicked is of little value. The lips of the righteous nourish many, but fools die for lack of sense." },
+      { ref: "Proverbs 10:32", text: "The lips of the righteous know what is fitting, but the mouth of the wicked only what is perverse." },
+      { ref: "Proverbs 11:1", text: "The Lord detests dishonest scales, but accurate weights find favor with him." },
+      { ref: "Proverbs 11:2", text: "When pride comes, then comes disgrace, but with humility comes wisdom." },
+      { ref: "Proverbs 11:3", text: "The integrity of the upright guides them, but the unfaithful are destroyed by their duplicity." },
+      { ref: "Proverbs 11:9-10", text: "With their mouths the godless destroy their neighbors, but through knowledge the righteous escape. When the righteous prosper, the city rejoices; when the wicked perish, there are shouts of joy." },
+      { ref: "Proverbs 11:13", text: "A gossip betrays a confidence, but a trustworthy person keeps a secret." },
+      { ref: "Proverbs 11:14", text: "For lack of guidance a nation falls, but victory is won through many advisers." },
+      { ref: "Proverbs 11:25", text: "A generous person will prosper; whoever refreshes others will be refreshed." },
+      { ref: "Proverbs 11:28", text: "Those who trust in their riches will fall, but the righteous will thrive like a green leaf." },
+      { ref: "Proverbs 12:15", text: "The way of a fool seems right to them, but the wise listen to advice." },
+      { ref: "Proverbs 12:18", text: "The words of the reckless pierce like swords, but the tongue of the wise brings healing." },
+      { ref: "Proverbs 12:22", text: "The Lord detests lying lips, but he delights in people who are trustworthy." },
+      { ref: "Proverbs 13:1", text: "A wise son heeds his father's instruction, but a mocker does not respond to rebukes." },
+      { ref: "Proverbs 13:10", text: "Where there is strife, there is pride, but wisdom is found in those who take advice." },
+      { ref: "Proverbs 13:12", text: "Hope deferred makes the heart sick, but a longing fulfilled is a tree of life." },
+      { ref: "Proverbs 13:15", text: "Good judgment wins favor, but the way of the unfaithful leads to their destruction." },
+      { ref: "Proverbs 13:17", text: "A wicked messenger falls into trouble, but a trustworthy envoy brings healing." },
+      { ref: "Proverbs 13:20", text: "Walk with the wise and become wise, for a companion of fools suffers harm." },
+      { ref: "Proverbs 14:1", text: "The wise woman builds her house, but with her own hands the foolish one tears hers down." },
+      { ref: "Proverbs 14:12", text: "There is a way that appears to be right, but in the end it leads to death." },
+      { ref: "Proverbs 14:26", text: "Whoever fears the Lord has a secure fortress, and for their children it will be a refuge." },
+      { ref: "Proverbs 14:30", text: "A heart at peace gives life to the body, but envy rots the bones." },
+      { ref: "Proverbs 14:33", text: "Wisdom reposes in the mind of the discerning, but even among fools she lets herself be known." },
+      { ref: "Proverbs 15:3", text: "The eyes of the Lord are everywhere, keeping watch on the wicked and the good." },
+      { ref: "Proverbs 15:4", text: "The soothing tongue is a tree of life, but a perverse tongue crushes the spirit." },
+      { ref: "Proverbs 15:22", text: "Plans fail for lack of counsel, but with many advisers they succeed." },
+      { ref: "Proverbs 15:33", text: "Wisdom's instruction is to fear the Lord, and humility comes before honor." },
+      { ref: "Proverbs 16:2", text: "All a person's ways seem pure to them, but motives are weighed by the Lord." },
+      { ref: "Proverbs 16:7", text: "When the Lord takes pleasure in anyone's way, he causes their enemies to make peace with them." },
+      { ref: "Proverbs 16:8", text: "Better a little with righteousness than much gain with injustice." },
+      { ref: "Proverbs 16:20", text: "Whoever gives heed to instruction prospers, and blessed is the one who trusts in the Lord." },
+      { ref: "Proverbs 16:32", text: "Better a patient person than a warrior, one with self-control than one who takes a city." },
+      { ref: "Proverbs 17:3", text: "The crucible for silver and the furnace for gold, but the Lord tests the heart." },
+      { ref: "Proverbs 17:5", text: "Whoever mocks the poor shows contempt for their Maker; whoever gloats over disaster will not go unpunished." },
+      { ref: "Proverbs 17:9", text: "Whoever would foster love covers over an offense, but whoever repeats the matter separates close friends." },
+      { ref: "Proverbs 17:14", text: "Starting a quarrel is like breaching a dam; so drop the matter before a dispute breaks out." },
+      { ref: "Proverbs 17:22", text: "A cheerful heart is good medicine, but a crushed spirit dries up the bones." },
+      { ref: "Proverbs 18:1", text: "Unwisely, whoever isolates themselves pursues their own selfish desires and rejects all sound judgment." },
+      { ref: "Proverbs 18:13", text: "To answer before listening — that is folly and shame." },
+      { ref: "Proverbs 18:15", text: "The heart of the discerning acquires knowledge, for the ears of the wise seek it out." },
+      { ref: "Proverbs 18:16", text: "A gift opens the way and ushers the giver into the presence of the great." },
+      { ref: "Proverbs 18:21", text: "The tongue has the power of life and death, and those who love it will eat its fruit." },
+      { ref: "Proverbs 19:2", text: "Desire without knowledge is not good, and whoever makes haste with his feet misses his way." },
+      { ref: "Proverbs 19:8", text: "The one who gets wisdom loves life; the one who cherishes understanding will soon prosper." },
+      { ref: "Proverbs 19:11", text: "A person's wisdom yields patience; it is to one's glory to overlook an offense." },
+      { ref: "Proverbs 19:20", text: "Listen to advice and accept discipline, and at the end you will be counted among the wise." },
+      { ref: "Proverbs 19:21", text: "Many are the plans in a person's heart, but it is the Lord's purpose that prevails." },
+      { ref: "Proverbs 20:7", text: "The righteous lead blameless lives; blessed are their children after them." },
+      { ref: "Proverbs 20:13", text: "Do not love sleep or you will grow poor; stay awake and you will have food to spare." },
+      { ref: "Proverbs 20:22", text: "Do not say, 'I'll pay you back for this wrong!' Wait for the Lord, and he will avenge you." },
+      { ref: "Proverbs 21:2", text: "A person may think their own ways are right, but the Lord weighs the heart." },
+      { ref: "Proverbs 21:3", text: "To do what is right and just is more desired by the Lord than sacrifice." },
+      { ref: "Proverbs 21:13", text: "Whoever shuts their ears to the cry of the poor will also cry out and not be answered." },
+      { ref: "Proverbs 21:19", text: "Better to live in a desert than with a quarrelsome and nagging wife." },
+      { ref: "Proverbs 21:23", text: "Those who guard their mouths and their tongues keep themselves from calamity." },
+      { ref: "Proverbs 21:31", text: "The horse is made ready for the day of battle, but victory rests with the Lord." },
+      { ref: "Proverbs 22:4", text: "Humility is the fear of the Lord; its wages are riches and honor and life." },
+      { ref: "Proverbs 22:11", text: "Whoever loves a pure heart and gracious lips will have the king as their friend." },
+      { ref: "Proverbs 22:17-18", text: "Pay attention and turn your ear to the sayings of the wise; apply your heart to what I teach, for it is pleasing when you keep them in your heart and have all of them on your lips." },
+      { ref: "Proverbs 23:4-5", text: "Do not wear yourself out to get rich; do not trust your own cleverness. Cast but a glance at riches, and they are gone, for they will surely sprout wings and fly off to the sky like an eagle." },
+      { ref: "Proverbs 23:12", text: "Apply your heart to instruction and your ears to words of knowledge." },
+      { ref: "Proverbs 23:15-16", text: "My son, if your heart is wise, then my heart will be glad indeed; my inmost being will rejoice when your lips speak what is right." },
+      { ref: "Proverbs 23:19-21", text: "Listen, my son, and be wise, and set your heart on the right path. Do not join those who drink too much wine or gorge themselves on meat, for drunkards and gluttons become poor, and drowsiness clothes them in rags." },
+      { ref: "Proverbs 23:22-25", text: "Listen to your father, who gave you life, and do not despise your mother when she is old. Buy the truth and do not sell it — wisdom, instruction and understanding as well. The father of a righteous child has great joy; one who fathers a wise son rejoices in him. May your father and mother rejoice; may she who gave you birth be joyful!" },
+      { ref: "Proverbs 24:3-4", text: "By wisdom a house is built, and through understanding it is established; through knowledge its rooms are filled with rare and beautiful treasures." },
+      { ref: "Proverbs 24:10", text: "If you falter in a time of trouble, how small is your strength!" },
+      { ref: "Proverbs 24:11-12", text: "Rescue those being led away to death; hold back those staggering toward slaughter. If you say, 'But we knew nothing about this,' does not he who weighs the heart perceive it? Does not he who guards your life know it? Will he not repay everyone according to what they have done?" },
+      { ref: "Proverbs 24:13-14", text: "Eat honey, my son, for it is good; honey from the comb is sweet to your taste. Know also that wisdom is like honey for you: If you find it, there is a future hope for you, and your hope will not be cut off." },
+      { ref: "Proverbs 24:17", text: "Do not gloat when your enemy falls; when they stumble, do not let your heart rejoice." },
+      { ref: "Proverbs 24:26", text: "An honest answer is like a kiss on the lips." },
+      { ref: "Proverbs 25:2", text: "It is the glory of God to conceal a matter; to search out a matter is the glory of kings." },
+      { ref: "Proverbs 25:15", text: "Through patience a ruler can be persuaded, and a gentle tongue can break a bone." },
+      { ref: "Proverbs 25:21-22", text: "If your enemy is hungry, give him food to eat; if he is thirsty, give him water to drink. In doing this, you will heap burning coals on his head, and the Lord will reward you." },
+      { ref: "Proverbs 26:4-5", text: "Do not answer a fool according to his folly, or you yourself will be just like him. Answer a fool according to his folly, or he will be wise in his own eyes." },
+      { ref: "Proverbs 26:20", text: "Without wood a fire goes out; without a gossip a quarrel dies down." },
+      { ref: "Proverbs 26:24-26", text: "Enemies disguise themselves with their lips, but in their hearts they harbor deceit. Though their speech is charming, do not believe them, for seven abominations fill their hearts. Their malice may be concealed by deception, but their wickedness will be exposed in the assembly." },
+      { ref: "Proverbs 27:5-6", text: "Better is open rebuke than hidden love. Wounds from a friend can be trusted, but an enemy multiplies kisses." },
+      { ref: "Proverbs 27:9", text: "Perfume and incense bring joy to the heart, and the pleasantness of a friend springs from his heartfelt advice." },
+      { ref: "Proverbs 27:14", text: "Whoever blesses their neighbor early in the morning with a loud curse will be regarded as cursing." },
+      { ref: "Proverbs 28:13", text: "Whoever conceals their sins does not prosper, but the one who confesses and renounces them finds mercy." },
+      { ref: "Proverbs 28:20", text: "The faithful will abound in blessings, but whoever is in a hurry to get rich will not go unpunished." },
+      { ref: "Proverbs 28:26", text: "Those who trust in themselves are fools, but those who walk in wisdom are kept safe." },
+      { ref: "Proverbs 29:11", text: "Fools give full vent to their rage, but the wise bring calm in the end." },
+      { ref: "Proverbs 29:20", text: "Do you see someone who speaks in haste? There is more hope for a fool than for them." },
+      { ref: "Proverbs 30:5", text: "Every word of God is flawless; he is a shield to those who take refuge in him." },
+      { ref: "Proverbs 31:30", text: "Charm is deceptive, and beauty is fleeting; but a woman who fears the Lord is to be praised." }
+    ];
+
+    const verseRef = document.getElementById('verse-ref');
+    const verseText = document.getElementById('verse-text');
+    let currentIndex = 0;
+
+    function showNextVerse() {
+      verseText.classList.add('fade-out');
+      verseRef.style.opacity = '0';
+
+      setTimeout(() => {
+        currentIndex = (currentIndex + 1) % proverbs.length;
+        verseRef.textContent = proverbs[currentIndex].ref;
+        verseText.textContent = `"${proverbs[currentIndex].text}"`;
+        verseText.classList.remove('fade-out');
+        verseRef.style.opacity = '1';
+      }, 500);
+    }
+
+    setInterval(showNextVerse, 8000);
+  </script>
+
+</body>
+</html>

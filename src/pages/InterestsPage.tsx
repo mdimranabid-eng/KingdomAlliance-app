@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy, deleteDoc, writeBatch, runTransaction, deleteField, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc, orderBy, deleteDoc, writeBatch, runTransaction, deleteField, addDoc, arrayRemove } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
@@ -21,6 +21,7 @@ import {
 import { Link } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType, calculateAge } from '../lib/utils';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { BlurablePhoto } from '../components/BlurablePhoto';
 
 export default function InterestsPage() {
   const { user: authUser } = useAuth();
@@ -288,7 +289,13 @@ export default function InterestsPage() {
     try {
       await updateDoc(doc(db, 'interests', interestId), {
         status: 'accepted',
-        declinedBy: deleteField()
+        declinedBy: deleteField(),
+        blocked: deleteField()
+      });
+
+      // Remove from blockedUsers array
+      await updateDoc(doc(db, 'users', authUser.uid), {
+        blockedUsers: arrayRemove(targetUserId)
       });
 
       await addDoc(collection(db, 'notifications'), {
@@ -493,12 +500,19 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
       className="glass-card p-6 rounded-[2rem] flex items-center gap-6"
     >
       <Link to={`/profile/${user.id}`} className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-outline-variant">
-        <img src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} alt={user.name} className="w-full h-full object-cover" />
+        <BlurablePhoto
+          targetUid={user.id}
+          src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+          fallbackSrc={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+          alt={user.name}
+          profile={user}
+          className="w-full h-full object-cover"
+        />
       </Link>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-headline text-xl text-on-surface truncate">{user.name}, {user.age}</h3>
+          <h3 className="member-name member-name-sm truncate text-[22px] text-on-surface">{user.name}, {user.age}</h3>
           <span className={cn(
             "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest",
             interest.status === 'pending' ? "bg-secondary-container/20 text-secondary" :
@@ -515,15 +529,8 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
           <div className="flex gap-2">
             <button 
               disabled={isProcessing}
-              onClick={onUnblockAndAccept}
-              className="flex-1 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1.5"
-            >
-              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><HeartHandshake className="w-3.5 h-3.5" /> Unblock & Accept</>}
-            </button>
-            <button 
-              disabled={isProcessing}
               onClick={onDelete}
-              className="px-4 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-xl text-xs font-bold transition-all"
+              className="flex-1 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-xl text-xs font-bold transition-all"
             >
               Delete
             </button>

@@ -12,4 +12,4 @@ Disallow: /waiting-room
 Disallow: /onboarding
 
 # Sitemap Reference
-Sitemap: https://kingdom-alliance-v2.web.app/sitemap.xml
+Sitemap: https://thekingdomalliances.com/sitemap.xml

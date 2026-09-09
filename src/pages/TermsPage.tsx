@@ -1,232 +1,384 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useSettings } from '../lib/SettingsContext';
-import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import PublicNavbar from '../components/PublicNavbar';
 import { motion } from 'motion/react';
+
+interface TocSection {
+  title: string;
+  paragraphs: string[];
+}
+
+const PART1: TocSection[] = [
+  {
+    title: '1. ABOUT KINGDOM ALLIANCE',
+    paragraphs: [
+      'Kingdom Alliance provides a faith-based platform through which eligible adult Christian believers who are genuinely seeking a marriage partner may connect and communicate.',
+      'The role of Kingdom Alliance is limited to providing the platform and facilitating introductions and communication between users. Kingdom Alliance does not arrange marriages and does not act as a marriage broker, matrimonial agent, counsellor, church authority, legal adviser, or guarantor of any relationship or marriage.',
+      'Kingdom Alliance does not guarantee that any user will find a suitable marriage partner through the platform. Each user remains responsible for his or her own decisions regarding communication, meetings, relationships, engagement, and marriage.',
+      'Users are encouraged to exercise wisdom and good judgement and, where appropriate, seek guidance from trusted family members, pastors, church leaders, or other responsible persons.',
+    ],
+  },
+  {
+    title: '2. FREE-OF-CHARGE SERVICE',
+    paragraphs: [
+      'Kingdom Alliance has been created for the benefit of Christian believers seeking a marriage partner and is provided free of charge.',
+      'Kingdom Alliance does not charge users any registration fee, membership fee, subscription fee, profile creation fee, matchmaking fee, introduction fee, communication fee, or success fee for engagement or marriage.',
+      'Kingdom Alliance is not established as a commercial matrimonial service. Its purpose is to provide a free, faith-based platform through which eligible Christian believers may connect and consider marriage.',
+      'No person is authorized to collect any registration, membership, matchmaking, introduction, communication, or success fee on behalf of Kingdom Alliance.',
+      'Any person requesting such payment while claiming to represent Kingdom Alliance should be reported to the platform administrators.',
+    ],
+  },
+  {
+    title: '3. ELIGIBILITY',
+    paragraphs: [
+      'A person must be at least 18 years of age to register for or use Kingdom Alliance.',
+      'Users must be legally eligible to marry under the laws applicable to them, genuinely seeking a marriage partner, willing to provide truthful and accurate information, and willing to use the platform consistently with its faith-based and marriage-focused purpose.',
+      'By creating an account, the user confirms that these eligibility requirements are satisfied.',
+      'Kingdom Alliance reserves the right to refuse, restrict, suspend, or terminate access where there are reasonable grounds to believe that a user does not meet the eligibility requirements or is using the platform for purposes inconsistent with its intended purpose.',
+    ],
+  },
+  {
+    title: '4. PROFILE INFORMATION AND MARITAL STATUS',
+    paragraphs: [
+      'Users are responsible for ensuring that the information provided in their profiles is truthful, accurate, current, and not misleading.',
+      'This includes information relating to identity, age, marital status, photographs, location, occupation, education, family background, faith-related information, and other material details voluntarily provided through the platform.',
+      "Users must not intentionally conceal or misrepresent information that could reasonably influence another person's decision to communicate with or consider them for marriage.",
+      "Users must not impersonate another person, use another person's photographs without authorization, create deceptive or fraudulent profiles, maintain multiple accounts for misleading purposes, or falsely represent personal, professional, family, church, ministry, or other material information.",
+      'Kingdom Alliance may request additional information where reasonably necessary to support profile authenticity. Any such review does not constitute a guarantee that all information provided by a user is complete or accurate.',
+    ],
+  },
+  {
+    title: '5. FAITH-BASED AND MARRIAGE-FOCUSED PURPOSE',
+    paragraphs: [
+      'Kingdom Alliance is intended for Christian believers genuinely seeking a marriage partner.',
+      'Users are expected to respect the faith-based purpose of the platform and communicate with other members honestly, courteously, responsibly, and respectfully.',
+      'The platform must not be used for unrelated commercial activities, improper solicitation, unauthorized recruitment, fraudulent activity, or any other purpose inconsistent with the objectives of Kingdom Alliance.',
+      "A user's representation regarding his or her Christian faith, church involvement, spiritual background, or personal beliefs is information provided by that user. Kingdom Alliance does not independently determine or guarantee the sincerity of a user's faith, beliefs, character, church involvement, or personal commitment.",
+    ],
+  },
+  {
+    title: '6. USER CONDUCT',
+    paragraphs: [
+      'Users must conduct themselves in a respectful, responsible, and lawful manner when using Kingdom Alliance.',
+      'Users must not harass, threaten, intimidate, exploit, deceive, impersonate, defame, or deliberately mislead another person.',
+      'Users must not upload, publish, send, or distribute content that is unlawful, offensive, abusive, threatening, fraudulent, misleading, defamatory, or otherwise inappropriate for the nature and purpose of the platform.',
+      'Kingdom Alliance must not be used for unauthorized advertising, commercial promotion, spam, mass communication, data harvesting, collection of personal information for unauthorized purposes, or activities that interfere with the proper operation, integrity, or security of the platform.',
+      "Users must not attempt unauthorized access to another user's account, Kingdom Alliance systems, or any related technical infrastructure.",
+      'Any serious or repeated violation of these requirements may result in restriction, suspension, or termination of an account.',
+    ],
+  },
+  {
+    title: '7. FINANCIAL SOLICITATION AND FRAUD PREVENTION',
+    paragraphs: [
+      'Kingdom Alliance is a free-of-charge service. Users should exercise appropriate caution regarding financial requests made by persons they meet through the platform.',
+      'The platform must not be used for fraudulent financial solicitation, unauthorized fundraising, investment schemes, requests for banking credentials, payment-card information, passwords, security codes, or other sensitive financial information.',
+      'Users are advised to exercise appropriate judgement before transferring money or providing financial information to anyone introduced through the platform.',
+      'Any suspicious financial request, fraudulent activity, or person claiming to collect fees on behalf of Kingdom Alliance should be reported promptly to the platform administrators.',
+    ],
+  },
+];
+const PART2: TocSection[] = [
+  {
+    title: '8. USER SAFETY',
+    paragraphs: [
+      'Kingdom Alliance facilitates introductions between users but does not control or supervise communications, meetings, or interactions between users outside the platform.',
+      'Each user is responsible for exercising appropriate care, judgement, and reasonable precautions when communicating with or meeting another person.',
+      'Users are encouraged to verify relevant information independently, exercise caution when sharing sensitive personal information, and take reasonable precautions before arranging an in-person meeting.',
+      'Initial meetings should, where appropriate, take place in safe and public locations. Users may also consider informing a trusted family member, friend, pastor, church leader, or other responsible person before meeting another user.',
+      'Kingdom Alliance cannot guarantee the conduct, intentions, identity, or behaviour of any individual user.',
+    ],
+  },
+  {
+    title: '9. VERIFICATION AND BACKGROUND INFORMATION',
+    paragraphs: [
+      "Unless expressly stated otherwise, users should not assume that another user's identity, marital status, employment, education, financial position, church membership, ministry role, legal history, immigration status, or other background information has been independently verified by Kingdom Alliance.",
+      'Any profile review, email confirmation, telephone confirmation, identity check, document review, or similar process undertaken by Kingdom Alliance is intended only to support platform integrity and should not be interpreted as an endorsement, certification, recommendation, or guarantee of the individual concerned.',
+      'Users remain responsible for carrying out any independent verification they consider appropriate before making significant personal or marital decisions.',
+    ],
+  },
+  {
+    title: '10. NO ENDORSEMENT OR GUARANTEE OF USERS',
+    paragraphs: [
+      "Kingdom Alliance does not guarantee or certify any user's identity, character, Christian faith, marital status, family background, education, employment, financial position, legal history, compatibility, intentions, suitability for marriage, or the accuracy or completeness of profile information.",
+      "The presence of a user's profile on Kingdom Alliance does not mean that Kingdom Alliance recommends, approves, certifies, or endorses that individual.",
+      'Users remain responsible for evaluating information and making their own informed decisions.',
+    ],
+  },
+  {
+    title: '11. NO GUARANTEE OF MATCH OR MARRIAGE',
+    paragraphs: [
+      'Kingdom Alliance does not guarantee that a suitable partner will be identified, that another user will respond to an expression of interest or communication, that two users will be compatible, that a relationship will develop, or that an introduction through the platform will result in engagement or marriage.',
+      'Any search tools, preferences, profile suggestions, compatibility features, or recommendations provided by the platform are intended only to assist users in identifying potential connections and should not be regarded as professional, pastoral, legal, or matrimonial advice.',
+    ],
+  },
+  {
+    title: '12. USER CONTENT AND PHOTOGRAPHS',
+    paragraphs: [
+      'Users are responsible for all information, photographs, messages, descriptions, testimonies, and other content they submit through Kingdom Alliance.',
+      'By submitting content, users confirm that they have the right to use and share that content.',
+      "Users must not upload another person's photographs or personal information without appropriate authorization and must not knowingly provide content that infringes another person's rights.",
+      'Users should exercise particular care before uploading information or photographs concerning children, family members, or other third parties.',
+      "Kingdom Alliance reserves the right to remove content that violates these Terms, infringes another person's rights, creates a safety or security concern, or is otherwise inappropriate for the platform.",
+    ],
+  },
+  {
+    title: '13. PRIVACY AND PERSONAL DATA',
+    paragraphs: [
+      'Kingdom Alliance respects the privacy of its users and will process personal information in accordance with the Kingdom Alliance Privacy Policy and applicable data-protection requirements.',
+      'Information processed through the platform may include registration information, profile information, photographs, contact information, personal preferences, faith-related information, marital status, communications with the platform, technical information, and other information reasonably necessary for the operation, administration, security, and improvement of the service.',
+      'Users should carefully consider the information they choose to include in their profiles or make available to other members.',
+      'Where consent or any additional authorization is required under applicable law for the processing of personal information, Kingdom Alliance will obtain such consent or authorization as required.',
+      'Users should review the Kingdom Alliance Privacy Policy for further information regarding the collection, use, disclosure, storage, retention, security, deletion, and protection of personal information and the exercise of applicable privacy rights.',
+    ],
+  },
+  {
+    title: '14. ACCOUNT CLOSURE AND DATA DELETION',
+    paragraphs: [
+      'Users may deactivate or request closure of their Kingdom Alliance account through the available account controls or by contacting Kingdom Alliance.',
+      'Users who become engaged, married, find a suitable partner, or otherwise cease seeking a marriage partner are encouraged to deactivate or close their profiles so that the information displayed to other users remains accurate.',
+      'Certain information may be retained following account closure where reasonably necessary or legally required for security, fraud prevention, dispute resolution, recordkeeping, or compliance with applicable law, subject to the Kingdom Alliance Privacy Policy.',
+    ],
+  },
+];
+const PART3: TocSection[] = [
+  {
+    title: '15. REPORTING AND SAFEGUARDING',
+    paragraphs: [
+      'Users are encouraged to promptly report suspected fake profiles, false or misleading information, fraudulent activity, harassment, impersonation, misuse of photographs, inappropriate solicitation, threatening conduct, safety concerns, or other serious violations of these Terms.',
+      'Kingdom Alliance may review reported matters and may warn, restrict, suspend, or terminate an account where reasonably necessary to protect users, maintain the integrity of the platform, or comply with applicable requirements.',
+      'Where appropriate and permitted or required by applicable law, Kingdom Alliance may cooperate with competent authorities regarding suspected unlawful activity or serious safety concerns.',
+    ],
+  },
+  {
+    title: '16. INTELLECTUAL PROPERTY',
+    paragraphs: [
+      'The Kingdom Alliance name, logo, website design, original text, graphics, software, and other original materials associated with the platform are owned by or licensed to Kingdom Alliance unless otherwise stated.',
+      'Users may not reproduce, distribute, modify, sell, commercially exploit, or create unauthorized derivative works from Kingdom Alliance materials without appropriate permission.',
+      'User-generated content remains subject to the rights of the person who submitted it, subject to the limited permissions reasonably required for Kingdom Alliance to display such content and operate the service.',
+    ],
+  },
+  {
+    title: '17. THIRD-PARTY SERVICES AND LINKS',
+    paragraphs: [
+      'Kingdom Alliance may include links to or integrations with third-party websites, communication services, social-media platforms, hosting providers, mapping services, or other external services.',
+      'Kingdom Alliance does not control and is not responsible for the content, privacy practices, security, availability, policies, or actions of independent third-party services.',
+      'Users should review the applicable terms and privacy policies of third-party services before using them.',
+    ],
+  },
+  {
+    title: '18. DISCLAIMER',
+    paragraphs: [
+      'Kingdom Alliance is provided on an "as is" and "as available" basis, subject to applicable law.',
+      'While reasonable efforts are made to maintain the availability, integrity, security, and proper operation of the platform, Kingdom Alliance does not guarantee uninterrupted or error-free access, complete accuracy of user-provided information, appropriate conduct by every user, absence of technical problems, or successful outcomes from introductions made through the platform.',
+      'Users remain responsible for decisions made on the basis of information provided by other users.',
+    ],
+  },
+  {
+    title: '19. LIMITATION OF LIABILITY',
+    paragraphs: [
+      'To the fullest extent permitted by applicable law, Kingdom Alliance and persons involved in administering or supporting the platform will not be liable for losses or damages arising solely from reliance on information provided by another user, personal relationship or marriage decisions, voluntary financial transactions between users, misrepresentation by another user, meetings or interactions occurring outside the reasonable control of Kingdom Alliance, or unauthorized or unlawful conduct by another person.',
+      'Nothing in these Terms is intended to exclude or limit any liability that cannot lawfully be excluded or limited.',
+    ],
+  },
+  {
+    title: '20. USER RESPONSIBILITY FOR MISUSE',
+    paragraphs: [
+      "Users are responsible for their own use of Kingdom Alliance and for any unlawful activity, violation of these Terms, infringement of another person's rights, fraudulent conduct, or unlawful content submitted through their account.",
+      'To the extent permitted by applicable law, users may be responsible for losses, claims, liabilities, or reasonable costs resulting from such misuse.',
+    ],
+  },
+  {
+    title: '21. SUSPENSION AND TERMINATION',
+    paragraphs: [
+      'Kingdom Alliance may restrict, suspend, or terminate an account where there are reasonable grounds to believe that a user has violated these Terms, provided materially false or misleading information, created a fraudulent account, impersonated another person, engaged in inappropriate conduct, presented a reasonable safety or security concern, misused the platform for financial solicitation, or used the service for purposes inconsistent with its faith-based and marriage-focused purpose.',
+      'Kingdom Alliance may also deactivate long-term inactive accounts in accordance with its account-management and data-retention practices.',
+      'Users may discontinue use of Kingdom Alliance and request closure of their account at any time.',
+    ],
+  },
+];
+const PART4: TocSection[] = [
+  {
+    title: '22. USER RESPONSIBILITY',
+    paragraphs: [
+      'Each user is personally responsible for deciding whom to communicate with, meet, develop a relationship with, become engaged to, or marry.',
+      'Kingdom Alliance encourages users to exercise wisdom, reasonable judgement, independent verification, responsible communication, and, where desired, guidance from trusted family members, pastors, church leaders, or other responsible persons.',
+      'Nothing provided through Kingdom Alliance constitutes legal, financial, medical, psychological, pastoral, or professional matrimonial advice.',
+    ],
+  },
+  {
+    title: '23. GOVERNING LAW AND JURISDICTION',
+    paragraphs: [
+      'These Terms shall be governed by and interpreted in accordance with the laws applicable to Kingdom Alliance and its operations.',
+      'Any dispute relating to these Terms or use of the platform shall be subject to the jurisdiction of the competent courts or authorities applicable to Kingdom Alliance, subject to any mandatory rights or requirements under applicable law.',
+    ],
+  },
+  {
+    title: '24. DISPUTE RESOLUTION',
+    paragraphs: [
+      'Users are encouraged to contact Kingdom Alliance first regarding concerns relating to the operation of the platform so that reasonable efforts may be made to understand and resolve the matter.',
+      'Nothing in these Terms prevents any person from exercising legal rights or remedies available under applicable law.',
+    ],
+  },
+  {
+    title: '25. CHANGES TO THESE TERMS',
+    paragraphs: [
+      'Kingdom Alliance may update these Terms from time to time where reasonably necessary to reflect changes in platform functionality, safety requirements, administrative practices, legal requirements, or operational needs.',
+      'Updated Terms and the applicable effective date will be published on the website. Where required by applicable law, users will be appropriately notified or requested to provide renewed acceptance or consent.',
+    ],
+  },
+  {
+    title: '26. CONTACT INFORMATION',
+    paragraphs: [
+      'For questions regarding these Terms, account matters, user reports, suspected fraudulent profiles, privacy concerns, or complaints, please contact:',
+      'Kingdom Alliance',
+      'Email: themaster@thekingdomalliances.com',
+      'Website: thekingdomalliances.com',
+      'Where a matter involves an immediate safety concern or suspected unlawful activity, users should contact the appropriate competent authorities where necessary.',
+    ],
+  },
+];
+
+const SECTIONS: TocSection[] = [...PART1, ...PART2, ...PART3, ...PART4];
 
 export default function TermsPage() {
   const { settings } = useSettings();
 
   return (
-    <div className="flex flex-col min-h-screen relative overflow-hidden text-slate-800"
+    <div className="flex flex-col min-h-screen relative overflow-hidden text-[#4a3521]"
       style={{
-        background: 'linear-gradient(135deg, #f1f8f3 0%, #e3f2e6 40%, #c8e6c9 70%, #f1f8f3 100%)'
+        fontFamily: "'Outfit', sans-serif",
+        background: 'linear-gradient(180deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)'
       }}
     >
-      
-      {/* Exact Header from LandingPage.tsx */}
       <PublicNavbar />
 
-      {/* Ambient background orbs from LoginPage.tsx */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-45"
-          style={{ background: 'radial-gradient(circle, #c8e6c9 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, rgba(196,133,106,0.22) 0%, transparent 70%)' }} />
         <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl opacity-35"
-          style={{ background: 'radial-gradient(circle, #d4af3720 0%, transparent 70%)' }} />
-        <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full blur-3xl opacity-20"
-          style={{ background: 'radial-gradient(circle, #e8f5e9 0%, transparent 70%)' }} />
-        {/* Grid lines */}
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-            backgroundSize: '60px 60px'
-          }} />
+          style={{ background: 'radial-gradient(circle, rgba(143,99,55,0.16) 0%, transparent 70%)' }} />
       </div>
 
-      {/* Decorative SVG Roses & Leaves - Top Left */}
-      <svg className="absolute -top-10 -left-10 w-48 h-48 md:w-80 md:h-80 opacity-30 pointer-events-none select-none z-0" viewBox="0 0 100 100" fill="none">
-        <path d="M30 20C20 30 15 50 35 70C55 50 45 35 30 20Z" fill="url(#rose-mint)" opacity="0.85"/>
-        <path d="M15 45C5 55 10 70 25 75C40 65 30 50 15 45Z" fill="url(#rose-green)" opacity="0.75"/>
-        <path d="M50 15C60 25 55 40 40 45C35 30 40 20 50 15Z" fill="url(#leaf-dark-green)" opacity="0.5"/>
-        <path d="M25 60C35 75 55 70 65 85" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-
-      {/* Decorative SVG Roses & Leaves - Bottom Right */}
-      <svg className="absolute bottom-10 -right-10 w-48 h-48 md:w-80 md:h-80 opacity-30 pointer-events-none select-none z-0" viewBox="0 0 100 100" fill="none">
-        <path d="M70 80C80 70 85 50 65 30C45 50 55 65 70 80Z" fill="url(#rose-mint)" opacity="0.85"/>
-        <path d="M85 55C95 45 90 30 75 25C60 35 70 50 85 55Z" fill="url(#rose-green)" opacity="0.75"/>
-        <path d="M50 85C40 75 45 60 60 55C65 70 60 80 50 85Z" fill="url(#leaf-dark-green)" opacity="0.5"/>
-        <path d="M75 40C65 25 45 30 35 15" stroke="#d4af37" strokeWidth="1.5" strokeLinecap="round"/>
-        <defs>
-          <radialGradient id="rose-mint" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#f1f8f3" />
-            <stop offset="50%" stopColor="#a5d6a7" />
-            <stop offset="100%" stopColor="#81c784" />
-          </radialGradient>
-          <radialGradient id="rose-green" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#a5d6a7" />
-            <stop offset="100%" stopColor="#4caf50" />
-          </radialGradient>
-          <linearGradient id="leaf-dark-green" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#c8e6c9" />
-            <stop offset="100%" stopColor="#2e7d32" />
-          </linearGradient>
-        </defs>
-      </svg>
-
-      <main className="flex-1 relative z-10 pt-32 pb-20 px-4 sm:px-6 lg:px-8 flex justify-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative w-full max-w-4xl rounded-[2.5rem] overflow-hidden p-8 sm:p-12"
-          style={{
-            background: 'rgba(255, 255, 255, 0.55)',
-            backdropFilter: 'blur(40px)',
-            WebkitBackdropFilter: 'blur(40px)',
-            border: '1px solid rgba(255, 255, 255, 0.80)',
-            boxShadow: '0 32px 64px -12px rgba(26,46,74,0.12), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 -1px 0 rgba(0,0,0,0.04)'
-          }}
-        >
-          <div className="absolute inset-0 pointer-events-none"
-            style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.90) 0%, transparent 50%, rgba(0,0,0,0.02) 100%)'
-            }} />
-
-          <div className="relative z-10">
-            <h1 className="text-3xl sm:text-4xl font-serif font-bold text-[#b8860b] mb-8 tracking-tight">
-              TERMS AND CONDITIONS OF USE FOR KINGDOM ALLIANCE WEBSITE
+      <main className="flex-1 relative z-10 pt-32 pb-24 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Hero */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-[2rem] px-6 py-12 sm:px-12 sm:py-16 text-center shadow-[0_30px_60px_-30px_rgba(143,99,55,0.5)]"
+            style={{ background: 'linear-gradient(135deg, #4a3521 0%, #2d1f13 50%, #1a120b 100%)' }}
+          >
+            <h1 className="text-[clamp(36px,5vw,54px)] font-extralight text-white tracking-tight" style={{ letterSpacing: '-0.025em' }}>
+              Terms &amp; Conditions
             </h1>
-            
-            <div className="text-slate-800 leading-relaxed space-y-8 text-sm sm:text-base font-light">
-            <p><strong>Effective Date:</strong> 26/05/2026</p>
-            
-            <p>
-              Welcome to Kingdom Alliance (the "Site"), owned and operated by Kingdom Alliance ("we," "us," or "our"). 
-              By accessing, browsing, or using the Site and our services (the "Service"), you agree to be bound by these 
-              Terms and Conditions ("Terms" or "Agreement"). If you do not agree to all of these Terms, please do not use the Site.
+            <p className="mt-5 text-white/60 text-[16px] max-w-xl mx-auto leading-relaxed font-light">
+              The covenant that governs our community. Please read these terms carefully before registering, creating a profile, or using the platform.
             </p>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">1. ABOUT US AND THE SERVICE</h2>
-              <p className="mb-3"><strong>1.1. Platform Purpose:</strong> Kingdom Alliance is an online matchmaking platform designed specifically for Christian singles looking for life partners within the Christian faith. The Service is provided with the bonafide intention of facilitating marriage.</p>
-              <p className="mb-3"><strong>1.2. Role of Facilitator:</strong> You understand and agree that we act solely as a facilitator to help members discover and connect with each other. We are not a dating service for casual relationships. We do not provide any guarantees, explicit or implicit, regarding:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>The number of matches you will receive.</li>
-                <li>The compatibility of any suggested matches.</li>
-                <li>The likelihood of a marriage or successful relationship.</li>
-                <li>The truthfulness or accuracy of information provided by other members.</li>
-              </ul>
+            <div className="mt-8 inline-flex items-center rounded-full border border-white/15 bg-white/5 px-5 py-2 text-[12px] font-light tracking-wider text-white/50">
+              Effective 25 August 2026 &nbsp;·&nbsp; Last updated 25 August 2026
             </div>
+          </motion.div>
 
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">2. ELIGIBILITY AND REGISTRATION</h2>
-              <p className="mb-3"><strong>2.1. Minimum Age:</strong> You must be at least 18 years old to register as a member.</p>
-              <p className="mb-3"><strong>2.2. Faith Basis:</strong> Membership is strictly for practicing Christians who align with the statement of faith or denomination requirements of the Site. By registering, you warrant that you meet this criterion.</p>
-              <p className="mb-3"><strong>2.3. Marital Status:</strong> You must be legally single and free to marry. This includes:</p>
-              <ul className="list-disc pl-6 space-y-2 mb-3">
-                <li>Never married.</li>
-                <li>Widowed.</li>
-                <li>Legally divorced. (Members in the process of a divorce must declare themselves as "Awaiting Divorce").</li>
-              </ul>
-              <p className="mb-3"><strong>2.4. Truthfulness:</strong> You agree to provide true, accurate, and current information during registration and to maintain and promptly update your profile. Providing false, misleading, or fraudulent information is a material breach of these Terms.</p>
-              <p><strong>2.5. Account Security:</strong> You are responsible for maintaining the confidentiality of your login credentials and are fully responsible for all activities that occur under your account. You must notify us immediately of any unauthorized use of your account.</p>
-            </div>
+          {/* Document */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            className="relative mt-8 rounded-[2.5rem] bg-white border border-[#e2ddd2] shadow-[0_40px_80px_-40px_rgba(143,99,55,0.15)] p-6 sm:p-12 lg:p-16"
+          >
+            <div className="space-y-14">
+              {/* Intro */}
+              <div className="rounded-[1.5rem] bg-[#faf4ea] border border-[#f0e2cc] p-6 sm:p-9">
+                <p className="text-[#C4856A] text-[22px] font-semibold mb-4">Welcome to Kingdom Alliance.</p>
+                <div className="space-y-4">
+                  <p className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">
+                    Kingdom Alliance is a faith-based platform created to help adult Christian believers connect with other Christian believers for the purpose of considering marriage.
+                  </p>
+                  <p className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">
+                    Kingdom Alliance is provided free of charge for the benefit of believers and is not established as a commercial matrimonial or dating service.
+                  </p>
+                  <p className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">
+                    By registering, creating a profile, accessing, or using Kingdom Alliance, you acknowledge that you have read, understood, and agreed to these Terms and Conditions.
+                  </p>
+                </div>
+              </div>
 
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">3. USER CONDUCT AND PROHIBITED ACTIVITIES</h2>
-              <p className="mb-4">To maintain a respectful and safe community in line with Christian values, you agree to the following code of conduct.</p>
-              <p className="mb-3"><strong>3.1. You Will Not:</strong></p>
-              <ul className="list-disc pl-6 space-y-2 mb-4">
-                <li>Misrepresent yourself: Creating profiles for others, using fake photos, or providing false details about your age, education, profession, or marital status is prohibited.</li>
-                <li>Post harmful content: Including but not limited to material that is abusive, defamatory, obscene, indecent, menacing, racially offensive, threatening, unlawful, or promotes illegal activity.</li>
-                <li>Solicit other members for money, goods, or services.</li>
-                <li>Engage in commercial activities: Including advertising competing services, multi-level marketing schemes, or spamming.</li>
-                <li>Upload viruses or other malicious code.</li>
-                <li>Harass other members: Repeated undesired contact, sending offensive messages, or other stalker-like behavior.</li>
-                <li>Post "Synthetically Generated Information (SGI)" as your content without full and explicit disclosure, as per our policy.</li>
-              </ul>
-              <p><strong>3.2. Christian Values:</strong> You agree to use the Service in a manner that aligns with Christian principles of truth, respect, charity, and purity. This platform may not be used to promote illicit sexual relations or extramarital affairs.</p>
-            </div>
+              {SECTIONS.map((section) => {
+                const num = section.title.split('.')[0];
+                const heading = section.title.replace(/^\d+\.\s*/, '');
+                return (
+                  <section key={section.title} id={`section-${num}`}>
+                    <div className="flex items-baseline gap-4 sm:gap-6">
+                      <span className="text-[26px] sm:text-[32px] font-extralight leading-none text-[#C4856A] shrink-0 w-10 sm:w-12 text-right">
+                        {num}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <h2 className="text-[16px] sm:text-[20px] font-semibold text-[#4a3521] tracking-wider uppercase">
+                          {heading}
+                        </h2>
+                        <div className="mt-3 h-px bg-gradient-to-r from-[#C4856A]/30 via-[#e2ddd2] to-transparent" />
+                      </div>
+                    </div>
+                    <div className="mt-5 space-y-4 sm:pl-[4.5rem]">
+                      {section.paragraphs.map((para, idx) => (
+                        <p key={idx} className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">{para}</p>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
 
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">4. CONTENT OWNERSHIP AND LICENSING</h2>
-              <p className="mb-3"><strong>4.1. Your Content:</strong> You retain ownership of all information and photos you post to your profile ("Your Content"). However, by posting Your Content, you grant us a perpetual, irrevocable, worldwide, non-exclusive, royalty-free license to use, copy, display, distribute, and modify Your Content for the sole purpose of operating, improving, and promoting the Service.</p>
-              <p><strong>4.2. Our Right to Review:</strong> We reserve the right, but have no obligation, to review, monitor, remove, or edit Your Content at our sole discretion, particularly if we believe it violates these Terms or Christian community standards.</p>
+              {/* OUR PURPOSE */}
+              <div className="rounded-[1.5rem] border border-[#e2ddd2] border-l-4 border-l-[#C4856A] bg-[#faf4ea] p-6 sm:p-10 shadow-[0_20px_45px_-35px_rgba(143,99,55,0.2)]">
+                <div className="flex items-center justify-center gap-4 mb-6">
+                  <span className="h-px w-10 bg-gradient-to-r from-transparent to-[#C4856A]/40" />
+                  <h2 className="text-[18px] sm:text-[22px] font-extralight text-[#C4856A] tracking-widest uppercase text-center">Our Purpose</h2>
+                  <span className="h-px w-10 bg-gradient-to-l from-transparent to-[#C4856A]/40" />
+                </div>
+                <div className="space-y-4 max-w-2xl mx-auto">
+                  <p className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">
+                    Kingdom Alliance has been established as a free-of-charge, faith-based service for the benefit of
+                    Christian believers seeking a marriage partner.
+                  </p>
+                  <p className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">
+                    There is no registration fee, membership fee, subscription fee, matchmaking fee, introduction fee,
+                    communication fee, or success fee for users of the platform.
+                  </p>
+                  <p className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">
+                    Kingdom Alliance is not intended to operate as a commercial matrimonial service or to profit from
+                    bringing believers together.
+                  </p>
+                  <p className="text-[#7A6E68] leading-[1.85] text-[15px] font-light">
+                    Its purpose is to provide a respectful and responsible platform through which Christian believers may
+                    connect, communicate, and consider marriage.
+                  </p>
+                  <p className="text-[#4a3521] leading-[1.85] text-[15px] font-medium">
+                    Every member is expected to use Kingdom Alliance with truthfulness, integrity, respect,
+                    responsibility, and due regard for the dignity and safety of other users.
+                  </p>
+                </div>
+              </div>
             </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">5. PRIVACY</h2>
-              <p>Your privacy is paramount. Use of the Site is also governed by our Privacy Policy, which is incorporated into these Terms by reference. Please read it carefully to understand how we collect, use, and share your personal data.</p>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">6. DISCLAIMER OF WARRANTIES</h2>
-              <p className="uppercase mb-3">THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT ANY WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.</p>
-              <p className="uppercase">WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE, OR ERROR-FREE, OR THAT OTHER MEMBERS' PROFILES OR INFORMATION ARE ACCURATE.</p>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">7. LIMITATION OF LIABILITY</h2>
-              <p className="uppercase mb-3">TO THE MAXIMUM EXTENT PERMITTED BY LAW, KINGDOM ALLIANCE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUES, WHETHER INCURRED DIRECTLY OR INDIRECTLY, OR ANY LOSS OF DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES, ARISING FROM:</p>
-              <ul className="list-disc pl-6 space-y-2 mb-3 uppercase">
-                <li>YOUR USE OF THE SERVICE.</li>
-                <li>THE CONDUCT OF OTHER USERS.</li>
-                <li>ANY INTERACTIONS, DISPUTES, OR TRANSACTIONS BETWEEN YOU AND OTHER USERS.</li>
-                <li>EMOTIONAL DISTRESS, LOSS, OR INJURY RESULTING FROM ANY RELATIONSHIP FORMED THROUGH THE SERVICE.</li>
-              </ul>
-              <p className="uppercase">OUR TOTAL LIABILITY TO YOU FOR ALL CLAIMS ARISING FROM THESE TERMS OR THE SERVICE IS LIMITED TO THE AMOUNT PAID BY YOU, IF ANY, FOR THE SERVICE.</p>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">8. INDEMNIFICATION</h2>
-              <p className="mb-3">You agree to indemnify and hold harmless Kingdom Alliance website and its officers, directors, employees, and agents from any and all claims, demands, losses, liabilities, and expenses (including attorneys' fees) arising out of or in connection with:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>Your Content.</li>
-                <li>Your use of the Service.</li>
-                <li>Your violation of these Terms.</li>
-              </ul>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">9. TERMINATION</h2>
-              <p>We reserve the right to terminate or suspend your account, remove your profile, or deny you access to the Service at our sole discretion, without prior notice, for conduct that we believe violates these Terms, is harmful to other users, or is detrimental to the Site's mission. Duplicate profiles may be suspended without notice.</p>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">10. GOVERNING LAW</h2>
-              <p>These Terms shall be governed by and construed in accordance with the laws of the Kingdom of Saudi Arabia, without regard to its conflict of law principles.</p>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">11. DISPUTE RESOLUTION</h2>
-              <p>Any dispute, controversy, or claim arising out of or relating to these Terms or the Service shall be resolved through good-faith mediation.</p>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">12. CHANGES TO TERMS</h2>
-              <p>We reserve the right to update or modify these Terms at any time. We will notify you of any material changes by posting the new Terms on the Site. Your continued use of the Site after any such changes constitutes your acceptance of the new Terms.</p>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-[#d4af37] mb-4">13. CONTACT INFORMATION</h2>
-              <p>If you have any questions about these Terms, please contact us via our Contact Us page.</p>
-            </div>
-
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </main>
 
-      {/* Footer from LandingPage */}
-      <footer className="bg-surface-container-highest py-20 relative z-10 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-12 border-b border-outline-variant/30 pb-16 mb-12">
-            <Link to="/" className="flex items-center gap-3">
-              <KingdomCrossIcon size="md" />
-              <span className="font-headline text-3xl text-on-surface font-bold tracking-tight">{settings.siteName}</span>
-            </Link>
-            <nav className="flex flex-wrap justify-center gap-x-10 gap-y-6 text-lg font-light">
-              <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-on-surface-variant hover:text-primary transition-colors">Home</Link>
-              <Link to="/register" className="text-on-surface-variant hover:text-primary transition-colors">Register</Link>
-              <Link to="/login" className="text-on-surface-variant hover:text-primary transition-colors">Login</Link>
-              <Link to="/terms" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-on-surface-variant hover:text-primary transition-colors">Terms</Link>
-              <Link to="/contact" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-on-surface-variant hover:text-primary transition-colors">Contact Us</Link>
-            </nav>
-          </div>
-          <div className="text-center text-on-surface-variant text-base font-light">
-            &copy; {new Date().getFullYear()} {settings.siteName}. Built on Faith, Rooted in Love.
-          </div>
+      {/* Footer */}
+      <footer className="py-11 px-6 border-t border-black/[0.04] relative z-10 mt-auto" style={{ background: 'linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)' }}>
+        <div className="max-w-[960px] mx-auto flex flex-col items-center gap-5">
+          <Link to="/" className="flex items-center gap-2.5 no-underline text-[#4a3521]">
+            <img src="/images/logo2.png" alt="Kingdom Alliance" className="w-9 h-9 object-contain" />
+            <span className="font-extralight text-[14px]">{settings.siteName}</span>
+          </Link>
+          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 list-none">
+            <li><Link to="/" className="text-[15px] text-[#7A6E68] no-underline hover:text-[#C4856A] transition-colors">Home</Link></li>
+            <li><Link to="/register" className="text-[15px] text-[#7A6E68] no-underline hover:text-[#C4856A] transition-colors">Register</Link></li>
+            <li><Link to="/login" className="text-[15px] text-[#7A6E68] no-underline hover:text-[#C4856A] transition-colors">Login</Link></li>
+            <li><Link to="/terms" className="text-[15px] text-[#7A6E68] no-underline hover:text-[#C4856A] transition-colors">Terms</Link></li>
+            <li><Link to="/contact" className="text-[15px] text-[#7A6E68] no-underline hover:text-[#C4856A] transition-colors">Contact Us</Link></li>
+          </nav>
+          <p className="text-[11.5px] text-[#AEA49E]">&copy; {new Date().getFullYear()} {settings.siteName}. Built on Faith, Rooted in Love.</p>
         </div>
       </footer>
     </div>

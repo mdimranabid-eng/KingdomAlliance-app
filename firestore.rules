@@ -61,7 +61,10 @@ service cloud.firestore {
              (data.get('photoRejectionReason', '') is string && data.get('photoRejectionReason', '').size() <= 500) &&
              (data.get('approvalStatus', 'incomplete') in ['incomplete', 'pending', 'approved', 'rejected']) &&
              (data.get('onboardingComplete', false) is bool) &&
-             (data.get('age', 0) is int && data.get('age', 0) >= 18 && data.get('age', 0) <= 100) &&
+             ((data.get('age', 0) is int && data.get('age', 0) >= 18 && data.get('age', 0) <= 100) ||
+             // Tolerate legacy docs where age was stored as a string (e.g. "25");
+             // without this, isValidUser() fails and ALL owner updates are denied.
+             (data.get('age', 0) is string && data.get('age', 0).size() > 0 && data.get('age', 0).size() <= 3)) &&
              (data.get('height', '') is string || data.get('height', 0) is int) &&
              (data.get('gender', '') in ['', 'male', 'female']) &&
              (data.get('gallery', []) is list);
@@ -111,20 +114,41 @@ service cloud.firestore {
       allow get: if isValidId(userId) && isSignedIn() && (
         isOwner(userId) || 
         isAdmin() || 
-        (isApproved() && existing().isApproved == true)
+        (isApproved() && existing().isApproved == true &&
+         // Profiles pending deletion are hidden from everyone except owner/admin
+         existing().get('deletionStatus', '') != 'pending_deletion')
       );
       
-      allow list: if isSignedIn();
+      // List access: admins can list everything; regular members can only list
+      // APPROVED profiles (prevents scraping of pending/unapproved data)
+      allow list: if isAdmin() ||
+        (isApproved() && resource.data.isApproved == true &&
+         resource.data.get('deletionStatus', '') != 'pending_deletion');
 
       allow create: if isValidId(userId) && isOwner(userId) && incoming().uid == userId && incoming().email is string && incoming().createdAt == request.time;
 
       allow update: if isValidId(userId) && isSignedIn() && isValidUser(incoming()) && (
         // Owner Update
+        // Photo moderation: owners upload new photos (photoStatus must become
+        // 'pending') but can never flip photoApproved themselves - admin only.
         (isOwner(userId) && 
-         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isSuspended', 'isBanned', 'isApproved', 'status']) &&
+         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isSuspended', 'isBanned', 'isApproved', 'status', 'approvalStatus', 'photoApproved']) &&
+         // Locked fields — owners cannot change these after initial onboarding
+         !incoming().diff(existing()).affectedKeys().hasAny([
+           'denomination', 'churchName', 'diocese', 'baptized',
+           'fathersName', 'fathersOccupation', 'mothersName', 'mothersOccupation',
+           'numberOfSiblings', 'pastorNumber',
+           'gender', 'dob', 'age', 'citizenship', 'maritalStatus',
+           'profileFor', 'profileType', 'motherTongue', 'education'
+         ]) &&
          incoming().uid == existing().uid &&
          incoming().email == existing().email &&
-         incoming().createdAt == existing().createdAt
+         incoming().createdAt == existing().createdAt &&
+         ((!incoming().diff(existing()).affectedKeys().hasAny(['photoUrl', 'pendingPhotoUrl']) ||
+           incoming().get('photoStatus', 'idle') == 'pending') ||
+          // Gallery additions/removals are moderated via per-item status and
+          // photoModeration docs, so they do not require flipping photoStatus.
+          incoming().diff(existing()).affectedKeys().hasAny(['gallery']))
         ) ||
         // Admin Update
         (isAdmin() && 
@@ -182,10 +206,12 @@ service cloud.firestore {
       }
 
       allow read, get, list: if isValidId(chatId) && isSignedIn() && (isParticipant() || isAdmin());
+      allow delete: if isValidId(chatId) && isSignedIn() && (isParticipant() || isAdmin());
       
       match /messages/{messageId} {
         allow get: if isValidId(messageId) && isSignedIn() && (isParticipant() || isAdmin());
         allow list: if isSignedIn() && (isParticipant() || isAdmin());
+        allow delete: if isValidId(messageId) && isSignedIn() && (isParticipant() || isAdmin());
         
         allow create: if isValidId(messageId) && isSignedIn() && isParticipant() && 
                       isValidMessage(incoming()) &&
@@ -216,9 +242,23 @@ service cloud.firestore {
       allow read, create: if isSignedIn();
     }
 
+    // OTPs are fully server-managed now (Cloud Functions in functions/src/otp.ts):
+    // generated with crypto, stored hashed, attempt-limited. Clients must use the
+    // requestOtp / verifyOtp callables. Direct client access is denied; the Admin
+    // SDK bypasses these rules.
     match /temp_otps/{otpId} {
-      allow create: if true;
-      allow read, delete: if true;
+      allow read, write: if false;
+    }
+
+    // Email abuse-prevention log (written by Cloud Functions only)
+    match /email_log/{logId} {
+      allow read, write: if false;
+    }
+
+    match /churches/{churchId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
     }
 
     match /contact_messages/{messageId} {

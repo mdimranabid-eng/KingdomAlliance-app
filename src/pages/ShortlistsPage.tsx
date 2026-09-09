@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge } from '../lib/utils';
+import { BlurablePhoto } from '../components/BlurablePhoto';
 
 export default function ShortlistsPage() {
   const { profile, user: authUser } = useAuth();
@@ -104,10 +105,13 @@ export default function ShortlistsPage() {
                 className="glass-card rounded-[2rem] overflow-hidden flex flex-col hover-lift"
               >
                 <Link to={`/profile/${user.id}`} className="block relative aspect-[3/4] overflow-hidden">
-                  <img 
-                    src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} 
-                    alt={user.name} 
-                    className="w-full h-full object-cover transition-transform duration-700" 
+                  <BlurablePhoto
+                    targetUid={user.id}
+                    src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+                    fallbackSrc={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+                    alt={user.name}
+                    profile={user}
+                    className="w-full h-full object-cover transition-transform duration-700"
                   />
                   <div className="absolute top-4 left-4">
                     <div className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full border border-white/30 flex items-center gap-1.5 text-white shadow-xl">
@@ -129,7 +133,7 @@ export default function ShortlistsPage() {
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
                   <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
-                    <h3 className="font-headline text-2xl">{user.name}, {user.age}</h3>
+                    <h3 className="member-name text-[26px] text-white">{user.name}<span className="member-age !text-[#dfc88a]">{user.age} yrs</span></h3>
                     <p className="text-xs font-label-lg flex items-center gap-1 opacity-90 tracking-wide">
                       <MapPin className="w-3.5 h-3.5" /> {user.location}
                     </p>

@@ -1,0 +1,1611 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { doc, getDoc, collection, query, where, addDoc, serverTimestamp, setDoc, getDocs, deleteDoc, updateDoc, runTransaction, deleteField, writeBatch } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from '../lib/AuthContext';
+import { sendEmail } from '../lib/email';
+import { useSettings } from '../lib/SettingsContext';
+import { uploadUserPhotos, deleteStoredPhoto } from '../lib/storage';
+import { secureDeletePhoto } from '../lib/cloudinary';
+import { requestOtp, verifyOtp } from '../services/otpService';
+import { motion, AnimatePresence } from 'motion/react';
+import ConfirmationModal from '../components/ConfirmationModal';
+import {
+  Heart,
+  User,
+  MessageSquare,
+  MessageCircle,
+  MapPin,
+  Check,
+  Church,
+  Briefcase,
+  GraduationCap,
+  Ruler,
+  Users,
+  ShieldAlert,
+  Calendar,
+  ChevronLeft,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Plus,
+  Image as ImageIcon,
+  Star,
+  Bookmark,
+  BookmarkCheck,
+  Loader2,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Cloud,
+  HardDrive,
+  Camera,
+  Upload,
+  ExternalLink,
+  Edit,
+  Scale,
+  Languages,
+  Globe,
+  ShieldCheck,
+  Activity,
+  ChevronRight,
+  X,
+  Maximize2,
+  HeartHandshake,
+  Quote,
+  Share2,
+  AlertTriangle
+} from 'lucide-react';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge } from '../lib/utils';
+import BlockedUsersList from '../components/BlockedUsersList';
+
+const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
+import toast from 'react-hot-toast';
+const glassCardStyle = {
+  background: 'rgba(255, 255, 255, 0.55)',
+  backdropFilter: 'blur(40px)',
+  WebkitBackdropFilter: 'blur(40px)',
+  border: '1px solid rgba(255, 255, 255, 0.80)',
+  boxShadow: '0 32px 64px -12px rgba(26,46,74,0.12), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 -1px 0 rgba(0,0,0,0.04)'
+};
+
+export default function ProfilePage() {
+  const { id } = useParams();
+  const { user: currentUser, profile: currentProfile, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sendingInterest, setSendingInterest] = useState(false);
+  const [connectionState, setConnectionState] = useState<any | null>(null);
+  const [isShortlisted, setIsShortlisted] = useState(false);
+  const [shortlistId, setShortlistId] = useState<string | null>(null);
+  const [togglingShortlist, setTogglingShortlist] = useState(false);
+  const [isEditingGallery, setIsEditingGallery] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<'profile' | 'gallery'>('gallery');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
+  const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
+  const [showLimitAlert, setShowLimitAlert] = useState(false);
+  const [activeTab, setActiveTab] = useState('about');
+  const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const [showAccountDeleteConfirm, setShowAccountDeleteConfirm] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [accountDeleteError, setAccountDeleteError] = useState<string | null>(null);
+  const [accountDeleteOtpCode, setAccountDeleteOtpCode] = useState(['', '', '', '', '', '']);
+  const [accountDeleteOtpLoading, setAccountDeleteOtpLoading] = useState(false);
+  const [accountDeleteOtpError, setAccountDeleteOtpError] = useState<string | null>(null);
+  const accountDeleteOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [aboutMeDraft, setAboutMeDraft] = useState('');
+  const [savingAbout, setSavingAbout] = useState(false);
+  const [aboutError, setAboutError] = useState<string | null>(null);
+  const [recommendedMatches, setRecommendedMatches] = useState<any[]>([]);
+  const [lightbox, setLightbox] = useState<{ open: boolean, index: number, images: string[] }>({ open: false, index: 0, images: [] });
+
+  const getSecureImageUrl = (url: string, isWatermark: boolean = false) => {
+    if (!url) return '';
+    if (!url.includes('cloudinary.com')) return url;
+
+    const parts = url.split('/upload/');
+    if (parts.length !== 2) return url;
+
+    const watermarkTransform = isWatermark ? 'l_text:Arial_15:KingdomAlliance,o_15,g_south_east,y_20,x_20/' : '';
+    return `${parts[0]}/upload/c_limit,w_1200,q_auto,f_auto/${watermarkTransform}${parts[1]}`;
+  };
+
+  const openLightbox = (index: number, images: string[]) => {
+    const validImages = images.filter(Boolean);
+    setLightbox({
+      open: true,
+      index: Math.min(index, validImages.length - 1),
+      images: validImages.map(img => getSecureImageUrl(img, true))
+    });
+  };
+
+  useEffect(() => {
+    async function fetchProfileData() {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const docSnap = await getDoc(doc(db, 'users', id));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const age = calculateAge(data.dob, data.age);
+          setProfile({ id: docSnap.id, ...data, age });
+          setAboutMeDraft(data.aboutMe || '');
+
+          // --- PROFILE VIEW TRACKING START ---
+          // Only track if viewer is not viewing own profile
+          if (currentUser?.uid && currentUser.uid !== id) {
+            const viewDocId = `${currentUser.uid}_${id}`;
+            await setDoc(
+              doc(db, 'profileViews', viewDocId),
+              {
+                viewerId: currentUser.uid,
+                profileId: id,
+                viewedAt: serverTimestamp()
+              },
+              { merge: true }
+            );
+          }
+          // --- PROFILE VIEW TRACKING END ---
+
+          if (currentUser) {
+            const interestsRef = collection(db, 'interests');
+            const q1 = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
+            const q2 = query(interestsRef, where('fromId', '==', id), where('toId', '==', currentUser.uid));
+            const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+            if (!snap1.empty) {
+              setConnectionState({ id: snap1.docs[0].id, ...snap1.docs[0].data() });
+            } else if (!snap2.empty) {
+              setConnectionState({ id: snap2.docs[0].id, ...snap2.docs[0].data() });
+            }
+
+            const shortlistRef = collection(db, 'shortlists');
+            const qShortlist = query(shortlistRef, where('userId', '==', currentUser.uid), where('targetId', '==', id));
+            const shortlistSnap = await getDocs(qShortlist);
+            if (!shortlistSnap.empty) {
+              setIsShortlisted(true);
+              setShortlistId(shortlistSnap.docs[0].id);
+            }
+          }
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `users/${id}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProfileData();
+  }, [id, currentUser]);
+
+  const validateContactInfo = (text: string) => {
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const phoneRegex = /(\+?\d[\s.-]?){7,15}/g;
+
+    if (emailRegex.test(text)) return "Email addresses are not allowed in the bio for security reasons.";
+    if (phoneRegex.test(text.replace(/[\s.-]/g, ''))) return "Mobile numbers are not allowed in the bio for security reasons.";
+
+    return null;
+  };
+
+  const handleSaveAboutMe = async () => {
+    const error = validateContactInfo(aboutMeDraft);
+    if (error) {
+      setAboutError(error);
+      return;
+    }
+
+    setSavingAbout(true);
+    setAboutError(null);
+    try {
+      await updateDoc(doc(db, 'users', id!), {
+        aboutMe: aboutMeDraft,
+        updatedAt: serverTimestamp()
+      });
+      setProfile({ ...profile, aboutMe: aboutMeDraft });
+      setIsEditingAbout(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${id}`);
+      setAboutError("Failed to save changes. Please try again.");
+    } finally {
+      setSavingAbout(false);
+    }
+  };
+
+  const handleDeleteMyAccount = async () => {
+    if (!currentUser || deletingAccount) return;
+    setAccountDeleteOtpLoading(true);
+    setAccountDeleteOtpError(null);
+    setShowDeleteConfirmation(false);
+    try {
+      const userEmail = currentUser.email;
+      if (!userEmail) throw new Error('No email found on your account.');
+      await requestOtp(userEmail, 'delete_account');
+      setShowAccountDeleteConfirm(true);
+      // Auto-focus first OTP input
+      setTimeout(() => accountDeleteOtpRefs.current[0]?.focus(), 100);
+    } catch (err: any) {
+      console.error('OTP send failed:', err);
+      setAccountDeleteOtpError(err.message || 'Failed to send verification code.');
+    } finally {
+      setAccountDeleteOtpLoading(false);
+    }
+  };
+
+  const handleDeleteOtpVerify = async () => {
+    if (!currentUser || deletingAccount) return;
+    const otpString = accountDeleteOtpCode.join('');
+    if (otpString.length !== 6) {
+      setAccountDeleteOtpError('Please enter the full 6-digit code.');
+      return;
+    }
+    setDeletingAccount(true);
+    setAccountDeleteOtpError(null);
+    try {
+      const userEmail = currentUser.email;
+      if (!userEmail) throw new Error('No email found.');
+      await verifyOtp(userEmail, otpString, 'delete_account');
+      // OTP verified — proceed with deletion
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${BACKEND_URL}/api/delete-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to schedule account deletion.');
+      setShowAccountDeleteConfirm(false);
+      await signOut();
+      navigate('/');
+    } catch (err: any) {
+      console.error('Account deletion request failed:', err);
+      setAccountDeleteOtpError(err.message || 'Failed to schedule account deletion. Please try again.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  const handleToggleShortlist = async () => {
+    if (!currentUser || !id || togglingShortlist) return;
+    setTogglingShortlist(true);
+    try {
+      if (isShortlisted && shortlistId) {
+        await deleteDoc(doc(db, 'shortlists', shortlistId));
+        setIsShortlisted(false);
+        setShortlistId(null);
+      } else {
+        const docRef = await addDoc(collection(db, 'shortlists'), {
+          userId: currentUser.uid,
+          targetId: id!,
+          createdAt: serverTimestamp()
+        });
+        setIsShortlisted(true);
+        setShortlistId(docRef.id);
+      }
+    } catch (err) {
+      handleFirestoreError(err, isShortlisted ? OperationType.DELETE : OperationType.CREATE, 'shortlists');
+    } finally {
+      setTogglingShortlist(false);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    if (uploadTarget === 'gallery' && (profile.gallery || []).length >= 3) {
+      setGalleryError("You have reached the maximum limit of photo you can upload");
+      setShowLimitAlert(true);
+      setShowUploadModal(false);
+      return;
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert("Invalid file format. Please upload JPEG, PNG, or WEBP.");
+      setShowUploadModal(false);
+      return;
+    }
+
+    if (file.size >= 10 * 1024 * 1024) {
+      alert("File size must be less than 10MB.");
+      setShowUploadModal(false);
+      return;
+    }
+
+    setUploadingPhoto(true);
+    setGalleryError(null);
+    setShowUploadModal(false);
+
+    try {
+      const pair = await uploadUserPhotos(
+        file,
+        currentUser.uid,
+        uploadTarget === 'gallery' ? 'gallery' : 'profile'
+      );
+      const url = pair.url;
+
+      // Get user name for the moderation record
+      const userName = profile.fullName || (currentUser.displayName || 'User');
+
+      if (uploadTarget === 'gallery') {
+        const newPhoto = {
+          id: Math.random().toString(36).substring(7),
+          url,
+          thumbUrl: pair.thumbUrl,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        };
+
+        const updatedGallery = [...(profile.gallery || []), newPhoto];
+        
+        // Create photoModeration document for gallery photo
+        await addDoc(collection(db, 'photoModeration'), {
+          uid: currentUser.uid,
+          userId: currentUser.uid,
+          userName: userName,
+          photoURL: url,
+          thumbUrl: pair.thumbUrl,
+          photoType: 'galleryPhoto',
+          galleryPosition: updatedGallery.length,
+          photoStatus: 'pending',
+          uploadedAt: serverTimestamp(),
+          reviewedAt: null,
+          reviewedBy: null,
+          rejectedReason: null
+        });
+
+        await updateDoc(doc(db, 'users', currentUser.uid), {
+          gallery: updatedGallery,
+          updatedAt: serverTimestamp()
+        });
+        setProfile({ ...profile, gallery: updatedGallery });
+      } else {
+        // Create photoModeration document for profile photo
+        await addDoc(collection(db, 'photoModeration'), {
+          uid: currentUser.uid,
+          userId: currentUser.uid,
+          userName: userName,
+          photoURL: url,
+          thumbUrl: pair.thumbUrl,
+          photoType: 'profilePhoto',
+          galleryPosition: null,
+          photoStatus: 'pending',
+          uploadedAt: serverTimestamp(),
+          reviewedAt: null,
+          reviewedBy: null,
+          rejectedReason: null
+        });
+
+        await updateDoc(doc(db, 'users', currentUser.uid), {
+          pendingPhotoUrl: url,
+          pendingPhotoThumbUrl: pair.thumbUrl,
+          photoStatus: 'pending',
+          rejectedPhotoUrl: '',
+          rejectedPhotoReason: '',
+          updatedAt: serverTimestamp()
+        });
+        setProfile({ 
+          ...profile, 
+          pendingPhotoUrl: url, 
+          pendingPhotoThumbUrl: pair.thumbUrl,
+          photoStatus: 'pending',
+          rejectedPhotoUrl: '',
+          rejectedPhotoReason: ''
+        });
+      }
+    } catch (err: any) {
+      setGalleryError(err.message || "Upload failed");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const confirmDeletePhoto = async () => {
+    if (!currentUser || !photoToDelete) return;
+
+    const targetPhoto = profile.gallery.find((p: any) => p.id === photoToDelete);
+    if (!targetPhoto) return;
+    const deletedPhotoUrl = targetPhoto.url;
+
+    const updatedGallery = profile.gallery.filter((p: any) => p.id !== photoToDelete);
+    try {
+      // Delete from Firebase Storage (full + thumb). Falls back to the
+      // legacy Cloudinary signed-deletion path for pre-migration photos.
+      const storageDeleted = await deleteStoredPhoto(deletedPhotoUrl, targetPhoto.thumbUrl);
+      if (!storageDeleted) {
+        await secureDeletePhoto(deletedPhotoUrl);
+      }
+
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        gallery: updatedGallery,
+        updatedAt: serverTimestamp()
+      });
+
+      // Delete corresponding photoModeration documents in Firestore
+      const q = query(
+        collection(db, 'photoModeration'),
+        where('uid', '==', currentUser.uid),
+        where('photoURL', '==', deletedPhotoUrl)
+      );
+      const querySnapshot = await getDocs(q);
+      const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      setProfile({ ...profile, gallery: updatedGallery });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'users');
+    } finally {
+      setPhotoToDelete(null);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleDeletePhoto = (photoId: string) => {
+    setPhotoToDelete(photoId);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleSendInterest = async () => {
+    if (!currentUser || !id || sendingInterest || connectionState) return;
+
+    if (currentProfile && profile) {
+      if (currentProfile.gender === profile.gender) {
+        toast.error(`As a ${currentProfile.gender}, you can only express interest to ${currentProfile.gender === 'Bride' ? 'Grooms' : 'Brides'}.`);
+        return;
+      }
+    }
+
+    setSendingInterest(true);
+    try {
+      const connectionId = [currentUser.uid, id].sort().join('_');
+      await setDoc(doc(db, 'interests', connectionId), {
+        fromId: currentUser.uid,
+        toId: id,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
+      // Add notification document
+      await addDoc(collection(db, 'notifications'), {
+        userId: id,
+        fromId: currentUser.uid,
+        type: 'interest',
+        title: 'New Interest Expressed',
+        message: `${currentUser.displayName || 'A member'} has expressed interest in your profile.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      // Fetch target user email to dispatch notification
+      const targetUserId = id;
+      const targetUserSnap = await getDoc(doc(db, 'users', targetUserId));
+      if (targetUserSnap.exists() && targetUserSnap.data()?.email) {
+          await sendEmail({
+              to_email: targetUserSnap.data().email,
+              type: 'connection_request',
+              senderName: currentUser.displayName || 'A member'
+          });
+      }
+
+      setConnectionState({ id: connectionId, fromId: currentUser.uid, toId: id, status: 'pending' });
+      toast.success(`Interest successfully sent to ${profile.name}!`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'interests');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleWithdrawInterest = async () => {
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.fromId) return;
+    setSendingInterest(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const docRef = doc(db, 'interests', connectionState.id);
+        const docSnap = await transaction.get(docRef);
+        if (!docSnap.exists() || docSnap.data().status !== 'pending') {
+          throw new Error('Connection no longer exists or is not pending');
+        }
+        transaction.delete(docRef);
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'interest'), where('fromId', '==', currentUser.uid), where('userId', '==', id));
+      const snapNotif = await getDocs(qNotif);
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setConnectionState(null);
+      toast.success('Interest withdrawn');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to withdraw interest. State may have changed.');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleDeclineInterest = async () => {
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.fromId && currentUser.uid !== connectionState.toId) return;
+    setSendingInterest(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'declined',
+        declinedBy: currentUser.uid
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'interest'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif = await getDocs(qNotif);
+      
+      const qNotif2 = query(notifRef, where('type', '==', 'accepted'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif2 = await getDocs(qNotif2);
+
+      const qNotif3 = query(notifRef, where('type', '==', 'message'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif3 = await getDocs(qNotif3);
+      
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      snapNotif2.docs.forEach(d => batch.delete(d.ref));
+      snapNotif3.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setConnectionState({ ...connectionState, status: 'declined', declinedBy: currentUser.uid });
+      toast.success('Connection declined');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to decline connection.');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleAcceptInterest = async () => {
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.toId) return;
+    setSendingInterest(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'accepted'
+      });
+
+      await addDoc(collection(db, 'notifications'), {
+        userId: id,
+        fromId: currentUser.uid,
+        type: 'accepted',
+        title: 'Connection Accepted',
+        message: `${currentUser.displayName || 'Someone'} has accepted your interest!`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'interest'), where('userId', '==', currentUser.uid), where('fromId', '==', id));
+      const snapNotif = await getDocs(qNotif);
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setConnectionState({ ...connectionState, status: 'accepted' });
+      toast.success('Interest accepted');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to accept connection.');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const handleUnblockAndAccept = async () => {
+    if (!currentUser || !id || !connectionState || sendingInterest) return;
+    if (currentUser.uid !== connectionState.declinedBy) return;
+    setSendingInterest(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'accepted',
+        declinedBy: deleteField()
+      });
+
+      await addDoc(collection(db, 'notifications'), {
+        userId: id,
+        fromId: currentUser.uid,
+        type: 'accepted',
+        title: 'Connection Accepted',
+        message: `${currentUser.displayName || 'Someone'} has accepted your connection!`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const qNotif = query(notifRef, where('type', '==', 'declined'), where('userId', '==', id), where('fromId', '==', currentUser.uid));
+      const snapNotif = await getDocs(qNotif);
+      const batch = writeBatch(db);
+      snapNotif.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setConnectionState({ ...connectionState, status: 'accepted', declinedBy: null });
+      toast.success('Connection unblocked and accepted');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to unblock connection.');
+    } finally {
+      setSendingInterest(false);
+    }
+  };
+
+  const isOwnProfile = currentUser?.uid === id;
+
+  const tabs = [
+    { id: 'about', label: 'About Me', icon: User },
+    ...(isOwnProfile ? [{ id: 'privacy', label: 'Privacy / Blocked', icon: ShieldAlert }] : [])
+  ];
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-surface">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        <p className="text-on-surface-variant font-medium">Loading premium profile...</p>
+      </div>
+    </div>
+  );
+
+  if (!profile) return (
+    <div className="min-h-screen flex items-center justify-center bg-surface">
+      <div className="text-center space-y-4">
+        <XCircle className="w-16 h-16 text-error mx-auto" />
+        <h2 className="text-2xl font-bold">Profile Not Found</h2>
+        <button onClick={() => navigate('/matches')} className="text-primary hover:underline">Back to matches</button>
+      </div>
+    </div>
+  );
+
+  const isDeclinedPrivacy = connectionState?.status === 'declined';
+  const rawFullName = [profile.name, profile.middleName, profile.lastName]
+    .filter(Boolean)
+    .map(name => name.trim())
+    .join(' ');
+  const fullName = isDeclinedPrivacy ? 'Profile Unavailable' : rawFullName;
+  const defaultName = isDeclinedPrivacy ? 'Profile Unavailable' : (profile.name || 'Unnamed Member');
+
+  return (
+    <div className="min-h-screen relative overflow-hidden pb-20"
+      style={{
+        background: 'linear-gradient(135deg, #f1f8f3 0%, #e3f2e6 40%, #c8e6c9 70%, #f1f8f3 100%)'
+      }}
+    >
+      {/* Ambient background orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-45"
+          style={{ background: 'radial-gradient(circle, #c8e6c9 0%, transparent 70%)' }} />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-3xl opacity-35"
+          style={{ background: 'radial-gradient(circle, #d4af3720 0%, transparent 70%)' }} />
+        <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full blur-3xl opacity-20"
+          style={{ background: 'radial-gradient(circle, #e8f5e9 0%, transparent 70%)' }} />
+      </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
+          <div 
+            className="rounded-[2.5rem] overflow-hidden"
+            style={glassCardStyle}
+          >
+            <div className="p-8 md:p-12">
+              <div className="flex flex-col md:flex-row items-center md:items-end gap-10">
+                {/* Profile Photo with Golden Ring */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-primary to-secondary rounded-full blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
+                  <div
+                    className="w-48 h-48 md:w-60 md:h-60 rounded-full border-[8px] border-white shadow-2xl overflow-hidden cursor-pointer relative z-10 ring-1 ring-slate-100"
+                    onClick={() => {
+                      const mainPhoto = profile.photoUrl || profile.pendingPhotoUrl;
+                      const gallery = (profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile);
+                      openLightbox(0, [mainPhoto, ...gallery.map((p: any) => p.url)]);
+                    }}
+                  >
+                    <PhotoProtector>
+                      <img
+                        src={getSecureImageUrl(
+                          (isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl)
+                            ? profile.rejectedPhotoUrl
+                            : (profile.photoUrl || profile.pendingPhotoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`)
+                        )}
+                        alt={profile.name}
+                        className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
+                          ((isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl) || connectionState?.status === 'declined') ? 'blur-md scale-95' : ''
+                        }`}
+                      />
+                    </PhotoProtector>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+
+                    {profile.photoStatus === 'pending' && (
+                      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Clock className="w-8 h-8 text-white animate-pulse" />
+                          <span className="text-white text-xs font-medium">Pending Review</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl && (
+                      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center">
+                        <div className="flex flex-col items-center gap-2 max-w-[85%]">
+                          <XCircle className="w-9 h-9 text-red-500" />
+                          <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Photo Rejected</span>
+                          <p className="text-white text-[11px] font-medium leading-relaxed px-1 break-words max-h-24 overflow-y-auto">
+                            Reason: {profile.rejectedPhotoReason || "Does not meet guidelines"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => { setUploadTarget('profile'); setShowUploadModal(true); }}
+                      className="absolute bottom-4 right-4 p-4 bg-secondary text-on-secondary rounded-full shadow-2xl hover:scale-110 transition-all hover:rotate-12 z-20 ring-4 ring-white"
+                    >
+                      <Camera className="w-6 h-6" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Identity Info */}
+                <div className="flex-1 flex flex-col md:flex-row justify-between items-center md:items-end gap-8 w-full">
+                  <div className="text-center md:text-left space-y-4">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
+                      <h1 className="font-headline text-4xl md:text-5xl text-slate-900 font-bold tracking-tight">
+                        {fullName || defaultName}{!isDeclinedPrivacy && `, ${profile.age}`}
+                      </h1>
+
+                      <div className="flex gap-2 mt-2">
+                        {profile.isApproved ? (
+                          <div className="group relative flex items-center">
+                            <div className="flex items-center gap-2.5 px-5 py-2 bg-gradient-to-r from-[#BF953F] via-[#FCF6BA] to-[#B38728] text-[#5d4037] rounded-full text-xs font-bold shadow-[0_2px_15px_rgba(184,134,11,0.4)] border border-[#AA8232]/30 relative overflow-hidden animate-shine-slow">
+                              {/* Cross Shield Icon - Made Bigger */}
+                              <svg width="18" height="20" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-md">
+                                <path d="M7 0L1 2.5V7C1 11.08 3.55 14.88 7 16C10.45 14.88 13 11.08 13 7V2.5L7 0Z" fill="currentColor" fillOpacity="0.9" />
+                                <path d="M7 4V11M5 6H9" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+                              </svg>
+                              <span className="relative z-10 tracking-tight text-sm">Verified Member</span>
+
+                              {/* Shine Effect Overlay */}
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shine transition-all duration-1000" />
+                            </div>
+
+                            {/* Tooltip on hover */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-900 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-30 font-bold uppercase tracking-wider">
+                              Approved Profile
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-full text-xs font-bold flex items-center gap-1.5 border border-slate-200">
+                            <Clock className="w-3.5 h-3.5" /> Pending Verification
+                          </span>
+                        )}
+                        {profile.photoStatus === 'pending' && (
+                          <span className="px-4 py-1.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold flex items-center gap-1.5 border border-amber-100">
+                            <Clock className="w-3.5 h-3.5" /> Photo Review
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 text-slate-500 font-medium text-lg">
+                      <span className="flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-primary/70" /> 
+                        {profile.cityLiving || profile.city ? `${profile.cityLiving || profile.city}, ${profile.countryLiving || profile.state || ''}` : 'Location not specified'}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Church className="w-5 h-5 text-primary/70" /> 
+                        {profile.denomination ? `Christian (${profile.denomination})` : 'Christian'}
+                      </span>
+                      {profile.occupation && (
+                        <span className="flex items-center gap-2">
+                          <Briefcase className="w-5 h-5 text-primary/70" /> {profile.occupation}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {!isOwnProfile && !isAdmin && (
+                    <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                      {(!connectionState || connectionState.status === 'none') && (
+                        <button
+                          onClick={handleSendInterest}
+                          disabled={sendingInterest}
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg bg-primary text-white hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                        >
+                          {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <Heart className="w-6 h-6" />}
+                          Send Interest
+                        </button>
+                      )}
+
+                      {connectionState?.status === 'pending' && connectionState?.fromId === currentUser?.uid && (
+                        <button
+                          onClick={() => setShowWithdrawConfirm(true)}
+                          disabled={sendingInterest}
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg bg-error/10 text-error hover:bg-error/25 hover:-translate-y-1 active:translate-y-0"
+                        >
+                          {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <X className="w-6 h-6" />}
+                          Withdraw
+                        </button>
+                      )}
+
+                      {connectionState?.status === 'pending' && connectionState?.toId === currentUser?.uid && (
+                        <>
+                          <button
+                            onClick={handleAcceptInterest}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-primary text-on-primary hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => setShowDeclineConfirm(true)}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-surface-container-high text-on-surface-variant hover:bg-surface-variant hover:-translate-y-1 active:translate-y-0 border border-outline-variant"
+                          >
+                            Decline
+                          </button>
+                        </>
+                      )}
+
+                      {connectionState?.status === 'accepted' && (
+                        <>
+                          <button
+                            onClick={() => navigate(`/messages?chatWith=${id}`)}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-primary text-on-primary hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            <MessageCircle className="w-6 h-6" />
+                            Message
+                          </button>
+                          <button
+                            onClick={() => setShowDeclineConfirm(true)}
+                            disabled={sendingInterest}
+                            className="flex-1 md:flex-none px-6 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg bg-error/10 text-error hover:bg-error/20 hover:-translate-y-1 active:translate-y-0"
+                          >
+                            {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Withdraw & Decline'}
+                          </button>
+                        </>
+                      )}
+
+                      {connectionState?.status === 'declined' && connectionState?.declinedBy !== currentUser?.uid && (
+                        <button
+                          disabled
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 bg-surface-container-high text-on-surface-variant opacity-50 cursor-not-allowed border border-outline-variant"
+                        >
+                          <X className="w-6 h-6" />
+                          Declined
+                        </button>
+                      )}
+
+                      {connectionState?.status === 'declined' && connectionState?.declinedBy === currentUser?.uid && (
+                        <button
+                          onClick={handleUnblockAndAccept}
+                          disabled={sendingInterest}
+                          className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-lg bg-primary text-on-primary hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0"
+                        >
+                          {sendingInterest ? <Loader2 className="w-6 h-6 animate-spin" /> : <HeartHandshake className="w-6 h-6" />}
+                          Unblock & Accept
+                        </button>
+                      )}
+
+                      <button
+                        onClick={handleToggleShortlist}
+                        disabled={togglingShortlist}
+                        className={cn(
+                          "p-5 rounded-2xl transition-all shadow-md border-2",
+                          isShortlisted
+                            ? "bg-secondary/10 border-secondary text-secondary"
+                            : "bg-white border-slate-100 text-slate-400 hover:border-secondary/30 hover:text-secondary"
+                        )}
+                      >
+                        <Bookmark className={cn("w-7 h-7", isShortlisted && "fill-current")} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {/* Main Content Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+          {/* Left Column: Navigation & Content */}
+          <div className="lg:col-span-8 space-y-8">
+
+            {/* Navigation Tabs */}
+            <div 
+              className="p-2 rounded-3xl flex gap-2 overflow-x-auto no-scrollbar"
+              style={glassCardStyle}
+            >
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "flex-1 min-w-[120px] py-4 px-6 rounded-2xl font-semibold transition-all flex items-center justify-center gap-2 whitespace-nowrap",
+                    activeTab === tab.id
+                      ? "bg-primary text-white shadow-md shadow-primary/20"
+                      : "text-slate-500 hover:bg-slate-50"
+                  )}
+                >
+                  <tab.icon className="w-5 h-5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Dynamic Tab Content */}
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="space-y-8"
+            >
+              {activeTab === 'about' && (
+                <div className="space-y-8">
+                  {/* About Me Card */}
+                  <div 
+                    className="rounded-[2rem] p-8 md:p-10 relative overflow-hidden"
+                    style={glassCardStyle}
+                  >
+                    <div className="absolute top-0 right-0 p-8 opacity-5">
+                      <Quote className="w-24 h-24 rotate-180" />
+                    </div>
+                    <div className="flex justify-between items-center mb-8">
+                      <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        <User className="w-7 h-7 text-primary" /> About Me
+                      </h2>
+                      {isOwnProfile && !isEditingAbout && (
+                        <button onClick={() => setIsEditingAbout(true)} className="p-2 text-primary hover:bg-primary/5 rounded-xl transition-colors">
+                          <Edit className="w-6 h-6" />
+                        </button>
+                      )}
+                    </div>
+
+                    {isEditingAbout ? (
+                      <div className="space-y-4">
+                        <textarea
+                          value={aboutMeDraft}
+                          onChange={(e) => setAboutMeDraft(e.target.value)}
+                          className="w-full h-48 p-6 rounded-2xl border-2 border-slate-200 focus:border-primary outline-none text-lg transition-colors resize-none"
+                          placeholder="Tell us about yourself..."
+                        />
+                        {aboutError && <p className="text-error text-sm font-medium">{aboutError}</p>}
+                        <div className="flex gap-3 justify-end">
+                          <button onClick={() => { setIsEditingAbout(false); setAboutMeDraft(profile.aboutMe || ''); }} className="px-6 py-3 text-slate-500 font-semibold hover:bg-slate-50 rounded-xl">Cancel</button>
+                          <button onClick={handleSaveAboutMe} disabled={savingAbout} className="px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-lg flex items-center gap-2">
+                            {savingAbout && <Loader2 className="w-5 h-5 animate-spin" />} Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-slate-600 text-lg leading-relaxed whitespace-pre-wrap font-medium">
+                        {profile.aboutMe || "No bio added yet."}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Basic Info Grid */}
+                  <div 
+                    className="rounded-[2rem] p-8 md:p-10"
+                    style={glassCardStyle}
+                  >
+                    <h2 className="text-2xl font-bold text-slate-900 mb-8">Personal Details</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                      <InfoRow label="Profile ID" value={isDeclinedPrivacy ? 'HIDDEN' : (profile.profileId || id?.substring(0, 8).toUpperCase())} />
+                      <InfoRow label="Full Name" value={fullName || defaultName} />
+                      <InfoRow label="Location" value={isDeclinedPrivacy ? 'Hidden' : (profile.cityLiving || profile.city ? `${profile.cityLiving || profile.city}, ${profile.countryLiving || profile.state || ''}` : 'Not Specified')} />
+                      <InfoRow label="Religion" value={profile.denomination ? `Christian (${profile.denomination})` : 'Christian'} />
+                      <InfoRow label="Age / Height" value={`${profile.age} Yrs, ${profile.height || 'N/A'}`} />
+                      <InfoRow label="Mother Tongue" value={profile.motherTongue || 'English'} />
+                      <InfoRow label="Marital Status" value={profile.maritalStatus} />
+                      <InfoRow label="Eating Habits" value={profile.dietaryHabits || profile.diet || 'N/A'} />
+                      {/* --- EXACT INSERTION STARTS HERE --- */}
+                      {profile.familyBackground && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Family Background</span>
+                          <p className="text-base text-gray-800 whitespace-pre-wrap">{profile.familyBackground}</p>
+                        </div>
+                      )}
+                      {/* --- EXACT INSERTION ENDS HERE --- */}
+                      {profile.fathersOccupation && (
+                        <InfoRow label="Father's Profession" value={profile.fathersOccupation} />
+                      )}
+                      {profile.mothersOccupation && (
+                        <InfoRow label="Mother's Profession" value={profile.mothersOccupation} />
+                      )}
+                      {(profile.numberOfSiblings !== undefined && profile.numberOfSiblings !== '') && (
+                        <InfoRow label="Siblings" value={String(profile.numberOfSiblings)} />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Gallery Section - Now directly below Personal Details */}
+                  <div 
+                    className="rounded-[2rem] p-8 md:p-10"
+                    style={glassCardStyle}
+                  >
+                    <div className="flex justify-between items-center mb-8">
+                      <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        <ImageIcon className="w-7 h-7 text-primary" /> Photo Gallery
+                      </h2>
+                      {isOwnProfile && (
+                        <button
+                          onClick={() => {
+                            if ((profile.gallery || []).length >= 3) {
+                              setShowLimitAlert(true);
+                              return;
+                            }
+                            setUploadTarget('gallery');
+                            setShowUploadModal(true);
+                          }}
+                          className="flex items-center gap-2 px-6 py-3 bg-secondary text-on-secondary rounded-xl font-bold shadow-md hover:scale-105 transition-transform"
+                        >
+                          <Plus className="w-5 h-5" /> Add Photo
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                      {(profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile).map((photo: any, index: number) => (
+                        <div key={photo.id} className="relative group aspect-[4/5] rounded-2xl overflow-hidden shadow-md border-2 border-slate-50">
+                          <PhotoProtector>
+                            <img
+                              src={getSecureImageUrl(photo.url)}
+                              alt="Gallery"
+                              className={`w-full h-full object-cover cursor-pointer transition-transform duration-500 group-hover:scale-110 ${
+                                (photo.status === 'rejected' || isDeclinedPrivacy) ? 'blur-md scale-95 pointer-events-none' : ''
+                              }`}
+                              onClick={() => {
+                                if (photo.status === 'rejected' || isDeclinedPrivacy) return;
+                                const mainPhoto = profile.photoUrl || profile.pendingPhotoUrl;
+                                const gallery = (profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile);
+                                openLightbox(index + 1, [mainPhoto, ...gallery.map((p: any) => p.url)]);
+                              }}
+                            />
+                          </PhotoProtector>
+                          {photo.status === 'pending' && (
+                            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 text-center">
+                              <div className="flex flex-col items-center gap-2">
+                                <Clock className="w-6 h-6 text-white animate-pulse" />
+                                <span className="text-white text-xs font-semibold">Moderating</span>
+                              </div>
+                            </div>
+                          )}
+                          {photo.status === 'rejected' && (
+                            <div className="absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-10">
+                              <div className="flex flex-col items-center gap-1.5 max-w-full">
+                                <XCircle className="w-7 h-7 text-red-500" />
+                                <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">Photo Rejected</span>
+                                <p className="text-white text-[11px] font-medium leading-tight px-1 break-words max-h-16 overflow-y-auto">
+                                  Reason: {photo.rejectionReason || "Does not meet guidelines"}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {isOwnProfile && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePhoto(photo.id);
+                              }}
+                              className="absolute top-3 right-3 p-2.5 bg-error hover:bg-error/90 text-white rounded-xl transition-all shadow-lg z-30"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {(!profile.gallery || profile.gallery.length === 0) && (
+                        <div className="col-span-full py-20 text-center space-y-4 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                          <ImageIcon className="w-16 h-16 text-slate-300 mx-auto" />
+                          <p className="text-slate-400 font-medium text-lg">No photos uploaded yet</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
+
+              {activeTab === 'privacy' && isOwnProfile && (
+                <div className="space-y-8">
+                  <BlockedUsersList />
+
+                  {/* Danger Zone — Delete My Profile */}
+                  <div
+                    className="rounded-[2rem] p-8 border-2 border-red-200"
+                    style={{ background: 'rgba(254, 242, 242, 0.6)' }}
+                  >
+                    <h2 className="text-xl font-bold text-red-700 flex items-center gap-3 mb-3">
+                      <AlertTriangle className="w-6 h-6" /> Danger Zone
+                    </h2>
+                    <p className="text-slate-600 text-sm leading-relaxed mb-5">
+                      Permanently delete your Kingdom Alliance profile. Your account will be
+                      disabled immediately and permanently removed after 7 days. Until then you
+                      can reactivate it any time by simply logging in.
+                    </p>
+                    <button
+                      onClick={() => setShowDeleteConfirmation(true)}
+                      className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md flex items-center gap-2 hover:bg-red-700 transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" /> Delete My Profile
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+
+          {/* Right Column: Sticky Sidebar */}
+          <div className="lg:col-span-4 space-y-8">
+
+            {/* Preferred Partner Match Card */}
+            <div 
+              className="rounded-[2rem] p-8 relative overflow-hidden group"
+              style={glassCardStyle}
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-150 duration-700" />
+              <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+                <HeartHandshake className="w-7 h-7 text-secondary" /> Partner Preferences
+              </h2>
+              <div className="space-y-6">
+                <PreferenceItem label="Age" value={profile.partnerPreferences?.ageRange || `${profile.partnerPreferences?.ageMin || 21} - ${profile.partnerPreferences?.ageMax || 35}`} />
+                <PreferenceItem label="Marital Status" value={profile.partnerPreferences?.maritalStatus || 'Never Married'} />
+                <PreferenceItem label="Denomination" value={profile.partnerPreferences?.denomination || 'Open to all'} />
+                <PreferenceItem label="Education" value={profile.partnerPreferences?.education || 'Graduate & Above'} />
+                <PreferenceItem label="Location" value={profile.partnerPreferences?.location || 'Anywhere'} />
+                {profile.partnerPreferences?.otherPreferences && (
+                  <div className="pt-4 border-t border-slate-100 mt-2 space-y-1 text-left">
+                    <span className="text-sm font-bold text-slate-500 block">My Desired Partner</span>
+                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">{profile.partnerPreferences.otherPreferences}</p>
+                  </div>
+                )}
+              </div>
+              
+              {currentProfile && (
+                <div className="mt-10 pt-8 border-t border-slate-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-slate-500 font-bold">Match Score</span>
+                    <span className="text-2xl font-black text-primary">
+                      {calculateMatchScore(currentProfile, profile)}%
+                    </span>
+                  </div>
+                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${calculateMatchScore(currentProfile, profile)}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      className="h-full bg-gradient-to-r from-primary to-secondary"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 text-center uppercase tracking-widest font-bold">Based on your shared values</p>
+                </div>
+              )}
+            </div>
+
+            {/* Lifestyle & Faith Journey Card */}
+            <div className="bg-slate-900 rounded-[2rem] p-8 shadow-2xl text-white space-y-6">
+              <div>
+                <h2 className="text-lg font-bold mb-1 flex items-center gap-2 text-secondary">
+                  <Church className="w-5 h-5" /> Faith Journey
+                </h2>
+                <div className="mt-4 space-y-3">
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Denomination</span>
+                    <span className="text-sm font-semibold">{profile.denomination || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Baptized</span>
+                    <span className="text-sm font-semibold">{profile.baptized || 'N/A'}</span>
+                  </div>
+                  {(isOwnProfile || isAdmin) && (
+                    <>
+                      <div className="flex justify-between border-b border-slate-800 pb-2">
+                        <span className="text-sm text-slate-400">Church Name</span>
+                        <span className="text-sm font-semibold">{profile.churchName || 'N/A'}</span>
+                      </div>
+                      {profile.churchArea && (
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                          <span className="text-sm text-slate-400">Church Area</span>
+                          <span className="text-sm font-semibold">{profile.churchArea}</span>
+                        </div>
+                      )}
+                      {profile.pastorName && (
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                          <span className="text-sm text-slate-400">Pastor Name</span>
+                          <span className="text-sm font-semibold">{profile.pastorName}</span>
+                        </div>
+                      )}
+                      {profile.pastorNumber && (
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                          <span className="text-sm text-slate-400">Pastor Number</span>
+                          <span className="text-sm font-semibold">{profile.pastorNumber}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-lg font-bold mb-1 flex items-center gap-2 text-secondary">
+                  <Briefcase className="w-5 h-5" /> Lifestyle
+                </h2>
+                <div className="mt-4 space-y-3">
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Qualification</span>
+                    <span className="text-sm font-semibold">{profile.education || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Occupation</span>
+                    <span className="text-sm font-semibold">{profile.profession || profile.occupation || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <span className="text-sm text-slate-400">Income</span>
+                    <span className="text-sm font-semibold">{profile.annualIncome || profile.income || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Find Your Match Section */}
+        {recommendedMatches.length > 0 && (
+          <div className="mt-20">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
+              <div>
+                <h2 className="font-headline text-3xl md:text-4xl text-slate-900">Find Your Match</h2>
+                <p className="text-slate-500">Christian singles sharing your faith and values</p>
+              </div>
+              <button 
+                onClick={() => navigate('/matches')}
+                className="flex items-center gap-2 text-primary font-bold hover:gap-3 transition-all"
+              >
+                View all matches <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {recommendedMatches.map((match) => (
+                <motion.div
+                  key={match.id}
+                  whileHover={{ y: -10 }}
+                  onClick={() => navigate(`/profile/${match.id}`)}
+                  className="rounded-[2rem] overflow-hidden cursor-pointer group"
+                  style={glassCardStyle}
+                >
+                  <div className="aspect-[4/5] relative overflow-hidden">
+                    <img 
+                      src={match.photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${match.name}`} 
+                      alt={match.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                    <div className="absolute bottom-6 left-6 right-6">
+                      <h3 className="text-xl font-bold text-white mb-1">{match.name}, {match.age}</h3>
+                      <p className="text-white/80 text-sm flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {match.location || 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-6 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Denomination</span>
+                      <span className="text-slate-700 font-bold">{match.denomination || 'Christian'}</span>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                      <Heart className="w-5 h-5 fill-current" />
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      <AnimatePresence>
+        {lightbox.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col"
+          >
+            <div className="flex justify-between items-center p-6">
+              <span className="text-white font-bold text-lg">{lightbox.index + 1} / {lightbox.images.length}</span>
+              <div className="flex gap-4">
+                <button onClick={() => { }} className="p-3 text-white hover:bg-white/10 rounded-full transition-colors"><Share2 className="w-6 h-6" /></button>
+                <button onClick={() => setLightbox({ ...lightbox, open: false })} className="p-3 text-white hover:bg-white/10 rounded-full transition-colors"><X className="w-8 h-8" /></button>
+              </div>
+            </div>
+
+            <div className="flex-1 flex items-center justify-center relative px-4">
+              <button
+                onClick={() => setLightbox({ ...lightbox, index: (lightbox.index - 1 + lightbox.images.length) % lightbox.images.length })}
+                className="absolute left-4 p-4 text-white hover:bg-white/10 rounded-full transition-all z-20"
+              >
+                <ChevronLeft className="w-10 h-10" />
+              </button>
+
+              <motion.img
+                key={lightbox.index}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                src={lightbox.images[lightbox.index]}
+                className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl"
+              />
+
+              <button
+                onClick={() => setLightbox({ ...lightbox, index: (lightbox.index + 1) % lightbox.images.length })}
+                className="absolute right-4 p-4 text-white hover:bg-white/10 rounded-full transition-all z-20"
+              >
+                <ChevronRight className="w-10 h-10" />
+              </button>
+            </div>
+
+            <div className="p-8 flex gap-3 overflow-x-auto justify-center no-scrollbar">
+              {lightbox.images.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => setLightbox({ ...lightbox, index: i })}
+                  className={cn(
+                    "w-20 h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0",
+                    i === lightbox.index ? "border-primary scale-110 shadow-lg shadow-primary/30" : "border-transparent opacity-40 hover:opacity-100"
+                  )}
+                >
+                  <img src={img} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Account Deletion Confirmation Dialog */}
+      <AnimatePresence>
+        {showDeleteConfirmation && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteConfirmation(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 space-y-5 text-center">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-8 h-8 text-red-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Are you sure?</h2>
+                <p className="text-sm text-slate-600">
+                  This action cannot be undone. Your profile will be disabled immediately and permanently deleted after a 7-day grace period.
+                </p>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowDeleteConfirmation(false)}
+                    className="flex-1 px-6 py-3 text-slate-500 font-semibold hover:bg-slate-50 rounded-xl transition-colors"
+                  >
+                    No, Cancel
+                  </button>
+                  <button
+                    disabled={accountDeleteOtpLoading}
+                    onClick={handleDeleteMyAccount}
+                    className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {accountDeleteOtpLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                    Yes, Delete
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Account Deletion OTP Verification Modal */}
+      <AnimatePresence>
+        {showAccountDeleteConfirm && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !deletingAccount && setShowAccountDeleteConfirm(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"/>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden">
+              <div className="p-8 space-y-5 text-center">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-8 h-8 text-red-600"/>
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Delete Your Profile?</h2>
+
+                <div className="text-sm text-slate-600 space-y-2 text-left bg-red-50 border border-red-100 rounded-2xl p-4">
+                  <p>\u2022 Your account will be <strong>disabled immediately</strong> and hidden from all other members.</p>
+                  <p>\u2022 It will be <strong>permanently deleted after 7 days</strong> \u2014 profile, photos, interests, messages and all data.</p>
+                  <p>\u2022 <strong>Changed your mind?</strong> Just log in during those 7 days to reactivate and restore everything.</p>
+                </div>
+
+                <p className="text-sm text-slate-600">
+                  A verification code has been sent to your email. Enter it below to confirm deletion.
+                </p>
+
+                <div className="flex justify-center gap-2 py-2">
+                  {accountDeleteOtpCode.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => { accountDeleteOtpRefs.current[idx] = el; }}
+                      type="text"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        const newCode = [...accountDeleteOtpCode];
+                        newCode[idx] = val;
+                        setAccountDeleteOtpCode(newCode);
+                        if (val && idx < 5) accountDeleteOtpRefs.current[idx + 1]?.focus();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Backspace' && !digit && idx > 0) {
+                          accountDeleteOtpRefs.current[idx - 1]?.focus();
+                        }
+                      }}
+                      disabled={deletingAccount}
+                      className="w-10 h-12 text-center border-2 border-slate-200 rounded-lg font-bold text-lg outline-none focus:border-primary transition-colors disabled:opacity-50"
+                    />
+                  ))}
+                </div>
+
+                {accountDeleteOtpError && (
+                  <p className="text-error text-sm font-medium">{accountDeleteOtpError}</p>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => { setShowAccountDeleteConfirm(false); setAccountDeleteOtpCode(['','','','','','']); setAccountDeleteOtpError(null); }}
+                    disabled={deletingAccount}
+                    className="flex-1 px-6 py-3 text-slate-500 font-semibold hover:bg-slate-50 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteOtpVerify}
+                    disabled={deletingAccount || accountDeleteOtpCode.join('').length !== 6}
+                    className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {deletingAccount && <Loader2 className="w-5 h-5 animate-spin" />}
+                    Confirm & Delete
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Upload Modal */}
+      <ConfirmationModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        title={`Upload ${uploadTarget === 'profile' ? 'Profile Photo' : 'Gallery Photo'}`}
+        message="Select a photo to upload. Max size 3MB. All photos are reviewed by moderators."
+        confirmText="Choose Photo"
+        cancelText="Cancel"
+        onConfirm={() => document.getElementById('photo-upload')?.click()}
+      />
+      <input
+        id="photo-upload"
+        type="file"
+        accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp"
+        className="hidden"
+        onChange={handlePhotoUpload}
+      />
+
+      {/* Delete Confirmation */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDeletePhoto}
+        title="Delete Photo"
+        message="Are you sure you want to delete this photo? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
+
+      {/* Upload Limit Confirmation Alert */}
+      <ConfirmationModal
+        isOpen={showLimitAlert}
+        onClose={() => setShowLimitAlert(false)}
+        onConfirm={() => setShowLimitAlert(false)}
+        title="Upload Limit Reached"
+        message="You have reached the maximum limit of photo you can upload"
+        confirmText="OK"
+        isDestructive={false}
+        singleButton={true}
+      />
+
+      <ConfirmationModal
+        isOpen={showWithdrawConfirm}
+        onClose={() => setShowWithdrawConfirm(false)}
+        onConfirm={handleWithdrawInterest}
+        title="Withdraw Interest"
+        message="Are you sure you want to withdraw your interest? This action cannot be undone."
+        confirmText="Yes, Withdraw"
+        cancelText="No, Keep It"
+        isDestructive={true}
+      />
+
+      <ConfirmationModal
+        isOpen={showDeclineConfirm}
+        onClose={() => setShowDeclineConfirm(false)}
+        onConfirm={handleDeclineInterest}
+        title="Decline Interest"
+        message="Are you sure you want to decline this interest? You can change your mind later from the Declined tab."
+        confirmText="Yes, Decline"
+        cancelText="No, Keep It"
+        isDestructive={true}
+      />
+    </div>
+  );
+}
+
+// Helper Components
+function InfoRow({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="flex flex-col gap-1 py-2">
+      <span className="text-slate-400 text-sm font-bold uppercase tracking-wider">{label}</span>
+      <span className="text-slate-800 text-lg font-semibold break-words leading-tight">{value || 'N/A'}</span>
+    </div>
+  );
+}
+
+function PreferenceItem({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-slate-500 font-medium">{label}</span>
+      <span className="text-slate-900 font-bold text-right">{value}</span>
+    </div>
+  );
+}
+
+function PhotoProtector({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative w-full h-full select-none" onContextMenu={(e) => e.preventDefault()}>
+      {children}
+      <div className="absolute inset-0 z-10" />
+    </div>
+  );
+}

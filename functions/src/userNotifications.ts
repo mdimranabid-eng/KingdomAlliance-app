@@ -1,4 +1,4 @@
-import { onDocumentUpdated, onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentUpdated, onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 
 if (admin.apps.length === 0) {
@@ -288,11 +288,13 @@ export const onContactMessageCreated = onDocumentCreated(
 );
 
 /**
- * Cloud Function to send real-time push notifications when a new chat message is created
+ * Cloud Function to send real-time push notifications + session-based email
+ * when a new chat message is created
  */
 export const onChatMessageCreated = onDocumentCreated(
   {
-    document: 'chats/{chatId}/messages/{messageId}'
+    document: 'chats/{chatId}/messages/{messageId}',
+    secrets: ['SMTP_USER', 'SMTP_PASS']
   },
   async (event) => {
     const data = event.data?.data();
@@ -305,69 +307,293 @@ export const onChatMessageCreated = onDocumentCreated(
     if (!receiverId || !text) return;
 
     try {
-      // 1. Fetch recipient's registered FCM tokens
+      // 1. Fetch recipient's user document
       const receiverSnap = await admin.firestore().collection('users').doc(receiverId).get();
       if (!receiverSnap.exists) {
         console.log(`No user profile found for receiver ${receiverId}`);
         return;
       }
       
-      const receiverData = receiverSnap.data();
-      const tokens = receiverData?.fcmTokens || [];
+      const receiverData = receiverSnap.data()!;
 
-      if (tokens.length === 0) {
-        console.log(`Receiver ${receiverId} has no registered FCM tokens`);
-        return;
-      }
-
-      // 2. Fetch sender name
+      // 2. Fetch sender name (reused for push + email)
       let senderName = 'A member';
       const senderSnap = await admin.firestore().collection('users').doc(senderId).get();
       if (senderSnap.exists) {
         senderName = senderSnap.data()?.name || 'A member';
       }
 
-      // 3. Build the notification payload
+      // 3. Push notification (FCM)
+      const tokens = receiverData.fcmTokens || [];
+      if (tokens.length > 0) {
+        const payload = {
+          notification: {
+            title: `New Message from ${senderName}`,
+            body: text.length > 100 ? `${text.substring(0, 97)}...` : text,
+          }
+        };
+
+        console.log(`Sending push notification to ${tokens.length} tokens for receiver ${receiverId}...`);
+        
+        const response = await admin.messaging().sendEachForMulticast({
+          tokens: tokens,
+          notification: payload.notification
+        });
+
+        // Clean up failed/expired tokens
+        const tokensToDelete: string[] = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const errCode = resp.error?.code;
+            if (
+              errCode === 'messaging/invalid-registration-token' || 
+              errCode === 'messaging/registration-token-not-registered'
+            ) {
+              tokensToDelete.push(tokens[idx]);
+            } else {
+              console.error(`FCM sending error on token ${tokens[idx]}:`, resp.error);
+            }
+          }
+        });
+
+        if (tokensToDelete.length > 0) {
+          console.log(`Cleaning up ${tokensToDelete.length} invalid tokens for user ${receiverId}`);
+          await admin.firestore().collection('users').doc(receiverId).update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokensToDelete)
+          });
+        }
+      } else {
+        console.log(`Receiver ${receiverId} has no registered FCM tokens, skipping push.`);
+      }
+
+      // 4. Session-based email notification
+      // Only email if recipient is offline AND no email has been sent since they last logged in
+      const recipientEmail = receiverData.email;
+      if (!recipientEmail) {
+        console.log(`No email for receiver ${receiverId}, skipping email notification.`);
+        return;
+      }
+
+      // Check RTDB presence status
+      const statusSnapshot = await admin.database().ref(`status/${receiverId}`).get();
+      const statusData = statusSnapshot.val();
+
+      if (statusData && statusData.state !== 'offline') {
+        console.log(`Receiver ${receiverId} is online, skipping email.`);
+        return;
+      }
+
+      // Session-based digest: only send one email per offline session
+      const lastActive = receiverData.lastActive?.toMillis?.() || 0;
+      const lastEmailSent = receiverData.lastEmailSent?.toMillis?.() || 0;
+
+      if (lastEmailSent >= lastActive) {
+        console.log(`Email already sent this offline session for ${receiverId}, skipping.`);
+        return;
+      }
+
+      // Send the email
+      const transporter = await getTransporter();
+      const mailOptions = {
+        from: `"Kingdom Alliance" <${process.env.SMTP_USER}>`,
+        to: recipientEmail,
+        subject: 'You have a new message on Kingdom Alliance',
+        html: `
+          <div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+              <h2 style="color: #d4af37;">New Message Received</h2>
+              <p>Hello,</p>
+              <p><strong>${senderName}</strong> has sent you a new message on Kingdom Alliance.</p>
+              <p style="font-size: 14px; color: #64748b;">For your privacy and security, we do not include message contents in emails. Please log in to your Kingdom Alliance messages to read and reply.</p>
+              <br/>
+              <p style="margin-bottom: 5px;">Regards,</p>
+              <p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>
+          </div>
+        `
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`New message email sent to ${recipientEmail}`);
+
+        // Update lastEmailSent to prevent duplicate emails this session
+        await admin.firestore().collection('users').doc(receiverId).update({
+          lastEmailSent: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (err: any) {
+        console.error(`Failed to send new message email to ${recipientEmail}:`, err.message);
+      }
+
+    } catch (err: any) {
+      console.error('Error handling chat message notification:', err.message);
+    }
+  }
+);
+
+/**
+ * Cloud Function to send FCM push notification when a new interest is created.
+ * This ensures the recipient is notified even if the sender's browser is closed.
+ */
+export const onInterestCreated = onDocumentCreated(
+  'interests/{connectionId}',
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+    if (data.status !== 'pending') return;
+
+    const { fromId, toId } = data;
+    if (!fromId || !toId) return;
+
+    try {
+      // 1. Fetch recipient's FCM tokens
+      const receiverSnap = await admin.firestore().collection('users').doc(toId).get();
+      if (!receiverSnap.exists) {
+        console.log(`No user profile found for receiver ${toId}`);
+        return;
+      }
+      const receiverData = receiverSnap.data()!;
+
+      // 2. Fetch sender name
+      let senderName = 'A member';
+      const senderSnap = await admin.firestore().collection('users').doc(fromId).get();
+      if (senderSnap.exists) {
+        senderName = senderSnap.data()?.name || 'A member';
+      }
+
+      // 3. Send FCM push notification
+      const tokens = receiverData.fcmTokens || [];
+      if (tokens.length === 0) {
+        console.log(`Receiver ${toId} has no FCM tokens, skipping push.`);
+        return;
+      }
+
       const payload = {
         notification: {
-          title: `New Message from ${senderName}`,
-          body: text.length > 100 ? `${text.substring(0, 97)}...` : text,
+          title: 'New Connection Request',
+          body: `${senderName} is interested in connecting with you!`,
+        },
+        data: {
+          type: 'interest',
+          fromId: fromId,
+          connectionId: event.params.connectionId,
         }
       };
 
-      console.log(`Sending push notification to ${tokens.length} tokens for receiver ${receiverId}...`);
-      
-      // 4. Send the notification to all registered tokens/devices
+      console.log(`Sending interest push notification to ${toId} (${tokens.length} tokens)...`);
+
       const response = await admin.messaging().sendEachForMulticast({
-        tokens: tokens,
-        notification: payload.notification
+        tokens,
+        notification: payload.notification,
+        data: payload.data,
       });
 
-      // 5. Clean up failed/expired tokens
+      // Clean up invalid tokens
       const tokensToDelete: string[] = [];
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
           const errCode = resp.error?.code;
           if (
-            errCode === 'messaging/invalid-registration-token' || 
+            errCode === 'messaging/invalid-registration-token' ||
             errCode === 'messaging/registration-token-not-registered'
           ) {
             tokensToDelete.push(tokens[idx]);
           } else {
-            console.error(`FCM sending error on token ${tokens[idx]}:`, resp.error);
+            console.error(`FCM interest push error on token ${tokens[idx]}:`, resp.error);
           }
         }
       });
 
       if (tokensToDelete.length > 0) {
-        console.log(`Cleaning up ${tokensToDelete.length} invalid tokens for user ${receiverId}`);
-        await admin.firestore().collection('users').doc(receiverId).update({
+        console.log(`Cleaning up ${tokensToDelete.length} invalid tokens for user ${toId}`);
+        await admin.firestore().collection('users').doc(toId).update({
           fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokensToDelete)
         });
       }
 
+      console.log(`Interest push notification sent successfully to ${toId}`);
+
     } catch (err: any) {
-      console.error('Error handling push notification dispatch:', err.message);
+      console.error('Error sending interest push notification:', err.message);
+    }
+  }
+);
+
+/**
+ * Cloud Function to send FCM push notification when an interest is accepted.
+ */
+export const onInterestAccepted = onDocumentWritten(
+  'interests/{connectionId}',
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+
+    // Only trigger on status change from pending to accepted
+    if (before.status !== 'pending' || after.status !== 'accepted') return;
+
+    const { fromId, toId } = after;
+    if (!fromId || !toId) return;
+
+    // The sender of the original interest (fromId) should be notified
+    // that their interest was accepted by toId
+    const recipientUid = fromId;
+    const accepterUid = toId;
+
+    try {
+      const recipientSnap = await admin.firestore().collection('users').doc(recipientUid).get();
+      if (!recipientSnap.exists) return;
+      const recipientData = recipientSnap.data()!;
+
+      let accepterName = 'A member';
+      const accepterSnap = await admin.firestore().collection('users').doc(accepterUid).get();
+      if (accepterSnap.exists) {
+        accepterName = accepterSnap.data()?.name || 'A member';
+      }
+
+      const tokens = recipientData.fcmTokens || [];
+      if (tokens.length === 0) return;
+
+      const payload = {
+        notification: {
+          title: 'Connection Accepted!',
+          body: `${accepterName} accepted your connection request!`,
+        },
+        data: {
+          type: 'accepted',
+          fromId: accepterUid,
+          connectionId: event.params.connectionId,
+        }
+      };
+
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: payload.notification,
+        data: payload.data,
+      });
+
+      // Clean up invalid tokens
+      const tokensToDelete: string[] = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const errCode = resp.error?.code;
+          if (
+            errCode === 'messaging/invalid-registration-token' ||
+            errCode === 'messaging/registration-token-not-registered'
+          ) {
+            tokensToDelete.push(tokens[idx]);
+          }
+        }
+      });
+
+      if (tokensToDelete.length > 0) {
+        await admin.firestore().collection('users').doc(recipientUid).update({
+          fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokensToDelete)
+        });
+      }
+
+      console.log(`Interest accepted push notification sent to ${recipientUid}`);
+
+    } catch (err: any) {
+      console.error('Error sending interest accepted notification:', err.message);
     }
   }
 );

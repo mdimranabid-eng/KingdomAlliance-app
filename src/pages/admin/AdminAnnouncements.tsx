@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, getDocs, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { motion } from 'motion/react';
-import { Send, Users, ShieldCheck, Mail, Info, Megaphone, Loader2 } from 'lucide-react';
+import { Send, Users, ShieldCheck, Mail, Info, Megaphone, Loader2, ArrowLeft } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../../lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 export default function AdminAnnouncements() {
+  const navigate = useNavigate();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [target, setTarget] = useState<'all' | 'unverified' | 'active'>('all');
@@ -40,9 +42,18 @@ export default function AdminAnnouncements() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-headline text-4xl text-on-surface">Community Announcements</h1>
-        <p className="text-on-surface-variant">Send mass notifications and updates to users</p>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate('/admin')}
+          className="mt-1 p-2 hover:bg-[#1a2e4a]/5 rounded-full transition-colors text-[#64748b]"
+          title="Back to Dashboard"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-[28px] font-semibold text-[#0f172a] tracking-tight">Community Announcements</h1>
+          <p className="text-sm text-[#64748b] mt-0.5">Send mass notifications and updates to users</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

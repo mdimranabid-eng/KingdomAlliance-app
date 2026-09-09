@@ -165,7 +165,7 @@ export default function AdminUserDetailModal({
                   <img src={displayPhoto} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h2 className="font-headline text-3xl text-on-surface">{user.name} {user.lastName || ''}</h2>
+                  <h2 className="member-name text-[34px] text-on-surface">{user.name} {user.lastName || ''}</h2>
                   <div className="flex items-center gap-4 mt-1 flex-wrap">
                     <span className="text-sm text-on-surface-variant flex items-center gap-1.5 flex-wrap">
                       <span className="px-2 py-0.5 bg-surface-variant rounded-md border border-outline-variant text-[10px] font-bold uppercase tracking-wider">

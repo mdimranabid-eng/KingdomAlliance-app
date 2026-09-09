@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { motion } from 'motion/react';
-import { collection, query, where, getDocs, limit, serverTimestamp, addDoc, updateDoc, doc, collectionGroup, orderBy, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, serverTimestamp, addDoc, updateDoc, doc, collectionGroup, orderBy, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import {
   AlertCircle,
@@ -26,13 +26,11 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge, generateUniqueProfileId, isUserOnline } from '../lib/utils';
+import { BlurablePhoto } from '../components/BlurablePhoto';
 
 const getOptimizedImageUrl = (url: string) => {
   if (!url) return '';
-  if (!url.includes('cloudinary.com')) return url;
-  const parts = url.split('/upload/');
-  if (parts.length !== 2) return url;
-  return `${parts[0]}/upload/c_fill,w_600,h_800,g_face,q_auto,f_auto/${parts[1]}`;
+  return url;
 };
 
 function timeAgo(date: Date): string {
@@ -206,7 +204,7 @@ export default function DashboardPage() {
               age: age || '',
               location: userData.cityLiving || userData.countryLiving || 'Unknown location',
               denomination: userData.denomination || 'Unknown denomination',
-              photoUrl: getOptimizedImageUrl(userData.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${viewerId}`,
+              photoUrl: userData.thumbUrl || getOptimizedImageUrl(userData.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${viewerId}`,
               viewedAt: viewData.viewedAt?.toDate ? viewData.viewedAt.toDate() : new Date(),
             });
           }
@@ -385,125 +383,90 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!profile || !authUser) return;
     const uid = authUser.uid;
+    const unsubscribers: (() => void)[] = [];
 
-    const fetchStats = async () => {
-      try {
-        setStatsLoading(true);
+    setStatsLoading(false);
 
-        // 1. Profile Views
-        try {
-          const viewsSnap = await getDocs(
-            query(
-              collection(db, 'profileViews'),
-              where('profileId', '==', uid)
-            )
-          );
-          setProfileViewsCount(viewsSnap.size);
-        } catch (err) {
-          console.error('Error fetching profile views:', err);
-        }
+    // 1. Profile Views — real-time
+    const unsubViews = onSnapshot(
+      query(collection(db, 'profileViews'), where('profileId', '==', uid)),
+      (snap) => setProfileViewsCount(snap.size),
+      (err) => console.error('Profile views listener error:', err)
+    );
+    unsubscribers.push(unsubViews);
 
-        // 2. Interests Received (Pending Only)
-        try {
-          const interestsSnap = await getDocs(
-            query(
-              collection(db, 'interests'),
-              where('toId', '==', uid),
-              where('status', '==', 'pending')
-            )
-          );
-          setInterestsCount(interestsSnap.size);
-        } catch (err) {
-          console.error('Error fetching interests count:', err);
-        }
+    // 2. Interests Received (Pending) — real-time
+    const unsubInterests = onSnapshot(
+      query(collection(db, 'interests'), where('toId', '==', uid), where('status', '==', 'pending')),
+      (snap) => setInterestsCount(snap.size),
+      (err) => console.error('Interests listener error:', err)
+    );
+    unsubscribers.push(unsubInterests);
 
-        // 3. Active Chats
-        try {
-          const [chats1, chats2] = await Promise.all([
-            getDocs(query(
-              collection(db, 'interests'),
-              where('toId', '==', uid),
-              where('status', '==', 'accepted')
-            )),
-            getDocs(query(
-              collection(db, 'interests'),
-              where('fromId', '==', uid),
-              where('status', '==', 'accepted')
-            ))
-          ]);
-          setActiveChatsCount(chats1.size + chats2.size);
-        } catch (err) {
-          console.error('Error fetching active chats:', err);
-        }
+    // 3. Active Chats (Accepted) — real-time
+    let acceptedToCount = 0;
+    let acceptedFromCount = 0;
+    const unsubAcceptedTo = onSnapshot(
+      query(collection(db, 'interests'), where('toId', '==', uid), where('status', '==', 'accepted')),
+      (snapTo) => {
+        acceptedToCount = snapTo.size;
+        setActiveChatsCount(acceptedToCount + acceptedFromCount);
+      },
+      (err) => console.error('Active chats (to) listener error:', err)
+    );
+    unsubscribers.push(unsubAcceptedTo);
 
-        // 4. Unread Messages
-        try {
-          const unreadSnap = await getDocs(
-            query(
-              collectionGroup(db, 'messages'),
-              where('receiverId', '==', uid),
-              where('read', '==', false)
-            )
-          );
-          setUnreadMessagesCount(unreadSnap.size);
-        } catch (err) {
-          console.error('Error fetching unread messages:', err);
-        }
+    const unsubAcceptedFrom = onSnapshot(
+      query(collection(db, 'interests'), where('fromId', '==', uid), where('status', '==', 'accepted')),
+      (snapFrom) => {
+        acceptedFromCount = snapFrom.size;
+        setActiveChatsCount(acceptedToCount + acceptedFromCount);
+      },
+      (err) => console.error('Active chats (from) listener error:', err)
+    );
+    unsubscribers.push(unsubAcceptedFrom);
 
-        // 5. Recent Activity from notifications
-        try {
-          const activitySnap = await getDocs(
-            query(
-              collection(db, 'notifications'),
-              where('userId', '==', uid),
-              orderBy('createdAt', 'desc'),
-              limit(5)
-            )
-          );
+    // 4. Unread Messages — real-time
+    const unsubUnread = onSnapshot(
+      query(collectionGroup(db, 'messages'), where('receiverId', '==', uid), where('read', '==', false)),
+      (snap) => setUnreadMessagesCount(snap.size),
+      (err) => console.error('Unread messages listener error:', err)
+    );
+    unsubscribers.push(unsubUnread);
 
-          const activities = await Promise.all(
-            activitySnap.docs.map(async (d) => {
-              const data = d.data();
-              const senderDoc = await getDoc(
-                doc(db, 'users', data.fromId)
-              );
-              const senderName = senderDoc.exists()
-                ? senderDoc.data()?.name
-                : 'Someone';
-              return {
-                id: d.id,
-                user: senderName,
-                action: data.type === 'interest'
-                  ? 'sent an interest'
-                  : data.type === 'accepted'
-                    ? 'accepted your interest'
-                    : 'sent a message',
-                time: data.createdAt?.toDate
-                  ? timeAgo(data.createdAt.toDate())
-                  : 'Recently',
-                icon: data.type === 'message'
-                  ? 'message'
-                  : data.type === 'accepted'
-                    ? 'accepted'
-                    : 'interest',
-                type: data.type
-              };
-            })
-          );
-          setRecentActivity(activities);
-        } catch (err) {
-          console.error('Error fetching recent activity:', err);
-        }
+    // 5. Recent Activity — real-time
+    const unsubActivity = onSnapshot(
+      query(collection(db, 'notifications'), where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(5)),
+      async (snap) => {
+        const activities = await Promise.all(
+          snap.docs.map(async (d) => {
+            const data = d.data();
+            let senderName = 'Someone';
+            try {
+              const senderDoc = await getDoc(doc(db, 'users', data.fromId));
+              if (senderDoc.exists()) senderName = senderDoc.data()?.name || 'Someone';
+            } catch {}
+            return {
+              id: d.id,
+              user: senderName,
+              action: data.type === 'interest'
+                ? 'sent an interest'
+                : data.type === 'accepted'
+                  ? 'accepted your interest'
+                  : 'sent a message',
+              time: data.createdAt?.toDate ? timeAgo(data.createdAt.toDate()) : 'Recently',
+              icon: data.type === 'message' ? 'message' : data.type === 'accepted' ? 'accepted' : 'interest',
+              type: data.type
+            };
+          })
+        );
+        setRecentActivity(activities);
+      },
+      (err) => console.error('Activity listener error:', err)
+    );
+    unsubscribers.push(unsubActivity);
 
-      } catch (err) {
-        console.error('Stats fetch error:', err);
-
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-
-    fetchStats();
+    return () => unsubscribers.forEach((unsub) => unsub());
   }, [profile, authUser]);
 
   if (authLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -669,14 +632,7 @@ export default function DashboardPage() {
                   suggestedMatches.map(match => (
                     <MatchCard
                       key={match.id}
-                      id={match.id}
-                      name={match.name}
-                      age={match.age}
-                      location={match.location}
-                      denomination={match.denomination}
-                      matchScore={match.matchScore}
-                      imageUrl={getOptimizedImageUrl(match.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.id}`}
-                      lastActive={match.lastActive}
+                      match={match}
                     />
                   ))
                 )}
@@ -826,11 +782,21 @@ function StatCard({ label, value, icon: Icon, trend, color, to, onClick }: any) 
   );
 }
 
-function MatchCard({ id, name, age, location, denomination, matchScore, imageUrl, lastActive }: any) {
+function MatchCard({ match }: { match: any }) {
+  const { id, name, age, location, denomination, matchScore, lastActive } = match;
+  const fallback = `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`;
+  const imageUrl = match.thumbUrl || getOptimizedImageUrl(match.photoUrl) || fallback;
   return (
     <div className="glass-card rounded-3xl overflow-hidden hover:-translate-y-1 transition-all duration-300 group">
       <div className="aspect-[4/3] overflow-hidden relative">
-        <img src={imageUrl} alt={name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+        <BlurablePhoto
+          targetUid={id}
+          src={imageUrl}
+          fallbackSrc={fallback}
+          alt={name}
+          profile={match}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+        />
         <div className="absolute top-4 left-4">
           <div className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full border border-white/30 flex items-center gap-1.5 text-white shadow-xl">
             <Star className="w-4 h-4 fill-primary text-primary" />
@@ -846,7 +812,7 @@ function MatchCard({ id, name, age, location, denomination, matchScore, imageUrl
       <div className="p-6 space-y-4">
         <div>
           <div className="flex items-center">
-            <h3 className="font-headline text-xl text-on-surface">{name}, {age}</h3>
+            <h3 className="member-name member-name-sm text-[22px] text-on-surface">{name}, {age}</h3>
             {isUserOnline(lastActive) && (
               <div className="relative flex h-3 w-3 ml-2" title="Online Now">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>

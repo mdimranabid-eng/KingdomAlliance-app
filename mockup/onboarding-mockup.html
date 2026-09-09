@@ -1,0 +1,2412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kingdom Alliance — Onboarding Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #faf4ea;
+    --cream-deep: #f6ecdd;
+    --ink: #4a3521;
+    --ink-soft: #6b5744;
+    --gold: #C9A84C;
+    --gold-deep: #b8860b;
+    --gold-soft: #dfc88a;
+    --apricot: #b3804c;
+    --apricot-deep: #8f6337;
+    --white: #ffffff;
+    --card-border: #f0ead9;
+    --card-border-hover: #e2d5be;
+    --input-bg: #faf8f4;
+    --error: #dc2626;
+    --error-bg: #fef2f2;
+    --success: #16a34a;
+    --success-bg: #f0fdf4;
+    --outline: #e2e8f0;
+    --text-primary: #1a2e4a;
+    --text-secondary: #64748b;
+    --shadow-sm: 0 1px 3px rgba(74,53,33,0.06);
+    --shadow-md: 0 4px 16px rgba(74,53,33,0.08);
+    --shadow-lg: 0 8px 32px rgba(74,53,33,0.12);
+    --radius-sm: 12px;
+    --radius-md: 16px;
+    --radius-lg: 20px;
+    --radius-xl: 24px;
+  }
+
+  body {
+    font-family: 'Montserrat', system-ui, sans-serif;
+    background: linear-gradient(160deg, #faf4ea 0%, #f6ecdd 40%, #f0e2cc 100%);
+    min-height: 100vh;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: linear-gradient(135deg, #4a3521 0%, #3a2a18 50%, #2d1f12 100%);
+    padding: 20px 24px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '✝';
+    position: absolute;
+    right: -10px;
+    top: -30px;
+    font-size: 180px;
+    opacity: 0.04;
+    color: var(--gold-soft);
+    font-family: serif;
+    pointer-events: none;
+  }
+  .header-inner {
+    max-width: 800px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .header-logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-deep) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: white;
+    font-weight: 700;
+  }
+  .header-brand-text h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.3px;
+  }
+  .header-brand-text span {
+    font-size: 9px;
+    color: var(--gold-soft);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    font-weight: 500;
+    color: white;
+    line-height: 1.2;
+  }
+  .header h2 em {
+    color: var(--gold-soft);
+    font-style: italic;
+    font-weight: 400;
+  }
+  .header p {
+    color: #e9ddca;
+    font-size: 13px;
+    margin-top: 6px;
+    font-weight: 300;
+  }
+
+  /* ── PROGRESS STEPPER ── */
+  .stepper-wrap {
+    max-width: 700px;
+    margin: 24px auto 0;
+    padding: 0 16px;
+  }
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .step-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .step-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    transition: all 0.4s cubic-bezier(0.32,0.72,0,1);
+  }
+  .step-circle.completed {
+    background: var(--gold);
+    color: white;
+    box-shadow: 0 2px 12px rgba(201,168,76,0.35);
+  }
+  .step-circle.active {
+    background: var(--ink);
+    color: white;
+    box-shadow: 0 2px 16px rgba(74,53,33,0.3);
+  }
+  .step-circle.inactive {
+    background: #f0ead9;
+    color: #a89f8d;
+    border: 1px solid #e2ddd2;
+  }
+  .step-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .step-label.completed { color: var(--gold-deep); }
+  .step-label.active { color: var(--ink); }
+  .step-label.inactive { color: #c4bba8; }
+  .step-line {
+    flex: 1;
+    height: 2px;
+    margin: 0 4px;
+    margin-top: -20px;
+    border-radius: 1px;
+    transition: background 0.5s;
+  }
+  .step-line.completed { background: var(--gold); }
+  .step-line.active { background: linear-gradient(to right, var(--gold), #e5dfcf); }
+  .step-line.inactive { background: #e5dfcf; }
+  .step-cross {
+    color: var(--gold);
+    opacity: 0.5;
+    font-size: 16px;
+    margin-top: -20px;
+    margin-left: 8px;
+  }
+
+  /* ── FORM AREA ── */
+  .form-area {
+    max-width: 760px;
+    margin: 40px auto 0;
+    padding: 0 16px 100px;
+  }
+  .form-shell {
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(8px);
+    border-radius: 28px;
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 3px rgba(74,53,33,0.06);
+    overflow: hidden;
+  }
+
+  /* ── STEP HEADER ── */
+  .step-header {
+    padding: 24px 28px 20px;
+    border-bottom: 1px solid #f0ead9;
+    background: linear-gradient(to bottom, #fffdf8, white);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .step-header-left {}
+  .step-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(201,168,76,0.1);
+    color: var(--gold-deep);
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .step-header-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .step-header-desc {
+    color: #a89f8d;
+    font-size: 13px;
+    margin-top: 2px;
+  }
+  .step-header-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(201,168,76,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gold);
+    font-size: 16px;
+  }
+
+  /* ── STEP CONTENT ── */
+  .step-content {
+    padding: 24px 28px 28px;
+    display: none;
+  }
+  .step-content.active { display: block; }
+
+  /* ── COLLAPSIBLE CARD ── */
+  .collapsible-card {
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    background: white;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .collapsible-card:hover {
+    border-color: var(--card-border-hover);
+    box-shadow: var(--shadow-sm);
+  }
+  .collapsible-card.open {
+    box-shadow: var(--shadow-md);
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .card-header:hover {
+    background: #fdfcfa;
+  }
+  .card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .card-icon.gold { background: rgba(201,168,76,0.1); color: var(--gold-deep); }
+  .card-icon.apricot { background: rgba(179,128,76,0.1); color: var(--apricot-deep); }
+  .card-icon.ink { background: rgba(74,53,33,0.08); color: var(--ink); }
+  .card-icon.green { background: rgba(22,163,74,0.08); color: var(--success); }
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .card-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--gold-deep);
+    background: rgba(201,168,76,0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+  }
+  .card-chevron {
+    width: 20px;
+    height: 20px;
+    color: #a89f8d;
+    transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+  }
+  .collapsible-card.open .card-chevron {
+    transform: rotate(180deg);
+  }
+  .card-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.32,0.72,0,1), padding 0.3s;
+    padding: 0 20px;
+  }
+  .collapsible-card.open .card-body {
+    max-height: 2000px;
+    padding: 0 20px 20px;
+  }
+
+  /* ── CARD FIELD ── */
+  .field-group {
+    margin-bottom: 16px;
+  }
+  .field-group:last-child {
+    margin-bottom: 0;
+  }
+  .field-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--gold-deep);
+    opacity: 0.8;
+    margin-bottom: 6px;
+  }
+  .field-label .req {
+    color: var(--error);
+    font-size: 11px;
+    margin-left: 2px;
+  }
+  .field-label .optional {
+    color: #c4bba8;
+    font-style: italic;
+    font-size: 10px;
+    margin-left: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+  .field-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--input-bg);
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-sm);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+  .field-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+    background: white;
+  }
+  .field-input::placeholder {
+    color: #9aa3af;
+    font-weight: 400;
+  }
+  .field-input.error {
+    border-color: var(--error);
+    box-shadow: 0 0 0 3px rgba(220,38,38,0.08);
+  }
+  .field-input:read-only {
+    background: #f5f3ef;
+    cursor: not-allowed;
+    color: var(--text-secondary);
+  }
+  select.field-input {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a89f8d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 40px;
+  }
+  textarea.field-input {
+    resize: none;
+    min-height: 80px;
+    line-height: 1.5;
+  }
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .field-error {
+    font-size: 12px;
+    color: var(--error);
+    margin-top: 4px;
+    display: none;
+  }
+  .field-error.show { display: block; }
+
+  /* ── GRID LAYOUTS ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .grid-1 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+
+  @media (max-width: 600px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* ── BRIDE/GROOM SELECTOR ── */
+  .profile-type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .profile-type-btn {
+    border: 1.5px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 14px 12px;
+    text-align: center;
+    cursor: pointer;
+    background: white;
+    transition: all 0.25s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .profile-type-btn:hover {
+    border-color: var(--gold-soft);
+    background: #fdfcfa;
+  }
+  .profile-type-btn.selected {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+    background: #fffdf6;
+  }
+  .profile-type-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.25s;
+  }
+  .profile-type-icon.bride {
+    background: rgba(201,168,76,0.08);
+    color: var(--gold-deep);
+  }
+  .profile-type-btn.selected .profile-type-icon.bride {
+    background: var(--gold);
+    color: white;
+  }
+  .profile-type-icon.groom {
+    background: rgba(74,53,33,0.06);
+    color: var(--ink);
+  }
+  .profile-type-btn.selected .profile-type-icon.groom {
+    background: var(--ink);
+    color: white;
+  }
+  .profile-type-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+  .profile-type-text {
+    text-align: left;
+  }
+  .profile-type-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .profile-type-desc {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+  }
+
+  /* ── MULTI-SELECT PILLS ── */
+  .pill-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pill {
+    padding: 8px 16px;
+    border-radius: 100px;
+    border: 1.5px solid var(--card-border);
+    background: white;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .pill:hover {
+    border-color: var(--gold-soft);
+  }
+  .pill.selected {
+    background: var(--gold);
+    color: white;
+    border-color: var(--gold);
+  }
+
+  /* ── VERIFIED BADGE ── */
+  .verified-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--success);
+    background: var(--success-bg);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(22,163,74,0.15);
+  }
+  .verified-badge svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* ── PRIVACY TOGGLE ── */
+  .privacy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .privacy-btn {
+    padding: 14px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--card-border);
+    text-align: center;
+    cursor: pointer;
+    background: white;
+    transition: all 0.2s;
+  }
+  .privacy-btn:hover { border-color: var(--gold-soft); }
+  .privacy-btn.selected {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.04);
+    color: var(--gold-deep);
+  }
+  .privacy-btn .icon { font-size: 20px; margin-bottom: 6px; }
+  .privacy-btn .title { font-weight: 700; font-size: 13px; }
+  .privacy-btn .desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* ── PHOTO UPLOAD ── */
+  .photo-upload-area {
+    width: 100px;
+    height: 100px;
+    border-radius: var(--radius-md);
+    border: 2px dashed var(--card-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--input-bg);
+  }
+  .photo-upload-area:hover {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.04);
+  }
+  .photo-upload-area .icon { font-size: 24px; color: #a89f8d; }
+  .photo-upload-area .text { font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
+
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .gallery-slot {
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+    border: 2px dashed var(--card-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--input-bg);
+  }
+  .gallery-slot:hover {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.04);
+  }
+  .gallery-slot .icon { font-size: 20px; color: #a89f8d; }
+  .gallery-slot .text { font-size: 9px; color: var(--text-secondary); margin-top: 2px; }
+  .gallery-slot.filled {
+    border-style: solid;
+    background: #f5f3ef;
+  }
+  .gallery-slot.filled .placeholder-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: calc(var(--radius-md) - 2px);
+    background: linear-gradient(135deg, #e8e1d3, #d4c9b5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a89f8d;
+    font-size: 24px;
+  }
+
+  /* ── ACTION BUTTONS ── */
+  .actions {
+    padding: 20px 28px;
+    border-top: 1px solid #f0ead9;
+    background: linear-gradient(to top, #faf7f0, white);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .btn-back {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: white;
+    color: var(--ink);
+    border: 1px solid var(--card-border);
+    border-radius: 100px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(74,53,33,0.06);
+  }
+  .btn-back:hover {
+    border-color: rgba(201,168,76,0.5);
+    box-shadow: 0 2px 8px rgba(201,168,76,0.12);
+  }
+  .btn-back:disabled {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .btn-next {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 32px;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 100px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s;
+    box-shadow: 0 2px 12px rgba(74,53,33,0.25);
+  }
+  .btn-next:hover {
+    background: #3a2a1a;
+    box-shadow: 0 4px 20px rgba(74,53,33,0.35);
+  }
+  .btn-next:active {
+    transform: scale(0.97);
+  }
+  .btn-next .arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    font-size: 12px;
+    transition: background 0.2s;
+  }
+  .btn-next:hover .arrow {
+    background: rgba(255,255,255,0.25);
+  }
+
+  /* ── BOTTOM SHEET ── */
+  .bottom-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .bottom-sheet-overlay.show {
+    display: flex;
+    opacity: 1;
+  }
+  .bottom-sheet {
+    background: white;
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 500px;
+    max-height: 70vh;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
+    display: flex;
+    flex-direction: column;
+  }
+  .bottom-sheet-overlay.show .bottom-sheet {
+    transform: translateY(0);
+  }
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: #d4d0c8;
+    border-radius: 2px;
+    margin: 10px auto 0;
+  }
+  .sheet-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--outline);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .sheet-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .sheet-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: #f1f1f1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .sheet-options {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .sheet-option {
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .sheet-option:hover {
+    background: #faf8f4;
+  }
+  .sheet-option.selected {
+    background: rgba(201,168,76,0.06);
+    color: var(--gold-deep);
+    font-weight: 600;
+  }
+  .sheet-option .radio {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--card-border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .sheet-option.selected .radio {
+    border-color: var(--gold);
+  }
+  .sheet-option.selected .radio::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+  .sheet-footer {
+    padding: 12px 20px 20px;
+    border-top: 1px solid var(--outline);
+  }
+  .sheet-done {
+    width: 100%;
+    padding: 14px;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .sheet-done:hover {
+    background: #3a2a1a;
+  }
+
+  /* ── MOBILE BOTTOM SHEET TRIGGER ── */
+  .mobile-select-trigger {
+    display: none;
+  }
+  @media (max-width: 768px) {
+    select.field-input {
+      display: none;
+    }
+    .mobile-select-trigger {
+      display: flex;
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--input-bg);
+      border: 1.5px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 14px;
+      color: var(--ink);
+      cursor: pointer;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.2s;
+    }
+    .mobile-select-trigger:active {
+      border-color: var(--gold);
+    }
+    .mobile-select-trigger .placeholder {
+      color: #9aa3af;
+    }
+    .mobile-select-trigger .chevron {
+      font-size: 12px;
+      color: #a89f8d;
+    }
+  }
+
+  /* ── NOTICE BOX ── */
+  .notice-box {
+    padding: 14px 16px;
+    background: rgba(201,168,76,0.06);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(201,168,76,0.15);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .notice-box .icon {
+    color: var(--gold-deep);
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .notice-box .text {
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+  .notice-box .text strong {
+    color: var(--error);
+  }
+
+  /* ── CLOUDFLARE TURNSTILE ── */
+  .turnstile-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0 8px;
+  }
+  .turnstile-widget {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    min-width: 300px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .turnstile-checkbox {
+    width: 22px;
+    height: 22px;
+    border: 2px solid #c1c1c1;
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+  }
+  .turnstile-checkbox.checked {
+    border-color: #2563eb;
+    background: #2563eb;
+  }
+  .turnstile-checkbox.checked::after {
+    content: '';
+    width: 6px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) translateY(-1px);
+  }
+  .turnstile-label {
+    font-size: 13px;
+    color: #333;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .turnstile-brand {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #999;
+    flex-shrink: 0;
+  }
+  .turnstile-brand svg {
+    width: 14px;
+    height: 14px;
+  }
+  .turnstile-verifying {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #666;
+  }
+  .turnstile-verifying.show { display: flex; }
+  .turnstile-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e0e0e0;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .turnstile-success {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #16a34a;
+  }
+  .turnstile-success.show { display: flex; }
+  .turnstile-success .check {
+    width: 18px;
+    height: 18px;
+    background: #16a34a;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .turnstile-success .check::after {
+    content: '';
+    width: 5px;
+    height: 9px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) translateY(-1px);
+  }
+
+  /* ── INFO HINT ── */
+  .info-hint {
+    padding: 12px 16px;
+    background: var(--error-bg);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .info-hint .icon { color: var(--error); font-size: 14px; }
+  .info-hint .text { font-size: 12px; color: var(--error); font-weight: 600; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .header h2 { font-size: 22px; }
+    .step-header { padding: 20px; }
+    .step-header-title { font-size: 20px; }
+    .step-content { padding: 16px 20px 20px; }
+    .actions { padding: 16px 20px; }
+    .card-header { padding: 14px 16px; }
+    .collapsible-card.open .card-body { padding: 0 16px 16px; }
+    .step-label { font-size: 8px; }
+    .step-circle { width: 28px; height: 28px; font-size: 10px; }
+    .profile-type-grid { gap: 8px; }
+    .profile-type-btn { padding: 12px 10px; }
+    .profile-type-icon { width: 32px; height: 32px; }
+    .profile-type-icon svg { width: 16px; height: 16px; }
+  }
+
+  /* ── SUBMISSION SUCCESS ── */
+  .success-screen {
+    display: none;
+    text-align: center;
+    padding: 60px 28px;
+  }
+  .success-screen.active { display: block; }
+  .success-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(201,168,76,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 32px;
+    color: var(--gold);
+  }
+  .success-screen h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .success-screen p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .success-screen .email {
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .success-notice {
+    margin-top: 20px;
+    padding: 14px 16px;
+    background: rgba(201,168,76,0.06);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(201,168,76,0.15);
+    font-size: 13px;
+    color: var(--ink-soft);
+    text-align: left;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <div class="header-logo">✝</div>
+      <div class="header-brand-text">
+        <h1>Kingdom Alliance</h1>
+        <span>Christian Matrimony</span>
+      </div>
+    </div>
+    <h2>Tell us about <em>yourself</em></h2>
+    <p>Honest, thoughtful answers help us find the partner God has prepared for you.</p>
+  </div>
+</header>
+
+<!-- ═══════════════ STEPPER ═══════════════ -->
+<div class="stepper-wrap">
+  <div class="stepper" id="stepper">
+    <div class="step-node">
+      <div class="step-circle active" data-step="1">1</div>
+      <span class="step-label active">Basic Info</span>
+    </div>
+    <div class="step-line inactive"></div>
+    <div class="step-node">
+      <div class="step-circle inactive" data-step="2">2</div>
+      <span class="step-label inactive">Personal</span>
+    </div>
+    <div class="step-line inactive"></div>
+    <div class="step-node">
+      <div class="step-circle inactive" data-step="3">3</div>
+      <span class="step-label inactive">Family</span>
+    </div>
+    <div class="step-line inactive"></div>
+    <div class="step-node">
+      <div class="step-circle inactive" data-step="4">4</div>
+      <span class="step-label inactive">Preferences</span>
+    </div>
+    <div class="step-line inactive"></div>
+    <div class="step-node">
+      <div class="step-circle inactive" data-step="5">5</div>
+      <span class="step-label inactive">Photos</span>
+    </div>
+    <div class="step-cross">✝</div>
+  </div>
+</div>
+
+<!-- ═══════════════ FORM ═══════════════ -->
+<div class="form-area">
+  <div class="form-shell">
+
+    <!-- STEP HEADER -->
+    <div class="step-header">
+      <div class="step-header-left">
+        <div class="step-badge" id="stepBadge">1</div>
+        <div class="step-header-title" id="stepTitle">Basic Info</div>
+        <div class="step-header-desc" id="stepDesc">Who are you?</div>
+      </div>
+      <div class="step-header-icon">✝</div>
+    </div>
+
+    <!-- ══════ STEP 1: BASIC INFO ══════ -->
+    <div class="step-content active" id="step1">
+
+      <!-- Card: About You -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon gold">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div>
+              <div class="card-title">About You</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="field-group">
+            <label class="field-label">Profile created for <span class="req">*</span></label>
+            <div class="mobile-select-trigger" onclick="openSheet('profileFor', 'Profile Created For', ['Self','Son','Daughter','Brother','Sister','Relative','Friend'])">
+              <span class="placeholder">Select option</span>
+              <span class="chevron">▼</span>
+            </div>
+            <select class="field-input" data-field="profileFor">
+              <option value="">Select option</option>
+              <option>Self</option>
+              <option>Son</option>
+              <option>Daughter</option>
+              <option>Brother</option>
+              <option>Sister</option>
+              <option>Relative</option>
+              <option>Friend</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Profile Type <span class="req">*</span></label>
+            <div class="profile-type-grid">
+              <div class="profile-type-btn" onclick="selectProfileType(this, 'bride')">
+                <div class="profile-type-icon bride">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a4 4 0 0 0-4 4c0 2 2 4 4 4s4-2 4-4a4 4 0 0 0-4-4Z"/>
+                    <path d="M16 22v-4a4 4 0 0 0-8 0v4"/>
+                    <path d="M8 10a6 6 0 0 0 8 0"/>
+                    <circle cx="12" cy="6" r="1" fill="currentColor" stroke="none"/>
+                  </svg>
+                </div>
+                <div class="profile-type-text">
+                  <div class="profile-type-name">Bride</div>
+                  <div class="profile-type-desc">Female profile</div>
+                </div>
+              </div>
+              <div class="profile-type-btn" onclick="selectProfileType(this, 'groom')">
+                <div class="profile-type-icon groom">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a4 4 0 0 0-4 4c0 2 2 4 4 4s4-2 4-4a4 4 0 0 0-4-4Z"/>
+                    <path d="M16 22v-4a4 4 0 0 0-8 0v4"/>
+                    <path d="M6 10h12"/>
+                    <path d="M12 10v4"/>
+                  </svg>
+                </div>
+                <div class="profile-type-text">
+                  <div class="profile-type-name">Groom</div>
+                  <div class="profile-type-desc">Male profile</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Full Name <span class="req">*</span></label>
+            <div class="grid-3" style="margin-top:6px">
+              <div>
+                <input class="field-input" type="text" placeholder="First Name">
+              </div>
+              <div>
+                <input class="field-input" type="text" placeholder="Middle Name">
+                <span style="font-size:10px;color:#c4bba8;font-style:italic;margin-left:4px">(Optional)</span>
+              </div>
+              <div>
+                <input class="field-input" type="text" placeholder="Last Name">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Contact -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon apricot">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Contact Details</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="field-group">
+            <label class="field-label">Email Address <span class="req">*</span></label>
+            <div style="position:relative">
+              <input class="field-input" type="email" value="user@example.com" readonly>
+              <div style="position:absolute;right:12px;top:50%;transform:translateY(-50%)">
+                <span class="verified-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>
+                  VERIFIED
+                </span>
+              </div>
+            </div>
+            <div class="field-hint">Email address cannot be changed once verification is completed.</div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Mobile Number <span class="req">*</span></label>
+              <div style="display:flex;gap:8px">
+                <div class="mobile-select-trigger" style="max-width:110px;flex-shrink:0;justify-content:center" onclick="openSheet('countryCode', 'Country Code', ['+966 Saudi Arabia','+1 US/CA','+44 UK','+91 India','+61 Australia'])">
+                  <span class="placeholder">+966</span>
+                  <span class="chevron">▼</span>
+                </div>
+                <select class="field-input" style="max-width:110px;flex-shrink:0" data-field="countryCode">
+                  <option>+966 SA</option>
+                  <option>+1 US/CA</option>
+                  <option>+44 UK</option>
+                  <option>+91 IN</option>
+                  <option>+61 AU</option>
+                </select>
+                <input class="field-input" type="tel" placeholder="e.g. 55 123 4567" style="flex:1">
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Date of Birth <span class="req">*</span></label>
+              <input class="field-input" type="date">
+            </div>
+          </div>
+
+          <div class="info-hint">
+            <span class="icon">🔒</span>
+            <span class="text">Your Mobile number will not be visible to other users</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Location -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon ink">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Location</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-3">
+            <div class="field-group">
+              <label class="field-label">Citizenship <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('citizenship', 'Citizenship', ['Saudi Arabia','India','Philippines','United States','United Kingdom','Pakistan','Egypt','Jordan','Lebanon','UAE'])">
+                <span class="placeholder">Select Citizenship</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="citizenship">
+                <option value="">Select Citizenship</option>
+                <option>Saudi Arabia</option>
+                <option>India</option>
+                <option>Philippines</option>
+                <option>United States</option>
+                <option>United Kingdom</option>
+                <option>Pakistan</option>
+                <option>Egypt</option>
+                <option>Jordan</option>
+                <option>Lebanon</option>
+                <option>UAE</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Country Living <span class="req">*</span></label>
+              <input class="field-input" type="text" value="Saudi Arabia" readonly>
+              <div class="field-hint">Only applicants living in Saudi Arabia may register.</div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">City <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('city', 'City', ['Riyadh','Jeddah','Dammam','Mecca','Medina','Tabuk','Buraidah','Khobar','Dhahran','Abha'])">
+                <span class="placeholder">Select City</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="city">
+                <option value="">Select City</option>
+                <option>Riyadh</option>
+                <option>Jeddah</option>
+                <option>Dammam</option>
+                <option>Mecca</option>
+                <option>Medina</option>
+                <option>Tabuk</option>
+                <option>Buraidah</option>
+                <option>Khobar</option>
+                <option>Dhahran</option>
+                <option>Abha</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Church -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon gold">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z"/><path d="m12 2v20"/><path d="M2 12h20"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Religion & Church</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Denomination <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('denomination', 'Denomination', ['Catholic','Protestant','Orthodox','Anglican / Episcopalian','Baptist','Methodist','Lutheran','Pentecostal','Presbyterian','Evangelical','Non-denominational','Other'])">
+                <span class="placeholder">Select Denomination</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="denomination">
+                <option value="">Select Denomination</option>
+                <option>Catholic</option>
+                <option>Protestant</option>
+                <option>Orthodox</option>
+                <option>Anglican / Episcopalian</option>
+                <option>Baptist</option>
+                <option>Methodist</option>
+                <option>Lutheran</option>
+                <option>Pentecostal</option>
+                <option>Presbyterian</option>
+                <option>Evangelical</option>
+                <option>Non-denominational</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Church Name <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="e.g. St. Mary's Church">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Church City <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('churchCity', 'Church City', ['Riyadh','Jeddah','Dammam','Mecca','Medina'])">
+                <span class="placeholder">Select City</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="churchCity">
+                <option value="">Select City</option>
+                <option>Riyadh</option>
+                <option>Jeddah</option>
+                <option>Dammam</option>
+                <option>Mecca</option>
+                <option>Medina</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Church in Area <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="e.g. Downtown, Sector 4">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Baptized <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('baptized', 'Baptized', ['Yes','No'])">
+                <span class="placeholder">Select Option</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="baptized">
+                <option value="">Select Option</option>
+                <option>Yes</option>
+                <option>No</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Pastor Name <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="Full name">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Pastor Number <span class="req">*</span></label>
+              <input class="field-input" type="tel" placeholder="10-digit number" maxlength="10">
+            </div>
+          </div>
+
+          <div class="notice-box">
+            <span class="icon">🔒</span>
+            <span class="text">Your <strong>Pastor Name & Number</strong> will not be visible to other users</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cloudflare Turnstile -->
+      <div class="turnstile-wrap">
+        <div class="turnstile-widget" id="turnstile1">
+          <div class="turnstile-checkbox" onclick="simulateTurnstile(this)"></div>
+          <span class="turnstile-label">I'm not a robot</span>
+          <div class="turnstile-verifying"><div class="turnstile-spinner"></div> Verifying...</div>
+          <div class="turnstile-success"><div class="check"></div> Verified</div>
+          <div class="turnstile-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            Cloudflare
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ STEP 2: PERSONAL, CAREER & LIFESTYLE ══════ -->
+    <div class="step-content" id="step2">
+
+      <!-- Card: Physical -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon gold">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4c0 2 2 4 4 4s4-2 4-4a4 4 0 0 0-4-4Z"/><path d="M16 22v-4a4 4 0 0 0-8 0v4"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Physical Details</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Marital Status <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('maritalStatus', 'Marital Status', ['Never Married','Annulled','Divorced','Widowed'])">
+                <span class="placeholder">Select Status</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="maritalStatus">
+                <option value="">Select Status</option>
+                <option>Never Married</option>
+                <option>Annulled</option>
+                <option>Divorced</option>
+                <option>Widowed</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Height (ft) <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('height', 'Height', ['4.0','4.5','5.0','5.2','5.4','5.6','5.8','5.10','6.0','6.2','6.4','6.6'])">
+                <span class="placeholder">Select Height</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="height">
+                <option value="">Select Height</option>
+                <option>4.0 ft</option>
+                <option>4.5 ft</option>
+                <option>5.0 ft</option>
+                <option>5.2 ft</option>
+                <option>5.4 ft</option>
+                <option>5.6 ft</option>
+                <option>5.8 ft</option>
+                <option>5.10 ft</option>
+                <option>6.0 ft</option>
+                <option>6.2 ft</option>
+                <option>6.4 ft</option>
+                <option>6.6 ft</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="field-group">
+              <label class="field-label">Weight (kg) <span class="req">*</span></label>
+              <input class="field-input" type="number" placeholder="E.g. 70">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Body Type <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('bodyType', 'Body Type', ['Slim','Average','Athletic','Heavy'])">
+                <span class="placeholder">Select Body Type</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="bodyType">
+                <option value="">Select Body Type</option>
+                <option>Slim</option>
+                <option>Average</option>
+                <option>Athletic</option>
+                <option>Heavy</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Complexion <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('complexion', 'Complexion', ['Fair','Light','Medium','Olive','Dark'])">
+                <span class="placeholder">Select Complexion</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="complexion">
+                <option value="">Select Complexion</option>
+                <option>Fair</option>
+                <option>Light</option>
+                <option>Medium</option>
+                <option>Olive</option>
+                <option>Dark</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Physical Status <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('physicalStatus', 'Physical Status', ['Normal','Physically Challenged'])">
+                <span class="placeholder">Select Physical Status</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="physicalStatus">
+                <option value="">Select Physical Status</option>
+                <option>Normal</option>
+                <option>Physically Challenged</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Mother Tongue <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('motherTongue', 'Mother Tongue', ['English','Hindi','Bengali','Marathi','Telugu','Tamil','Gujarati','Urdu','Kannada','Malayalam','Punjabi','Arabic'])">
+                <span class="placeholder">Select Mother Tongue</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="motherTongue">
+                <option value="">Select Mother Tongue</option>
+                <option>English</option>
+                <option>Hindi</option>
+                <option>Bengali</option>
+                <option>Marathi</option>
+                <option>Telugu</option>
+                <option>Tamil</option>
+                <option>Gujarati</option>
+                <option>Urdu</option>
+                <option>Kannada</option>
+                <option>Malayalam</option>
+                <option>Punjabi</option>
+                <option>Arabic</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Languages I Know <span class="optional">(Optional)</span></label>
+            <div class="pill-group">
+              <div class="pill" onclick="togglePill(this)">English</div>
+              <div class="pill" onclick="togglePill(this)">Hindi</div>
+              <div class="pill" onclick="togglePill(this)">Arabic</div>
+              <div class="pill" onclick="togglePill(this)">Tamil</div>
+              <div class="pill" onclick="togglePill(this)">Malayalam</div>
+              <div class="pill" onclick="togglePill(this)">Tagalog</div>
+              <div class="pill" onclick="togglePill(this)">French</div>
+              <div class="pill" onclick="togglePill(this)">Urdu</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Career -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon apricot">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Career Path</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Education <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('education', 'Education', ['High School','Diploma','Bachelor\'s','Master\'s','PhD','Professional'])">
+                <span class="placeholder">Select Education</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="education">
+                <option value="">Select Education</option>
+                <option>High School</option>
+                <option>Diploma</option>
+                <option>Bachelor's</option>
+                <option>Master's</option>
+                <option>PhD</option>
+                <option>Professional</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Profession <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="E.g. Software Engineer">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Field of Study <span class="optional">(Optional)</span></label>
+              <input class="field-input" type="text" placeholder="E.g. Computer Science">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Annual Income <span class="optional">(Optional)</span></label>
+              <input class="field-input" type="text" placeholder="E.g. 500k+">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Lifestyle -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Lifestyle</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-3">
+            <div class="field-group">
+              <label class="field-label">Diet <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('diet', 'Diet', ['Vegetarian','Non-Vegetarian','Eggetarian','Vegan'])">
+                <span class="placeholder">Select Diet</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="diet">
+                <option value="">Select Diet</option>
+                <option>Vegetarian</option>
+                <option>Non-Vegetarian</option>
+                <option>Eggetarian</option>
+                <option>Vegan</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Drinking <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('drinking', 'Drinking', ['Never','Socially','Regularly'])">
+                <span class="placeholder">Select Habit</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="drinking">
+                <option value="">Select Drinking Habit</option>
+                <option>Never</option>
+                <option>Socially</option>
+                <option>Regularly</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Smoking <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('smoking', 'Smoking', ['Never','Occasionally','Regularly'])">
+                <span class="placeholder">Select Habit</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="smoking">
+                <option value="">Select Smoking Habit</option>
+                <option>Never</option>
+                <option>Occasionally</option>
+                <option>Regularly</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Hobbies <span class="optional">(Optional)</span></label>
+            <input class="field-input" type="text" placeholder="E.g. Reading, Traveling, Cooking">
+          </div>
+          <div class="field-group">
+            <label class="field-label">About Me <span class="req">*</span></label>
+            <textarea class="field-input" placeholder="Describe yourself, your family, and what you are looking for..." rows="4"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cloudflare Turnstile -->
+      <div class="turnstile-wrap">
+        <div class="turnstile-widget" id="turnstile2">
+          <div class="turnstile-checkbox" onclick="simulateTurnstile(this)"></div>
+          <span class="turnstile-label">I'm not a robot</span>
+          <div class="turnstile-verifying"><div class="turnstile-spinner"></div> Verifying...</div>
+          <div class="turnstile-success"><div class="check"></div> Verified</div>
+          <div class="turnstile-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            Cloudflare
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ STEP 3: FAMILY BACKGROUND ══════ -->
+    <div class="step-content" id="step3">
+
+      <!-- Card: Parents -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon gold">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Parents</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Father's Name <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="Full name">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Father's Occupation <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="e.g. Engineer">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Mother's Name <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="Full name">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Mother's Occupation <span class="req">*</span></label>
+              <input class="field-input" type="text" placeholder="e.g. Teacher">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Siblings -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon apricot">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Siblings</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-1">
+            <div class="field-group">
+              <label class="field-label">Number of Siblings <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('siblings', 'Number of Siblings', ['None','1','2','3','4','5+'])">
+                <span class="placeholder">Select Option</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="siblings">
+                <option value="">Select Option</option>
+                <option>None</option>
+                <option>1</option>
+                <option>2</option>
+                <option>3</option>
+                <option>4</option>
+                <option>5+</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cloudflare Turnstile -->
+      <div class="turnstile-wrap">
+        <div class="turnstile-widget" id="turnstile3">
+          <div class="turnstile-checkbox" onclick="simulateTurnstile(this)"></div>
+          <span class="turnstile-label">I'm not a robot</span>
+          <div class="turnstile-verifying"><div class="turnstile-spinner"></div> Verifying...</div>
+          <div class="turnstile-success"><div class="check"></div> Verified</div>
+          <div class="turnstile-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            Cloudflare
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ STEP 4: PARTNER PREFERENCES ══════ -->
+    <div class="step-content" id="step4">
+
+      <!-- Card: Age & Height -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon gold">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Age & Height Preferences</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Min Age <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('ageMin', 'Min Age', ['18','20','22','24','25','26','28','30','32','35','38','40'])">
+                <span class="placeholder">Select Min Age</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="ageMin">
+                <option value="">Select Min Age</option>
+                <option>18</option><option>20</option><option>22</option><option>24</option>
+                <option>25</option><option>26</option><option>28</option><option>30</option>
+                <option>32</option><option>35</option><option>38</option><option>40</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Max Age <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('ageMax', 'Max Age', ['22','24','25','26','28','30','32','35','38','40','45','50'])">
+                <span class="placeholder">Select Max Age</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="ageMax">
+                <option value="">Select Max Age</option>
+                <option>22</option><option>24</option><option>25</option><option>26</option>
+                <option>28</option><option>30</option><option>32</option><option>35</option>
+                <option>38</option><option>40</option><option>45</option><option>50</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Min Height (ft) <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('heightMin', 'Min Height', ['4.0','4.5','5.0','5.2','5.4','5.6','5.8','5.10','6.0','6.2'])">
+                <span class="placeholder">Select Min Height</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="heightMin">
+                <option value="">Select Min Height</option>
+                <option>4.0 ft</option><option>4.5 ft</option><option>5.0 ft</option><option>5.2 ft</option>
+                <option>5.4 ft</option><option>5.6 ft</option><option>5.8 ft</option><option>5.10 ft</option>
+                <option>6.0 ft</option><option>6.2 ft</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Max Height (ft) <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('heightMax', 'Max Height', ['5.0','5.2','5.4','5.6','5.8','5.10','6.0','6.2','6.4','6.6'])">
+                <span class="placeholder">Select Max Height</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="heightMax">
+                <option value="">Select Max Height</option>
+                <option>5.0 ft</option><option>5.2 ft</option><option>5.4 ft</option><option>5.6 ft</option>
+                <option>5.8 ft</option><option>5.10 ft</option><option>6.0 ft</option><option>6.2 ft</option>
+                <option>6.4 ft</option><option>6.6 ft</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Background -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon ink">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z"/><path d="m12 2v20"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Background Preferences</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="field-group">
+            <label class="field-label">Denomination Preference <span class="req">*</span></label>
+            <div class="pill-group">
+              <div class="pill" onclick="togglePill(this)">Any</div>
+              <div class="pill" onclick="togglePill(this)">Catholic</div>
+              <div class="pill" onclick="togglePill(this)">Protestant</div>
+              <div class="pill" onclick="togglePill(this)">Orthodox</div>
+              <div class="pill" onclick="togglePill(this)">Pentecostal</div>
+              <div class="pill" onclick="togglePill(this)">Non-denominational</div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Education Level <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('eduLevel', 'Education Level', ['Any','High School','Diploma','Bachelor\'s','Master\'s','PhD','Professional'])">
+                <span class="placeholder">Select Education Level</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="eduLevel">
+                <option value="">Select Education Level</option>
+                <option>Any</option>
+                <option>High School</option>
+                <option>Diploma</option>
+                <option>Bachelor's</option>
+                <option>Master's</option>
+                <option>PhD</option>
+                <option>Professional</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Mother Tongue Preference <span class="optional">(Optional)</span></label>
+              <div class="pill-group">
+                <div class="pill" onclick="togglePill(this)">Any</div>
+                <div class="pill" onclick="togglePill(this)">English</div>
+                <div class="pill" onclick="togglePill(this)">Hindi</div>
+                <div class="pill" onclick="togglePill(this)">Arabic</div>
+                <div class="pill" onclick="togglePill(this)">Tamil</div>
+                <div class="pill" onclick="togglePill(this)">Malayalam</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Lifestyle Preferences -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Lifestyle Preferences</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-3">
+            <div class="field-group">
+              <label class="field-label">Dietary Habits <span class="optional">(Optional)</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('dietPref', 'Dietary Habits', ['No Preference','Vegetarian','Non-Vegetarian','Eggetarian','Vegan'])">
+                <span class="placeholder">Select</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="dietPref">
+                <option value="">Select Dietary Habit</option>
+                <option>No Preference</option>
+                <option>Vegetarian</option>
+                <option>Non-Vegetarian</option>
+                <option>Eggetarian</option>
+                <option>Vegan</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Drinking Habits <span class="optional">(Optional)</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('drinkPref', 'Drinking Habits', ['No Preference','Never','Socially','Regularly'])">
+                <span class="placeholder">Select</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="drinkPref">
+                <option value="">Select Drinking Habit</option>
+                <option>No Preference</option>
+                <option>Never</option>
+                <option>Socially</option>
+                <option>Regularly</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Smoking Habits <span class="optional">(Optional)</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('smokePref', 'Smoking Habits', ['No Preference','Never','Occasionally','Regularly'])">
+                <span class="placeholder">Select</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="smokePref">
+                <option value="">Select Smoking Habit</option>
+                <option>No Preference</option>
+                <option>Never</option>
+                <option>Occasionally</option>
+                <option>Regularly</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Location & Marital -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon apricot">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Location & Marital</div>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Country Preference <span class="req">*</span></label>
+              <input class="field-input" type="text" value="Saudi Arabia" readonly>
+            </div>
+            <div class="field-group">
+              <label class="field-label">City Preference <span class="req">*</span></label>
+              <div class="mobile-select-trigger" onclick="openSheet('prefCity', 'City Preference', ['Any','Riyadh','Jeddah','Dammam','Mecca','Medina'])">
+                <span class="placeholder">Select City</span>
+                <span class="chevron">▼</span>
+              </div>
+              <select class="field-input" data-field="prefCity">
+                <option value="">Select City</option>
+                <option>Any</option>
+                <option>Riyadh</option>
+                <option>Jeddah</option>
+                <option>Dammam</option>
+                <option>Mecca</option>
+                <option>Medina</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Marital Status Preference <span class="req">*</span></label>
+            <div class="pill-group">
+              <div class="pill" onclick="togglePill(this)">Never Married</div>
+              <div class="pill" onclick="togglePill(this)">Annulled</div>
+              <div class="pill" onclick="togglePill(this)">Divorced</div>
+              <div class="pill" onclick="togglePill(this)">Widowed</div>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">My Desired Partner <span class="optional">(Optional)</span></label>
+            <textarea class="field-input" placeholder="Describe any additional qualities, background, or criteria you are looking for in a partner..." rows="4"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cloudflare Turnstile -->
+      <div class="turnstile-wrap">
+        <div class="turnstile-widget" id="turnstile4">
+          <div class="turnstile-checkbox" onclick="simulateTurnstile(this)"></div>
+          <span class="turnstile-label">I'm not a robot</span>
+          <div class="turnstile-verifying"><div class="turnstile-spinner"></div> Verifying...</div>
+          <div class="turnstile-success"><div class="check"></div> Verified</div>
+          <div class="turnstile-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            Cloudflare
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ STEP 5: PHOTOS ══════ -->
+    <div class="step-content" id="step5">
+
+      <!-- Card: Profile Photo -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon gold">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Profile Photo</div>
+              <span class="card-count">Required</span>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div class="photo-upload-area">
+              <div class="icon">📷</div>
+              <div class="text">Upload</div>
+            </div>
+            <div style="flex:1;min-width:200px">
+              <p style="font-size:13px;color:var(--ink);margin-bottom:8px">Upload a clear, high-quality portrait photo for your main profile.</p>
+              <button style="background:var(--gold);color:white;border:none;padding:10px 20px;border-radius:12px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;cursor:pointer">Upload Photo</button>
+              <p style="font-size:10px;color:var(--text-secondary);margin-top:8px">Please upload .Jpg files only and not more than 500 KB file size.</p>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--card-border)">
+            <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Photo Privacy Settings</div>
+            <div class="privacy-grid">
+              <div class="privacy-btn selected" onclick="selectPrivacy(this)">
+                <div class="icon">👁</div>
+                <div class="title">Public</div>
+                <div class="desc">Visible to all members</div>
+              </div>
+              <div class="privacy-btn" onclick="selectPrivacy(this)">
+                <div class="icon">🔒</div>
+                <div class="title">Protected</div>
+                <div class="desc">Visible to accepted matches</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Gallery -->
+      <div class="collapsible-card open" data-card>
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon apricot">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+            </div>
+            <div>
+              <div class="card-title">Gallery Photos</div>
+              <span class="optional" style="font-size:10px;color:#c4bba8;font-style:italic;margin-left:6px">(Optional)</span>
+            </div>
+          </div>
+          <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Add up to 3 additional photos to showcase your lifestyle and personality.</p>
+          <div class="gallery-grid">
+            <div class="gallery-slot">
+              <div class="icon">+</div>
+              <div class="text">Add Photo</div>
+            </div>
+            <div class="gallery-slot">
+              <div class="icon">+</div>
+              <div class="text">Add Photo</div>
+            </div>
+            <div class="gallery-slot">
+              <div class="icon">+</div>
+              <div class="text">Add Photo</div>
+            </div>
+          </div>
+          <p style="font-size:10px;color:var(--text-secondary);margin-top:10px;text-align:center">Please upload .Jpg files only and not more than 500 KB file size.</p>
+        </div>
+      </div>
+
+      <!-- Cloudflare Turnstile (Final Submission) -->
+      <div class="turnstile-wrap">
+        <div class="turnstile-widget" id="turnstile5">
+          <div class="turnstile-checkbox" onclick="simulateTurnstile(this)"></div>
+          <span class="turnstile-label">I'm not a robot</span>
+          <div class="turnstile-verifying"><div class="turnstile-spinner"></div> Verifying...</div>
+          <div class="turnstile-success"><div class="check"></div> Verified</div>
+          <div class="turnstile-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            Cloudflare
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ SUBMISSION SUCCESS ══════ -->
+    <div class="success-screen" id="successScreen">
+      <div class="success-icon">✓</div>
+      <h2>Submission Successful</h2>
+      <p>Thank you, <span class="email">user@example.com</span>. Your profile has been submitted for review and approval.</p>
+      <div class="success-notice">We'll notify you via your email once your profile is approved.</div>
+    </div>
+
+    <!-- ══════ ACTION BUTTONS ══════ -->
+    <div class="actions" id="actionsBar">
+      <button class="btn-back" id="btnBack" onclick="prevStep()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        Back
+      </button>
+      <button class="btn-next" id="btnNext" onclick="nextStep()">
+        Continue
+        <span class="arrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ BOTTOM SHEET ═══════════════ -->
+<div class="bottom-sheet-overlay" id="sheetOverlay" onclick="closeSheet(event)">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title" id="sheetTitle">Select Option</div>
+      <button class="sheet-close" onclick="closeSheet()">✕</button>
+    </div>
+    <div class="sheet-options" id="sheetOptions"></div>
+    <div class="sheet-footer">
+      <button class="sheet-done" onclick="closeSheet()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── STATE ──
+  let currentStep = 1;
+  const totalSteps = 5;
+  let currentSheetField = null;
+
+  const stepMeta = {
+    1: { title: 'Basic Info', desc: 'Who are you?' },
+    2: { title: 'Personal, Career & Lifestyle', desc: 'All about you' },
+    3: { title: 'Family Background', desc: 'Your roots & religion' },
+    4: { title: 'Partner Preferences', desc: 'Who you seek' },
+    5: { title: 'Photos', desc: 'Show your best self' }
+  };
+
+  // ── STEP NAVIGATION ──
+  function updateStep() {
+    // Update content
+    document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+    document.getElementById('step' + currentStep).classList.add('active');
+
+    // Update header
+    document.getElementById('stepBadge').textContent = currentStep;
+    document.getElementById('stepTitle').textContent = stepMeta[currentStep].title;
+    document.getElementById('stepDesc').textContent = stepMeta[currentStep].desc;
+
+    // Update stepper
+    document.querySelectorAll('.step-circle').forEach(circle => {
+      const step = parseInt(circle.dataset.step);
+      circle.classList.remove('active', 'completed', 'inactive');
+      if (step < currentStep) {
+        circle.classList.add('completed');
+        circle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+      } else if (step === currentStep) {
+        circle.classList.add('active');
+        circle.textContent = step;
+      } else {
+        circle.classList.add('inactive');
+        circle.textContent = step;
+      }
+    });
+
+    document.querySelectorAll('.step-label').forEach(label => {
+      const step = parseInt(label.previousElementSibling?.dataset?.step || label.closest('.step-node')?.querySelector('.step-circle')?.dataset?.step);
+      label.classList.remove('active', 'completed', 'inactive');
+      if (step < currentStep) label.classList.add('completed');
+      else if (step === currentStep) label.classList.add('active');
+      else label.classList.add('inactive');
+    });
+
+    document.querySelectorAll('.step-line').forEach((line, i) => {
+      line.classList.remove('active', 'completed', 'inactive');
+      if (i < currentStep - 1) line.classList.add('completed');
+      else if (i === currentStep - 1) line.classList.add('active');
+      else line.classList.add('inactive');
+    });
+
+    // Update buttons
+    document.getElementById('btnBack').disabled = currentStep === 1;
+    if (currentStep === totalSteps) {
+      document.getElementById('btnNext').innerHTML = 'Submit Profile <span class="arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>';
+    } else {
+      document.getElementById('btnNext').innerHTML = 'Continue <span class="arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>';
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function nextStep() {
+    if (currentStep === totalSteps) {
+      // Show success
+      document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+      document.getElementById('successScreen').classList.add('active');
+      document.getElementById('actionsBar').style.display = 'none';
+      document.querySelector('.step-header').style.display = 'none';
+      return;
+    }
+    currentStep++;
+    updateStep();
+  }
+
+  function prevStep() {
+    if (currentStep > 1) {
+      currentStep--;
+      updateStep();
+    }
+  }
+
+  // ── COLLAPSIBLE CARDS ──
+  function toggleCard(headerEl) {
+    const card = headerEl.closest('.collapsible-card');
+    card.classList.toggle('open');
+  }
+
+  // ── PROFILE TYPE ──
+  function selectProfileType(el, type) {
+    el.closest('.profile-type-grid').querySelectorAll('.profile-type-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  // ── PILLS ──
+  function togglePill(el) {
+    el.classList.toggle('selected');
+  }
+
+  // ── PRIVACY ──
+  function selectPrivacy(el) {
+    el.closest('.privacy-grid').querySelectorAll('.privacy-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  // ── BOTTOM SHEET ──
+  function openSheet(field, title, options) {
+    currentSheetField = field;
+    document.getElementById('sheetTitle').textContent = title;
+    const container = document.getElementById('sheetOptions');
+    container.innerHTML = '';
+    options.forEach(opt => {
+      const div = document.createElement('div');
+      div.className = 'sheet-option';
+      div.innerHTML = `<div class="radio"></div><span>${opt}</span>`;
+      div.onclick = function() {
+        container.querySelectorAll('.sheet-option').forEach(o => o.classList.remove('selected'));
+        this.classList.add('selected');
+      };
+      container.appendChild(div);
+    });
+    document.getElementById('sheetOverlay').classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSheet(e) {
+    if (e && e.target !== document.getElementById('sheetOverlay')) return;
+    document.getElementById('sheetOverlay').classList.remove('show');
+    document.body.style.overflow = '';
+  }
+
+  // ── TURNSTILE SIMULATION ──
+  function simulateTurnstile(checkbox) {
+    const widget = checkbox.closest('.turnstile-widget');
+    const verifying = widget.querySelector('.turnstile-verifying');
+    const success = widget.querySelector('.turnstile-success');
+
+    // Start verification
+    checkbox.style.display = 'none';
+    widget.querySelector('.turnstile-label').style.display = 'none';
+    verifying.classList.add('show');
+
+    // Simulate verification delay
+    setTimeout(() => {
+      verifying.classList.remove('show');
+      success.classList.add('show');
+      widget.style.borderColor = '#16a34a';
+      widget.style.background = '#f0fdf4';
+    }, 1500);
+  }
+
+  // ── MOBILE SELECT TRIGGERS ──
+  // On desktop, hide mobile triggers and show selects
+  // On mobile, hide selects and show triggers
+  function handleResize() {
+    const isMobile = window.innerWidth <= 768;
+    document.querySelectorAll('.mobile-select-trigger').forEach(el => {
+      el.style.display = isMobile ? 'flex' : 'none';
+    });
+  }
+  window.addEventListener('resize', handleResize);
+  handleResize();
+</script>
+
+</body>
+</html>

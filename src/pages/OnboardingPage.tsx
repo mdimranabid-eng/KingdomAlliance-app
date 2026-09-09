@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { db, auth } from '../lib/firebase';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc, Timestamp, arrayUnion } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ArrowLeft, CheckCircle2, User, Mail, MapPin, Church, GraduationCap, ShieldCheck, Camera, UserPlus, Users, Heart, Globe, Lock, Briefcase, Home, FileText, Scale, Ruler, Eye, EyeOff, Hourglass } from 'lucide-react';
@@ -427,19 +427,22 @@ export default function RegisterPage() {
 
       setLoading(true);
       try {
-        const emailQ = query(collection(db, "users"), where("email", "==", cleanEmail));
-        const emailSnapshot = await getDocs(emailQ);
-        if (emailSnapshot.docs.filter(d => d.id !== user?.uid).length > 0) {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        const fullMobile = `${formData.countryCode} ${cleanMobile}`;
+        const checkRes = await fetch(`${backendUrl}/api/check-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, mobileNumber: fullMobile })
+        });
+        const checkData = await checkRes.json();
+        if (checkData.emailTaken) {
           setErrorMsg("Email already registered. Please log in or use another email.");
           setInvalidFields(['email']);
           scrollToFirstError(['email']);
           setLoading(false);
           return;
         }
-        const fullMobile = `${formData.countryCode} ${cleanMobile}`;
-        const mobileQ = query(collection(db, "users"), where("mobileNumber", "==", fullMobile));
-        const mobileSnapshot = await getDocs(mobileQ);
-        if (mobileSnapshot.docs.filter(d => d.id !== user?.uid).length > 0) {
+        if (checkData.mobileTaken) {
           setErrorMsg("The mobile number entered is already registered.");
           setInvalidFields(['mobileNumber']);
           scrollToFirstError(['mobileNumber']);
@@ -668,6 +671,33 @@ export default function RegisterPage() {
       await setDoc(doc(db, 'users', activeUser.uid), {
         ...profileData, onboardingComplete: true, approvalStatus: 'pending', updatedAt: new Date()
       }, { merge: true });
+
+      // Sync church info to separate churches collection
+      const trimmedChurchName = (formData.churchName || '').trim();
+      const trimmedChurchCity = (formData.churchCity || '').trim();
+      const trimmedChurchArea = (formData.churchArea || '').trim();
+      const trimmedPastorName = (formData.pastorName || '').trim();
+      const trimmedPastorNumber = (formData.pastorNumber || '').trim();
+      if (trimmedChurchName) {
+        try {
+          const churchKey = [trimmedChurchName, trimmedChurchCity, trimmedChurchArea, trimmedPastorName, trimmedPastorNumber]
+            .map(s => s.toLowerCase().trim()).join('||');
+          const churchDocId = churchKey.replace(/[^a-z0-9||]/g, '_').substring(0, 120);
+          const churchRef = doc(db, 'churches', churchDocId);
+          const churchSnap = await getDocs(query(collection(db, 'churches'), where('__name__', '==', churchDocId)));
+          if (churchSnap.empty) {
+            await setDoc(churchRef, {
+              churchName: trimmedChurchName, churchCity: trimmedChurchCity, churchArea: trimmedChurchArea,
+              pastorName: trimmedPastorName, pastorNumber: trimmedPastorNumber,
+              members: [activeUser.uid], createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+            });
+          } else {
+            await setDoc(churchRef, { members: arrayUnion(activeUser.uid), updatedAt: serverTimestamp() }, { merge: true });
+          }
+        } catch (churchErr) {
+          console.warn('Church sync failed (non-blocking):', churchErr);
+        }
+      }
 
       sessionStorage.removeItem('saved_credentials');
       localStorage.removeItem('onboarding_draft');

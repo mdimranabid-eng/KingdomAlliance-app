@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, Key, X, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, addDoc, query, where, getDocs, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { sendEmail } from '../lib/email';
-import ReCAPTCHA from 'react-google-recaptcha';
+import { requestOtp } from '../services/otpService';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -22,12 +20,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-
-  const generateOTP = () => {
-    const array = new Uint32Array(1);
-    crypto.getRandomValues(array);
-    return String(array[0] % 900000 + 100000);
-  };
+  const recaptchaRef = useRef<TurnstileInstance>(null);
 
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,54 +28,21 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
     setError(null);
 
     if (!recaptchaToken) {
-      setError("Please check the reCAPTCHA box to verify you are human.");
+      setError("Please complete the verification to confirm you are not a robot.");
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Validate the reCAPTCHA token
-      const token = recaptchaToken;
+      // OTP is generated, stored (hashed) and emailed entirely server-side.
+      // The server responds identically whether or not the account exists,
+      // to prevent user enumeration.
+      await requestOtp(email, 'password_reset', recaptchaToken);
+      // Token was just consumed server-side — force a fresh check for retries
+      recaptchaRef.current?.reset();
+      setRecaptchaToken(null);
 
-      // 2. Check if the user exists in Firestore users collection
-      const userQuery = query(collection(db, 'users'), where('email', '==', email));
-      const userSnap = await getDocs(userQuery);
-      if (userSnap.empty) {
-        setError("User does not exist.");
-        setLoading(false);
-        return;
-      }
-
-      // 3. Generate a 6-digit numeric OTP
-      const code = generateOTP();
-
-      // Log OTP in local dev console
-      console.log(`🔑 [DEV ONLY] Generated Password Reset OTP for ${email}: ${code}`);
-
-      // 4. Delete any old OTPs for this email in Firestore temp_otps collection
-      const oldOtpsQuery = query(collection(db, 'temp_otps'), where('email', '==', email));
-      const oldOtpsSnap = await getDocs(oldOtpsQuery);
-      const deletePromises = oldOtpsSnap.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(deletePromises);
-
-      // 5. Save the new OTP to temp_otps with a 10-minute expiration (expiresAt)
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      await addDoc(collection(db, 'temp_otps'), {
-        email,
-        otp: code,
-        expiresAt: Timestamp.fromDate(expiresAt),
-        createdAt: serverTimestamp()
-      });
-
-      // 6. Call the existing sendEmail function from src/lib/email.ts
-      await sendEmail({
-        to_email: email,
-        otp_code: code,
-        type: 'password_reset',
-        captchaToken: token
-      } as any);
-
-      // 7. Change step state to 2
+      // Change step state to 2
       setStep(2);
     } catch (err: any) {
       console.error('OTP Request failed:', err);
@@ -222,9 +182,12 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                 />
               </div>
               <div className="flex justify-center py-2">
-                <ReCAPTCHA
-                  sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || ""}
-                  onChange={(token) => setRecaptchaToken(token)}
+                <Turnstile
+                  ref={recaptchaRef}
+                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ""}
+                  onSuccess={(token) => setRecaptchaToken(token)}
+                  onExpire={() => setRecaptchaToken(null)}
+                  options={{ theme: 'light', size: 'normal' }}
                 />
               </div>
               <button

@@ -1,9 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100;300;400;500;600&family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
-  --font-headline: "Playfair Display", serif;
+  --font-headline: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-name: "Cormorant Garamond", "Playfair Display", serif;
   --font-inter: "Inter", sans-serif;
 
   --color-primary: #1a2e4a;
@@ -30,6 +31,23 @@
 
   --color-error: #ef4444;
   --color-error-container: #fee2e2;
+
+  /* Admin workspace */
+  --color-admin-bg: #f8f9fc;
+  --color-admin-border: #e6e9ef;
+  --color-admin-sidebar: #0c1829;
+  --color-admin-sidebar-hover: rgba(255,255,255,0.06);
+  --color-admin-sidebar-active: rgba(201,168,76,0.12);
+
+  /* ===== Sanctuary (warm apricot/gold) ===== */
+  --color-apricot: #b3804c;
+  --color-apricot-deep: #8f6337;
+  --color-apricot-soft: #d2a273;
+  --color-cream: #faf4ea;
+  --color-ink: #4a3521;
+  --color-gold: #C9A84C;
+  --color-gold-soft: #dfc88a;
+  --color-gold-deep: #b8860b;
 }
 
 @layer base {
@@ -37,6 +55,84 @@
     @apply bg-surface text-on-surface;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+}
+
+/* ===== Sanctuary utilities ===== */
+@layer components {
+  .sanctuary-grain { position: relative; }
+  .sanctuary-grain::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    opacity: 0.14; mix-blend-mode: overlay;
+  }
+  .sanctuary-grain > * { position: relative; z-index: 1; }
+
+  .sanctuary-panel {
+    background:
+      radial-gradient(120% 90% at 20% 10%, rgba(226,190,146,0.45) 0%, transparent 55%),
+      linear-gradient(160deg, var(--color-apricot) 0%, var(--color-apricot-deep) 100%);
+  }
+
+  /* Floating-label fields */
+  .s-field { position: relative; }
+  .s-field > input, .s-field > select, .s-field > textarea {
+    width: 100%; padding: 22px 16px 10px; font: 500 15px 'Montserrat', sans-serif;
+    color: #4a3521; border: 1px solid #e2ddd2; border-radius: 14px;
+    background: #fff; outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  .s-field > textarea { min-height: 96px; resize: none; }
+  .s-field > input:focus, .s-field > select:focus, .s-field > textarea:focus {
+    border-color: var(--color-gold); box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
+  }
+  .s-field > label {
+    position: absolute; left: 16px; top: 16px; font-size: 14px; color: #9aa3af;
+    pointer-events: none; transition: all .18s ease;
+  }
+  .s-field > input:focus ~ label,
+  .s-field > input:not(:placeholder-shown) ~ label,
+  .s-field > select:focus ~ label,
+  .s-field.has-value > label,
+  .s-field > textarea:focus ~ label,
+  .s-field > textarea:not(:placeholder-shown) ~ label {
+    top: 8px; font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--color-gold-deep); font-weight: 700;
+  }
+
+  /* Entrance animations */
+  .san-anim { animation: sanRiseIn .9s cubic-bezier(.22,.9,.3,1) both; }
+  .san-fade { animation: sanFadeIn 1.1s ease both; }
+  .san-headline { animation: sanFadeIn 1s cubic-bezier(.22,.9,.3,1) both; }
+  .san-d1 { animation-delay: .08s; } .san-d2 { animation-delay: .2s; }
+  .san-d3 { animation-delay: .34s; } .san-d4 { animation-delay: .5s; }
+  .san-d5 { animation-delay: .66s; } .san-d6 { animation-delay: .8s; }
+
+  .sanctuary-btn {
+    width: 100%; padding: 16px; border: none; border-radius: 14px; cursor: pointer;
+    background: linear-gradient(135deg, var(--color-apricot) 0%, #96683a 100%);
+    color: #fff; font: 700 15px 'Montserrat', sans-serif; letter-spacing: 0.4px;
+    box-shadow: 0 12px 30px -10px rgba(143, 99, 55, 0.5);
+    position: relative; overflow: hidden; transition: transform .2s, box-shadow .2s;
+  }
+  .sanctuary-btn:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -10px rgba(143, 99, 55, 0.55); }
+  .sanctuary-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .sanctuary-btn::after {
+    content: ''; position: absolute; top: 0; left: -80%; width: 50%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(223, 200, 138, 0.35), transparent);
+    transform: skewX(-20deg); animation: sanSheen 3.4s infinite;
+  }
+  @keyframes sanSheen { 0% { left: -80%; } 55% { left: 130%; } 100% { left: 130%; } }
+}
+
+@keyframes sanRiseIn {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sanFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .san-anim, .san-fade, .san-headline { animation: none; }
 }
 
 @media print {
@@ -67,10 +163,53 @@
 @layer components {
   .font-headline {
     font-family: var(--font-headline);
+    font-weight: 100;
+  }
+
+  footer, footer *, footer nav a, footer p, footer span, footer div {
+    font-family: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 100;
+  }
+
+  /*
+   * Member name — the thin, high-contrast display serif used wherever a person's
+   * name is the title: profile header, match / shortlist / interest cards,
+   * conversation header and the admin record view.
+   */
+  .member-name {
+    font-family: var(--font-name);
+    font-weight: 300;
+    letter-spacing: 0.015em;
+    line-height: 1.08;
+    font-optical-sizing: auto;
+    text-wrap: balance;
+  }
+
+  /* Companion age marker: quiet Montserrat caps so the name stays the only serif. */
+  .member-name .member-age {
+    font-family: var(--font-sans);
+    font-size: 0.4em;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-gold-deep);
+    vertical-align: 0.55em;
+    margin-left: 0.45em;
+    white-space: nowrap;
+  }
+
+  /* Small sizes need more weight to stay legible. */
+  .member-name-sm {
+    font-weight: 400;
+    letter-spacing: 0.01em;
   }
 
   .font-inter {
     font-family: var(--font-inter);
+  }
+
+  .font-display {
+    font-family: "Plus Jakarta Sans", var(--font-sans);
   }
 
   .profile-banner-gradient {
@@ -124,5 +263,48 @@
     -webkit-backdrop-filter: blur(40px) !important;
     border: 1px solid rgba(255, 255, 255, 0.80) !important;
     box-shadow: 0 32px 64px -12px rgba(26,46,74,0.12), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 -1px 0 rgba(0,0,0,0.04) !important;
+  }
+
+  /* ─── Admin Panel Utilities ─── */
+  .admin-card {
+    background: #ffffff;
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 10px 40px -10px rgba(26,46,74,0.06);
+    border: 1px solid rgba(0,0,0,0.04);
+  }
+
+  .admin-card-hover {
+    transition: transform 300ms cubic-bezier(0.22,0.9,0.3,1), box-shadow 300ms cubic-bezier(0.22,0.9,0.3,1), border-color 300ms cubic-bezier(0.22,0.9,0.3,1);
+  }
+  .admin-card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px -12px rgba(26,46,74,0.12);
+    border-color: rgba(201,168,76,0.2);
+  }
+
+  .admin-sidebar-link {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.625rem 1rem; border-radius: 0.75rem;
+    font-size: 0.875rem; font-weight: 500;
+    color: rgba(255,255,255,0.5);
+    transition: all 200ms cubic-bezier(0.22,0.9,0.3,1);
+  }
+  .admin-sidebar-link:hover {
+    color: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.06);
+  }
+
+  .admin-sidebar-active {
+    color: #C9A84C !important;
+    background: rgba(201,168,76,0.1) !important;
+    border-left: 2px solid #C9A84C;
+    padding-left: calc(1rem - 2px);
+  }
+
+  .admin-stat-icon {
+    width: 2.5rem; height: 2.5rem;
+    border-radius: 0.75rem;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
 }

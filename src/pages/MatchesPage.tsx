@@ -20,6 +20,7 @@ import {
   BookmarkCheck,
   Check,
   Loader2,
+  HeartHandshake,
   Clock,
   Briefcase,
   GraduationCap,
@@ -27,14 +28,12 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus, calculateAge, isUserOnline } from '../lib/utils';
+import { BlurablePhoto } from '../components/BlurablePhoto';
 import toast from 'react-hot-toast';
 
 const getOptimizedImageUrl = (url: string) => {
   if (!url) return '';
-  if (!url.includes('cloudinary.com')) return url;
-  const parts = url.split('/upload/');
-  if (parts.length !== 2) return url;
-  return `${parts[0]}/upload/c_fill,w_600,h_800,g_face,q_auto,f_auto/${parts[1]}`;
+  return url;
 };
 
 const DENOMINATIONS = [
@@ -313,34 +312,41 @@ export default function MatchesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-        <div>
-          <h1 className="font-headline text-3xl md:text-4xl text-on-surface">Find Your Match</h1>
-          <p className="text-on-surface-variant">Christian singles sharing your faith and values</p>
-        </div>
-        
-        <div className="flex items-center gap-3 w-full md:w-auto">
+      <div className="sanctuary-panel rounded-[2rem] px-6 py-10 sm:px-10 sm:py-12 relative overflow-hidden shadow-[0_30px_60px_-30px_rgba(143,99,55,0.5)]">
+        <div className="absolute right-8 top-1/2 -translate-y-1/2 font-headline text-[120px] opacity-10 text-white leading-none select-none pointer-events-none">✝</div>
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="h-px w-8 bg-gradient-to-r from-transparent to-[#dfc88a]/70" />
+              <span className="text-[10px] font-bold tracking-[0.35em] uppercase text-[#dfc88a]">Kingdom Alliance</span>
+            </div>
+            <h1 className="font-headline text-3xl md:text-4xl font-semibold text-white tracking-tight">Find Your Match</h1>
+            <p className="text-white/70 mt-2 text-sm max-w-md leading-relaxed">Christian singles sharing your faith and values — thoughtfully matched, prayerfully considered.</p>
+          </div>
+          
+          <div className="flex items-center gap-3 w-full lg:w-auto">
           <div className="relative flex-1 md:w-64">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
             <input 
               type="text" 
               value={filters.searchTerm}
               onChange={(e) => setFilters({...filters, searchTerm: e.target.value})}
-              placeholder="Search by name..."
-              className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm"
+              placeholder="Search profiles — name or keyword..."
+              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-2xl outline-none focus:bg-white/15 focus:border-[#dfc88a]/60 focus:ring-2 focus:ring-[#dfc88a]/20 transition-all text-sm text-white placeholder:text-white/50"
             />
           </div>
           <button 
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
-              "flex items-center gap-2 px-6 py-3 rounded-2xl border border-outline-variant transition-all font-label-lg whitespace-nowrap",
-              showFilters ? "bg-primary text-on-primary border-primary shadow-lg shadow-primary/20" : "bg-surface-container-low text-on-surface hover:bg-surface-variant"
+              "flex items-center gap-2 px-6 py-3 rounded-2xl border border-[#e2ddd2] transition-all font-label-lg whitespace-nowrap",
+              showFilters ? "bg-white text-[#8f6337] border-white shadow-lg" : "text-white border-white/25 hover:bg-white/10"
             )}
           >
             <SlidersHorizontal className="w-5 h-5" />
             {showFilters ? 'Hide' : 'Show'} Filters
           </button>
         </div>
+      </div>
       </div>
 
       <AnimatePresence>
@@ -351,35 +357,35 @@ export default function MatchesPage() {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-surface-container rounded-[2rem] p-8 border border-outline-variant shadow-lg space-y-8">
+            <div className="bg-white rounded-[2rem] p-8 border border-[#e2ddd2] shadow-lg space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Age Range */}
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Age Range</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-[#8a7a63]">Age Range</label>
                   <div className="flex items-center gap-3">
                     <input 
                       type="number" 
                       value={filters.minAge} 
                       onChange={(e) => setFilters({...filters, minAge: parseInt(e.target.value)})}
-                      className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none" 
+                      className="w-full p-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none" 
                     />
-                    <span className="text-on-surface-variant">to</span>
+                    <span className="text-[#8a7a63]">to</span>
                     <input 
                       type="number" 
                       value={filters.maxAge} 
                       onChange={(e) => setFilters({...filters, maxAge: parseInt(e.target.value)})}
-                      className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none" 
+                      className="w-full p-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none" 
                     />
                   </div>
                 </div>
 
                 {/* Denomination */}
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Denomination</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-[#8a7a63]">Denomination</label>
                   <select 
                     value={filters.denomination}
                     onChange={(e) => setFilters({...filters, denomination: e.target.value})}
-                    className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none"
+                    className="w-full p-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none"
                   >
                     <option value="All">All</option>
                     {DENOMINATIONS.map(d => (
@@ -390,11 +396,11 @@ export default function MatchesPage() {
 
                 {/* Education */}
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Education</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-[#8a7a63]">Education</label>
                   <select 
                     value={filters.education}
                     onChange={(e) => setFilters({...filters, education: e.target.value})}
-                    className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none"
+                    className="w-full p-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none"
                   >
                     <option value="All">All</option>
                     <option value="High School">High School</option>
@@ -408,22 +414,22 @@ export default function MatchesPage() {
 
                 {/* Location */}
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Location</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-[#8a7a63]">Location</label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a7a63]" />
                     <input 
                       type="text" 
                       value={filters.location}
                       onChange={(e) => setFilters({...filters, location: e.target.value})}
                       placeholder="City or State"
-                      className="w-full pl-10 pr-4 py-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none" 
+                      className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none" 
                     />
                   </div>
                 </div>
 
                 {/* Profile ID Filter */}
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Profile ID</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-[#8a7a63]">Profile ID</label>
                   <div className="flex gap-2">
                     <input 
                       type="text" 
@@ -431,17 +437,17 @@ export default function MatchesPage() {
                       onChange={(e) => setProfileIdSearch(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && fetchMatches(true)}
                       placeholder="e.g. AB1234"
-                      className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none uppercase" 
+                      className="w-full p-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none uppercase" 
                     />
                     <button 
                       onClick={() => fetchMatches(true)}
-                      className="px-4 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors"
+                      className="px-4 text-white rounded-xl font-bold transition-colors bg-gradient-to-br from-[#b3804c] to-[#8f6337] hover:opacity-90"
                     >
                       Find
                     </button>
                   </div>
                   {searchToast && (
-                    <p className={`text-xs font-bold ${searchToast.type === 'error' ? 'text-error' : 'text-primary'}`}>
+                    <p className={`text-xs font-bold ${searchToast.type === 'error' ? 'text-error' : 'text-[#8f6337]'}`}>
                       {searchToast.message}
                     </p>
                   )}
@@ -449,24 +455,24 @@ export default function MatchesPage() {
               </div>
 
               {/* Advanced Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-outline-variant/30">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-[#e2ddd2]/30">
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Profession</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-[#8a7a63]">Profession</label>
                   <input 
                     type="text" 
                     value={filters.profession}
                     onChange={(e) => setFilters({...filters, profession: e.target.value})}
                     placeholder="e.g. Engineer"
-                    className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none" 
+                    className="w-full p-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none" 
                   />
                 </div>
 
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Marital Status</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-[#8a7a63]">Marital Status</label>
                   <select 
                     value={filters.maritalStatus}
                     onChange={(e) => setFilters({...filters, maritalStatus: e.target.value})}
-                    className="w-full p-3 bg-surface rounded-xl border border-outline-variant text-sm focus:ring-2 focus:ring-primary outline-none"
+                    className="w-full p-3 bg-white rounded-xl border border-[#e2ddd2] text-sm focus:ring-2 focus:ring-[#C9A84C] outline-none"
                   >
                     <option>All</option>
                     <option>Never Married</option>
@@ -482,7 +488,7 @@ export default function MatchesPage() {
                       onClick={() => setFilters({...filters, verifiedOnly: !filters.verifiedOnly})}
                       className={cn(
                         "w-12 h-6 rounded-full relative transition-all duration-300",
-                        filters.verifiedOnly ? "bg-primary" : "bg-outline-variant"
+                        filters.verifiedOnly ? "bg-[#b3804c]" : "bg-[#e2ddd2]"
                       )}
                     >
                       <div className={cn(
@@ -490,7 +496,7 @@ export default function MatchesPage() {
                         filters.verifiedOnly ? "left-7" : "left-1"
                       )} />
                     </div>
-                    <span className="text-sm font-label-lg text-on-surface uppercase tracking-wider">Verified Only</span>
+                    <span className="text-sm font-label-lg text-[#4a3521] uppercase tracking-wider">Verified Only</span>
                   </label>
 
                   <label className="flex items-center gap-3 cursor-pointer group">
@@ -498,7 +504,7 @@ export default function MatchesPage() {
                       onClick={() => setFilters({...filters, recentlyActive: !filters.recentlyActive})}
                       className={cn(
                         "w-12 h-6 rounded-full relative transition-all duration-300",
-                        filters.recentlyActive ? "bg-secondary" : "bg-outline-variant"
+                        filters.recentlyActive ? "bg-[#C9A84C]" : "bg-[#e2ddd2]"
                       )}
                     >
                       <div className={cn(
@@ -506,7 +512,7 @@ export default function MatchesPage() {
                         filters.recentlyActive ? "left-7" : "left-1"
                       )} />
                     </div>
-                    <span className="text-sm font-label-lg text-on-surface uppercase tracking-wider">Recently Active</span>
+                    <span className="text-sm font-label-lg text-[#4a3521] uppercase tracking-wider">Recently Active</span>
                   </label>
                 </div>
               </div>
@@ -518,16 +524,16 @@ export default function MatchesPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[1,2,3,4,5,6].map(i => (
-            <div key={i} className="aspect-[3/4] bg-surface-container-low rounded-[2rem] animate-pulse" />
+            <div key={i} className="aspect-[3/4] bg-white rounded-[2rem] animate-pulse" />
           ))}
         </div>
       ) : matches.length === 0 ? (
         <div className="py-20 text-center space-y-4">
-          <div className="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center mx-auto text-on-surface-variant">
+          <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto text-[#8a7a63]">
             <Users className="w-10 h-10" />
           </div>
-          <h3 className="font-headline text-2xl text-on-surface">No Matches Found</h3>
-          <p className="text-on-surface-variant max-w-sm mx-auto">Try adjusting your filters or completing your profile to get better recommendations.</p>
+          <h3 className="font-headline text-2xl text-[#4a3521]">No Matches Found</h3>
+          <p className="text-[#8a7a63] max-w-sm mx-auto">Try adjusting your filters or completing your profile to get better recommendations.</p>
           <button 
             onClick={() => {
               setFilters({
@@ -546,7 +552,7 @@ export default function MatchesPage() {
               });
               setProfileIdSearch('');
             }}
-            className="text-primary font-bold hover:underline"
+            className="text-[#8f6337] font-bold hover:underline"
           >
             Clear all filters
           </button>
@@ -570,7 +576,23 @@ export default function MatchesPage() {
 function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isShortlisted: boolean, onShortlist: () => void }) {
   const { user: currentUser } = useAuth();
   const [interestSent, setInterestSent] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Load the existing interest/connection state for this pair so the button
+  // reflects reality on return visits (pending → Interest Sent, accepted → Connected).
+  useEffect(() => {
+    if (!currentUser) return;
+    const connectionId = [currentUser.uid, user.id].sort().join('_');
+    getDoc(doc(db, 'interests', connectionId))
+      .then((snap) => {
+        if (!snap.exists()) return;
+        const status = snap.data()?.status;
+        if (status === 'accepted') setConnected(true);
+        else if (status === 'pending' || status === 'declined') setInterestSent(true);
+      })
+      .catch((err) => console.error('Failed to load interest state:', err));
+  }, [currentUser, user.id]);
 
   const handleSendInterest = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -622,17 +644,20 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-card rounded-[2rem] overflow-hidden flex flex-col hover-lift group"
+      className="bg-white border border-[#eee7d8] shadow-[0_20px_50px_-25px_rgba(143,99,55,0.18)] rounded-[2rem] overflow-hidden flex flex-col hover-lift group"
     >
       <Link to={`/profile/${user.id}`} className="block relative aspect-[3/4] overflow-hidden">
-        <img 
-          src={getOptimizedImageUrl(user.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} 
-          alt={user.name} 
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+        <BlurablePhoto
+          targetUid={user.id}
+          src={user.thumbUrl || getOptimizedImageUrl(user.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+          fallbackSrc={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+          alt={user.name}
+          profile={user}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
         <div className="absolute top-4 left-4">
           <div className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full border border-white/30 flex items-center gap-1.5 text-white shadow-xl">
-            <Star className="w-4 h-4 fill-primary text-primary" />
+            <Star className="w-4 h-4 fill-primary text-[#8f6337]" />
             <span className="text-xs font-bold leading-none">{user.matchScore}% Match</span>
           </div>
         </div>
@@ -657,7 +682,7 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
         <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
           <div className="flex items-center gap-2">
             <div className="flex items-center">
-              <h3 className="font-headline text-2xl">{user.name}, {user.age}</h3>
+              <h3 className="member-name member-name-sm text-[24px]">{user.name}<span className="member-age">{user.age} yrs</span></h3>
               {isUserOnline(user.lastActive) && (
                 <div className="relative flex h-3 w-3 ml-2" title="Online Now">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -666,8 +691,8 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
               )}
             </div>
             {user.emailVerified && (
-              <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center border border-white/20" title="Verified Member">
-                <Check className="w-3 h-3 text-on-primary" />
+              <div className="w-5 h-5 bg-[#b3804c] rounded-full flex items-center justify-center border border-white/20" title="Verified Member">
+                <Check className="w-3 h-3 text-white" />
               </div>
             )}
           </div>
@@ -679,37 +704,39 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
       
       <div className="p-5 flex-1 flex flex-col">
         <div className="flex flex-wrap gap-2 mb-4">
-          <span className="px-3 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full border border-outline-variant flex items-center gap-1 uppercase tracking-widest">
-            <Church className="w-3 h-3 text-primary" /> {user.denomination}
+          <span className="px-3 py-1 bg-[#faf4ea] text-[#8a7a63] text-[10px] font-bold rounded-full border border-[#e2ddd2] flex items-center gap-1 uppercase tracking-widest">
+            <Church className="w-3 h-3 text-[#8f6337]" /> {user.denomination}
           </span>
           {user.educationLevel && (
-            <span className="px-3 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full border border-outline-variant flex items-center gap-1 uppercase tracking-widest">
-              <GraduationCap className="w-3 h-3 text-secondary" /> {user.educationLevel}
+            <span className="px-3 py-1 bg-[#faf4ea] text-[#8a7a63] text-[10px] font-bold rounded-full border border-[#e2ddd2] flex items-center gap-1 uppercase tracking-widest">
+              <GraduationCap className="w-3 h-3 text-[#b8860b]" /> {user.educationLevel}
             </span>
           )}
         </div>
 
-        <p className="text-on-surface-variant text-sm line-clamp-2 leading-relaxed italic mb-6">
+        <p className="text-[#8a7a63] text-sm line-clamp-2 leading-relaxed italic mb-6">
           "{user.aboutMe || 'Peace be with you. I am looking for a partner to share my faith journey with.'}"
         </p>
 
         <div className="mt-auto grid grid-cols-4 gap-2">
           <button 
             onClick={handleSendInterest}
-            disabled={interestSent || sending}
+            disabled={interestSent || connected || sending}
             className={cn(
-              "col-span-3 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold transition-all",
-              interestSent 
-                ? "bg-green-100 text-green-700 border border-green-200" 
-                : "bg-primary text-on-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+              "col-span-3 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold transition-all cursor-default",
+              connected
+                ? "bg-[#C9A84C]/15 text-[#8f6337] border border-[#C9A84C]/50 font-headline tracking-wide"
+                : interestSent
+                  ? "bg-[#faf4ea] text-[#a89f8d] border border-[#e2ddd2]"
+                  : "text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 bg-gradient-to-br from-[#b3804c] to-[#8f6337]"
             )}
           >
-            {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : interestSent ? 'Interest Sent' : 'Send Interest'}
-            {!sending && !interestSent && <Heart className="w-5 h-5" />}
+            {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : connected ? <HeartHandshake className="w-5 h-5" /> : <Heart className={interestSent ? "w-5 h-5 fill-current" : "w-5 h-5"} />}
+            {sending ? 'Sending…' : connected ? 'Connected' : interestSent ? 'Interest Sent' : 'Send Interest'}
           </button>
           <Link 
             to={`/messages?chatWith=${user.id}`}
-            className="flex items-center justify-center bg-surface-container-high text-on-surface rounded-2xl border border-outline-variant hover:bg-surface-variant transition-colors"
+            className="flex items-center justify-center bg-[#faf4ea] text-[#4a3521] rounded-2xl border border-[#e2ddd2] hover:bg-[#faf4ea] transition-colors"
           >
             <MessageCircle className="w-6 h-6" />
           </Link>

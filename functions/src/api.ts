@@ -4,6 +4,8 @@ import * as admin from 'firebase-admin';
 import express from 'express';
 import cors from 'cors';
 import * as crypto from 'crypto';
+import { consumeOtpInternal, verifyCaptcha, checkEmailRateLimit, hashOtp } from './otp';
+import { cascadeDeleteUser } from './cascadeDelete';
 
 // ============================================================
 // Consolidated API Cloud Function (Express App)
@@ -14,29 +16,6 @@ const app = express();
 
 app.use(cors({ origin: true }));
 app.use(express.json());
-
-// Helper to extract Cloudinary Public ID
-function extractPublicId(url: string): string | null {
-  if (!url || !url.includes('cloudinary.com')) return null;
-  try {
-    const parts = url.split('/image/upload/');
-    if (parts.length < 2) return null;
-    const pathPart = parts[1];
-    const pathSegments = pathPart.split('/');
-    const cleanSegments = pathSegments.filter(seg => {
-      const isVersion = /^v\d+$/.test(seg);
-      const isTransformation = seg.includes('_') && seg.length < 20;
-      return !isVersion && !isTransformation;
-    });
-    const fullIdWithExt = cleanSegments.join('/');
-    const lastDotIdx = fullIdWithExt.lastIndexOf('.');
-    if (lastDotIdx === -1) return fullIdWithExt;
-    return fullIdWithExt.substring(0, lastDotIdx);
-  } catch (e) {
-    console.error("Error extracting public ID from Cloudinary URL:", e);
-    return null;
-  }
-}
 
 // ─── Middleware: Verify Admin Token ───────────────────────────────────────────
 async function requireAdminAuth(req: express.Request, res: express.Response, next: express.NextFunction): Promise<any> {
@@ -73,6 +52,33 @@ async function requireAdminAuth(req: express.Request, res: express.Response, nex
 const router = express.Router();
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
+router.post('/check-email', async (req, res): Promise<any> => {
+  const { email, mobileNumber } = req.body;
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Missing email field.' });
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    const db = admin.firestore();
+    const result: { emailTaken: boolean; mobileTaken: boolean } = { emailTaken: false, mobileTaken: false };
+
+    const emailQ = db.collection('users').where('email', '==', cleanEmail);
+    const emailSnapshot = await emailQ.get();
+    result.emailTaken = !emailSnapshot.empty;
+
+    if (mobileNumber && typeof mobileNumber === 'string') {
+      const mobileQ = db.collection('users').where('mobileNumber', '==', mobileNumber);
+      const mobileSnapshot = await mobileQ.get();
+      result.mobileTaken = !mobileSnapshot.empty;
+    }
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error('❌ [CheckEmail] Failed:', error.message || error);
+    return res.status(500).json({ error: 'Unable to verify uniqueness.' });
+  }
+});
+
 router.get('/health', (req, res): any => {
   return res.json({
     status: 'ok',
@@ -84,7 +90,7 @@ router.get('/health', (req, res): any => {
 
 // ─── Send Email ──────────────────────────────────────────────────────────────
 router.post('/send-email', async (req, res): Promise<any> => {
-  const { to_email, otp_code, type, reason, senderName } = req.body;
+  const { to_email, otp_code, type, reason, senderName, captchaToken, attachmentBase64, attachmentFilename, bccEmail } = req.body;
 
   if (!to_email || !type) {
     return res.status(400).json({
@@ -92,12 +98,77 @@ router.post('/send-email', async (req, res): Promise<any> => {
     });
   }
 
+  // reCAPTCHA verification (enforced when RECAPTCHA_SECRET_KEY is configured)
+  if (!(await verifyCaptcha(captchaToken))) {
+    return res.status(403).json({ error: 'Captcha verification failed.' });
+  }
+
+  // Per-email rate limit to prevent email abuse
   try {
-    await dispatchEmail(to_email, otp_code, type, reason, senderName);
+    await checkEmailRateLimit(to_email, `email_${type}`);
+  } catch (err: any) {
+    return res.status(429).json({ error: err.message });
+  }
+
+  try {
+    await dispatchEmail(to_email, otp_code, type, reason, senderName, attachmentBase64, attachmentFilename, bccEmail);
     return res.status(200).json({ success: true, message: 'Email sent successfully' });
   } catch (error: any) {
     console.error(`❌ [API] Email failed for ${to_email}:`, error.message);
     return res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+router.post('/send-onboarding-email', async (req, res): Promise<any> => {
+  const { uid } = req.body;
+  if (!uid) {
+    return res.status(400).json({ error: 'Missing uid' });
+  }
+
+  try {
+    const db = admin.firestore();
+    const userSnap = await db.collection('users').doc(uid).get();
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    const userData = userSnap.data() || {};
+
+    // Idempotency guard: the Firestore onDocumentCreated trigger
+    // (onOnboardingComplete) is the source of truth for this email. If the
+    // trigger (or a prior call to this route) already sent it, do nothing.
+    if (userData.onboardingEmailSent === true) {
+      return res.status(200).json({ success: true, message: 'Onboarding email already sent — no action taken.' });
+    }
+
+    const email = userData.email;
+    const name = userData.fullName || userData.name || 'Member';
+    const profileId = userData.profileId || `KA-${uid.slice(0, 6).toUpperCase()}`;
+
+    // Full biodata PDF: Page 1 = complete profile + declaration + PDF417
+    // digitally-signed barcode; Pages 2+ = full Terms & Conditions.
+    const { generateBiodataPdf } = await import('./biodataPdf');
+    const pdfBuffer = await generateBiodataPdf({ ...userData, profileId });
+    const pdfBase64 = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+
+    // Send email with PDF attachment + BCC
+    await dispatchEmail(
+      email, null, 'onboarding_complete',
+      name, 'Kingdom Alliance',
+      pdfBase64,
+      `KA_Biodata_${profileId}.pdf`,
+      'themaster@thekingdomalliances.com'
+    );
+
+    // Mark as sent so the Firestore trigger and any duplicate calls skip.
+    await db.collection('users').doc(uid).set({
+      onboardingEmailSent: true,
+      onboardingEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return res.status(200).json({ success: true, message: 'Onboarding email sent successfully.' });
+  } catch (err: any) {
+    console.error('[OnboardingEmail] Failed:', err.message);
+    return res.status(500).json({ error: err.message || 'Failed to send onboarding email.' });
   }
 });
 
@@ -109,33 +180,21 @@ router.post('/reset-password', async (req, res): Promise<any> => {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
   }
 
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+  }
+
   try {
-    const db = admin.firestore();
-    const tempOtpsRef = db.collection('temp_otps');
-    const snapshot = await tempOtpsRef
-      .where('email', '==', email)
-      .where('otp', '==', otp)
-      .get();
-
-    if (snapshot.empty) {
-      return res.status(400).json({ success: false, message: 'Invalid or incorrect OTP.' });
-    }
-
-    const otpDoc = snapshot.docs[0];
-    const otpData = otpDoc.data();
-
-    const now = admin.firestore.Timestamp.now();
-    if (otpData.expiresAt.toMillis() < now.toMillis()) {
-      await otpDoc.ref.delete();
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    // Server-side OTP verification (hashed, attempt-limited, expiry-checked)
+    const result = await consumeOtpInternal(email, otp, 'password_reset');
+    if (!result.ok) {
+      return res.status(400).json({ success: false, message: result.message });
     }
 
     const userRecord = await admin.auth().getUserByEmail(email);
     await admin.auth().updateUser(userRecord.uid, {
       password: newPassword
     });
-
-    await otpDoc.ref.delete();
 
     try {
       await dispatchEmail(email, null, 'password_reset_success');
@@ -147,7 +206,8 @@ router.post('/reset-password', async (req, res): Promise<any> => {
   } catch (error: any) {
     console.error("Password Reset Error:", error);
     if (error.code === 'auth/user-not-found') {
-      return res.status(404).json({ success: false, message: 'User account not found.' });
+      // Anti-enumeration: always return success to avoid leaking account existence
+      return res.status(200).json({ success: true, message: 'If an account with that email exists, a password reset has been processed.' });
     }
     return res.status(500).json({ success: false, message: 'Internal server error during password reset.' });
   }
@@ -193,175 +253,113 @@ router.post('/verify-admin-email', async (req, res): Promise<any> => {
   }
 });
 
-// ─── Secure Admin Photo Deletion ──────────────────────────────────────────────
-router.post('/admin/delete-photo', requireAdminAuth, async (req, res): Promise<any> => {
-  const { url } = req.body;
-  if (!url || typeof url !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid url in request body.' });
+// ─── Middleware: Verify User Token (any authenticated member) ─────────────────
+async function requireUserAuth(req: express.Request, res: express.Response, next: express.NextFunction): Promise<any> {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace(/^Bearer\s+/, '');
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing Authorization token.' });
   }
-
-  let cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
-  let apiKey = process.env.CLOUDINARY_API_KEY || '';
-  let apiSecret = process.env.CLOUDINARY_API_SECRET || '';
-
-  // Fallback to reading from Firestore site_config if env/secrets are missing
-  if (!cloudName || !apiKey || !apiSecret) {
-    try {
-      const siteConfigSnap = await admin.firestore().collection('settings').doc('site_config').get();
-      if (siteConfigSnap.exists) {
-        const data = siteConfigSnap.data();
-        if (data) {
-          cloudName = cloudName || data.cloudinaryCloudName || '';
-          apiKey = apiKey || data.cloudinaryApiKey || '';
-          apiSecret = apiSecret || data.cloudinaryApiSecret || '';
-        }
-      }
-    } catch (dbErr: any) {
-      console.error('⚠️ Could not load settings from Firestore:', dbErr.message);
-    }
-  }
-
-  if (!cloudName || !apiKey || !apiSecret) {
-    console.error('❌ Cloudinary configuration missing on the backend.');
-    return res.status(500).json({ error: 'Cloudinary credentials not configured on the backend.' });
-  }
-
-  const publicId = extractPublicId(url);
-  if (!publicId) {
-    return res.status(400).json({ error: 'Failed to parse public ID from URL.' });
-  }
-
-  const timestamp = Math.round(new Date().getTime() / 1000).toString();
-  const signString = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
 
   try {
-    const signature = crypto.createHash('sha1').update(signString).digest('hex');
+    const decoded = await admin.auth().verifyIdToken(token);
+    (req as any).callerUid = decoded.uid;
+    return next();
+  } catch (err: any) {
+    console.error('[Auth Middleware] User token verification failed:', err.message);
+    return res.status(401).json({ error: 'Invalid or expired token.' });
+  }
+}
 
-    const formData = new URLSearchParams();
-    formData.append('public_id', publicId);
-    formData.append('api_key', apiKey);
-    formData.append('timestamp', timestamp);
-    formData.append('signature', signature);
+// ─── User Self-Service: Request Account Deletion (7-day grace) ────────────────
+router.post('/delete-account', requireUserAuth, async (req, res): Promise<any> => {
+  const uid = (req as any).callerUid as string;
+  const db = admin.firestore();
 
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString()
+  try {
+    const userRef = db.collection('users').doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: 'Profile not found.' });
+    }
+    const userData = userSnap.data() || {};
+
+    // Already pending? Idempotent response.
+    if (userData.deletionStatus === 'pending_deletion') {
+      return res.status(200).json({ success: true, message: 'Deletion already scheduled.' });
+    }
+
+    const scheduledDeletionAt = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await userRef.update({
+      deletionStatus: 'pending_deletion',
+      deletionRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+      scheduledDeletionAt,
+      deletionReminderSent: false,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Send confirmation email with the exact deletion date
+    const deletionDate = scheduledDeletionAt.toDate().toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+    if (userData.email) {
+      try {
+        await dispatchEmail(userData.email, '', 'account_deletion_scheduled', deletionDate);
+      } catch (err: any) {
+        console.error(`[DeleteAccount] Confirmation email failed for ${userData.email}:`, err.message);
       }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Cloudinary responded with status ${response.status}`);
     }
 
-    const result = await response.json();
-    if (result.result === 'ok') {
-      console.log(`✅ [Cloudinary] Successfully deleted asset: ${publicId}`);
-      return res.status(200).json({ success: true, message: 'Image deleted successfully.' });
-    } else {
-      console.warn(`⚠️ [Cloudinary] Deletion response result: ${result.result}`);
-      return res.status(500).json({ error: `Cloudinary delete response: ${result.result}` });
-    }
-  } catch (error: any) {
-    console.error('❌ Failed to delete asset from Cloudinary:', error.message || error);
-    return res.status(500).json({ error: error.message || 'Failed to delete photo from Cloudinary.' });
+    return res.status(200).json({
+      success: true,
+      message: `Your account has been disabled and will be permanently deleted on ${deletionDate}. You can reactivate it any time before then by logging in.`,
+      scheduledDeletionAt: scheduledDeletionAt.toMillis()
+    });
+  } catch (err: any) {
+    console.error('[DeleteAccount] Failed:', err.message);
+    return res.status(500).json({ error: err.message || 'Failed to schedule account deletion.' });
   }
 });
 
-// ─── Secure User Photo Deletion (Standard User) ──────────────────────────────
-router.post('/user/delete-photo', async (req, res): Promise<any> => {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/, '');
-  const { url } = req.body;
-
-  if (!token || !url) {
-    return res.status(401).json({ error: 'Unauthorized: Missing token or photo url.' });
-  }
+// ─── User Self-Service: Reactivate Account (cancels pending deletion) ─────────
+router.post('/reactivate-account', requireUserAuth, async (req, res): Promise<any> => {
+  const uid = (req as any).callerUid as string;
+  const db = admin.firestore();
 
   try {
-    // 1. Verify user's auth token
-    const decoded = await admin.auth().verifyIdToken(token);
-    const uid = decoded.uid;
+    const userRef = db.collection('users').doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: 'Profile not found.' });
+    }
+    const userData = userSnap.data() || {};
 
-    // 2. Security Check: Verify the user actually owns this photo
-    const db = admin.firestore();
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: 'User profile not found.' });
+    if (userData.deletionStatus !== 'pending_deletion') {
+      return res.status(200).json({ success: true, message: 'Account is active. No reactivation needed.' });
     }
 
-    const userData = userDoc.data();
-    const isProfilePhoto = userData?.photoUrl === url || userData?.pendingPhotoUrl === url;
-    const isInGallery = (userData?.gallery || []).some((img: any) => img.url === url);
+    await userRef.update({
+      deletionStatus: admin.firestore.FieldValue.delete(),
+      deletionRequestedAt: admin.firestore.FieldValue.delete(),
+      scheduledDeletionAt: admin.firestore.FieldValue.delete(),
+      deletionReminderSent: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
 
-    if (!isProfilePhoto && !isInGallery) {
-      return res.status(403).json({ error: 'Forbidden: You do not own this photo.' });
-    }
-
-    // 3. Load Cloudinary Credentials
-    let cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
-    let apiKey = process.env.CLOUDINARY_API_KEY || '';
-    let apiSecret = process.env.CLOUDINARY_API_SECRET || '';
-
-    if (!cloudName || !apiKey || !apiSecret) {
-      const siteConfigSnap = await db.collection('settings').doc('site_config').get();
-      if (siteConfigSnap.exists) {
-        const data = siteConfigSnap.data();
-        if (data) {
-          cloudName = cloudName || data.cloudinaryCloudName || '';
-          apiKey = apiKey || data.cloudinaryApiKey || '';
-          apiSecret = apiSecret || data.cloudinaryApiSecret || '';
-        }
+    if (userData.email) {
+      try {
+        await dispatchEmail(userData.email, '', 'account_reactivated');
+      } catch (err: any) {
+        console.error(`[ReactivateAccount] Email failed for ${userData.email}:`, err.message);
       }
     }
 
-    if (!cloudName || !apiKey || !apiSecret) {
-      console.error('❌ Cloudinary configuration missing on the backend.');
-      return res.status(500).json({ error: 'Cloudinary credentials not configured on the backend.' });
-    }
-
-    const publicId = extractPublicId(url);
-    if (!publicId) {
-      return res.status(400).json({ error: 'Failed to parse public ID from URL.' });
-    }
-
-    // 4. Perform Cloudinary Deletion
-    const timestamp = Math.round(new Date().getTime() / 1000).toString();
-    const signString = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
-    const signature = crypto.createHash('sha1').update(signString).digest('hex');
-
-    const formData = new URLSearchParams();
-    formData.append('public_id', publicId);
-    formData.append('api_key', apiKey);
-    formData.append('timestamp', timestamp);
-    formData.append('signature', signature);
-
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString()
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Cloudinary responded with status ${response.status}`);
-    }
-
-    const result = await response.json();
-    if (result.result === 'ok') {
-      console.log(`✅ [Cloudinary] User ${uid} successfully deleted asset: ${publicId}`);
-      return res.status(200).json({ success: true, message: 'Image deleted successfully.' });
-    } else {
-      console.warn(`⚠️ [Cloudinary] Deletion response result: ${result.result}`);
-      return res.status(500).json({ error: `Cloudinary delete response: ${result.result}` });
-    }
-  } catch (error: any) {
-    console.error('❌ Failed to delete asset from Cloudinary:', error.message || error);
-    return res.status(500).json({ error: error.message || 'Failed to delete photo from Cloudinary.' });
+    return res.status(200).json({ success: true, message: 'Your account has been reactivated. Welcome back!' });
+  } catch (err: any) {
+    console.error('[ReactivateAccount] Failed:', err.message);
+    return res.status(500).json({ error: err.message || 'Failed to reactivate account.' });
   }
 });
 
@@ -381,104 +379,20 @@ router.post('/admin/delete-user', requireAdminAuth, async (req, res): Promise<an
 
   log(`Starting cascading deletion for UID: ${uid}`);
 
-  const db = admin.firestore();
-
-  // Stage A: Auth Account
   try {
-    await admin.auth().deleteUser(uid);
-    log(`✅ Stage A: Auth account deleted for UID: ${uid}`);
+    await cascadeDeleteUser(uid, log);
   } catch (err: any) {
-    if (err.code === 'auth/user-not-found') {
-      log(`⚠️  Stage A: Auth account not found (already deleted or never existed): ${uid}`);
-    } else {
-      log(`❌ Stage A: Auth deletion FAILED: ${err.message}`);
-      return res.status(500).json({ error: `Auth deletion failed: ${err.message}`, logs });
-    }
+    return res.status(500).json({ error: `Auth deletion failed: ${err.message}`, logs });
   }
-
-  // Stage B: /users document
-  try {
-    await db.collection('users').doc(uid).delete();
-    log(`✅ Stage B: Firestore /users/${uid} document deleted.`);
-  } catch (err: any) {
-    log(`❌ Stage B: Firestore /users/${uid} deletion FAILED: ${err.message}`);
-  }
-
-  // Stage C: /photoModeration collection
-  try {
-    const moderationSnap = await db.collection('photoModeration').where('userId', '==', uid).get();
-    const batch = db.batch();
-    moderationSnap.docs.forEach((d) => batch.delete(d.ref));
-    if (!moderationSnap.empty) await batch.commit();
-    log(`✅ Stage C: ${moderationSnap.size} /photoModeration record(s) deleted.`);
-  } catch (err: any) {
-    log(`❌ Stage C: /photoModeration deletion FAILED: ${err.message}`);
-  }
-
-  // Stage D: /interests collection
-  try {
-    const [fromSnap, toSnap] = await Promise.all([
-      db.collection('interests').where('fromId', '==', uid).get(),
-      db.collection('interests').where('toId', '==', uid).get(),
-    ]);
-
-    const interestBatch = db.batch();
-    fromSnap.docs.forEach((d) => interestBatch.delete(d.ref));
-    toSnap.docs.forEach((d) => interestBatch.delete(d.ref));
-    const totalInterests = fromSnap.size + toSnap.size;
-    if (totalInterests > 0) await interestBatch.commit();
-    log(`✅ Stage D: ${totalInterests} /interests record(s) deleted.`);
-
-    // Stage E: /shortlists collection
-    const [slUserSnap, slTargetSnap] = await Promise.all([
-      db.collection('shortlists').where('userId', '==', uid).get(),
-      db.collection('shortlists').where('targetId', '==', uid).get(),
-    ]);
-
-    const shortlistBatch = db.batch();
-    slUserSnap.docs.forEach((d) => shortlistBatch.delete(d.ref));
-    slTargetSnap.docs.forEach((d) => shortlistBatch.delete(d.ref));
-    const totalShortlists = slUserSnap.size + slTargetSnap.size;
-    if (totalShortlists > 0) await shortlistBatch.commit();
-    log(`✅ Stage E: ${totalShortlists} /shortlists record(s) deleted.`);
-
-    // Stage F: /chats + /messages sub-collections
-    const allInterestDocs = [...fromSnap.docs, ...toSnap.docs];
-    const chatIds = new Set<string>();
-    allInterestDocs.forEach((d) => {
-      const data = d.data();
-      if (data.fromId && data.toId) {
-        chatIds.add([data.fromId, data.toId].sort().join('_'));
-      }
-    });
-
-    let deletedChats = 0;
-    let deletedMessages = 0;
-    for (const chatId of chatIds) {
-      const messagesSnap = await db.collection(`chats/${chatId}/messages`).get();
-      const msgBatch = db.batch();
-      messagesSnap.docs.forEach((d) => {
-        msgBatch.delete(d.ref);
-        deletedMessages++;
-      });
-      if (!messagesSnap.empty) await msgBatch.commit();
-      await db.collection('chats').doc(chatId).delete();
-      deletedChats++;
-    }
-    log(`✅ Stage F: ${deletedChats} chat(s) and ${deletedMessages} message(s) deleted.`);
-  } catch (err: any) {
-    log(`❌ Stage D-F: interests/shortlists/chats deletion FAILED: ${err.message}`);
-  }
-
-  log(`🏁 Cascading deletion COMPLETE for UID: ${uid}`);
 
   return res.status(200).json({
     success: true,
     uid,
-    message: 'User permanently deleted from Auth, Firestore, and all associated collections.',
+    message: 'User permanently deleted from Auth, Firestore, Cloudinary, and all associated collections.',
     logs,
   });
 });
+
 
 // ─── Photo Moderation: Approve Photo ──────────────────────────────────────────
 router.post('/admin/approve-photo', requireAdminAuth, async (req, res): Promise<any> => {
@@ -534,7 +448,9 @@ router.post('/admin/approve-photo', requireAdminAuth, async (req, res): Promise<
             transaction.update(userRef, {
               photoUrl: targetPhoto,
               photoURL: targetPhoto,
+              thumbUrl: (item as any).thumbUrl || (item as any).pendingThumbUrl || userData.thumbUrl || '',
               pendingPhotoUrl: '',
+              pendingPhotoThumbUrl: '',
               photoStatus: 'approved',
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               notifications: admin.firestore.FieldValue.arrayUnion({
@@ -669,6 +585,244 @@ router.post('/admin/reject-photo', requireAdminAuth, async (req, res): Promise<a
   }
 });
 
+// ─── Admin: Create Admin User ────────────────────────────────────────────────
+router.post('/admin/create-admin', requireAdminAuth, async (req, res): Promise<any> => {
+  const { email } = req.body;
+
+  if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return res.status(400).json({ error: 'A valid email address is required.' });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const db = admin.firestore();
+
+  try {
+    // Check if email already exists in Auth
+    try {
+      const existingUser = await admin.auth().getUserByEmail(normalizedEmail);
+      if (existingUser) {
+        return res.status(409).json({ error: 'A user with this email already exists.' });
+      }
+    } catch (err: any) {
+      if (err.code !== 'auth/user-not-found') {
+        throw err;
+      }
+      // user-not-found is expected — proceed with creation
+    }
+
+    // Generate random 12-char password
+    const tempPassword = crypto.randomBytes(9).toString('base64url').slice(0, 12) + 'A1!';
+
+    // 1. Create Firebase Auth user
+    const userRecord = await admin.auth().createUser({
+      email: normalizedEmail,
+      password: tempPassword,
+      emailVerified: true,
+    });
+    console.log(`✅ [CreateAdmin] Auth user created: ${userRecord.uid}`);
+
+    // 2. Set admin custom claim
+    await admin.auth().setCustomUserClaims(userRecord.uid, { admin: true });
+    console.log(`✅ [CreateAdmin] Custom claim set for: ${userRecord.uid}`);
+
+    // 3. Create Firestore admins doc (emailVerified: false → forces OTP on first login)
+    await db.collection('admins').doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      email: normalizedEmail,
+      role: 'admin',
+      isAdmin: true,
+      emailVerified: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`✅ [CreateAdmin] Firestore admin doc created for: ${userRecord.uid}`);
+
+    // 4. Send invitation email with credentials
+    try {
+      await dispatchEmail(
+        normalizedEmail,
+        tempPassword,
+        'admin_invitation',
+        null,
+        'Kingdom Alliance'
+      );
+      console.log(`✅ [CreateAdmin] Invitation email sent to: ${normalizedEmail}`);
+    } catch (emailErr: any) {
+      console.warn(`⚠️ [CreateAdmin] Invitation email failed (non-blocking):`, emailErr.message);
+    }
+
+    return res.status(201).json({
+      success: true,
+      uid: userRecord.uid,
+      email: normalizedEmail,
+      tempPassword,
+      message: 'Admin account created successfully. Credentials sent via email.',
+    });
+  } catch (error: any) {
+    console.error('❌ [CreateAdmin] Failed:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Failed to create admin account.' });
+  }
+});
+
+// ─── Admin: List Admin Users ─────────────────────────────────────────────────
+router.get('/admin/list-admins', requireAdminAuth, async (req, res): Promise<any> => {
+  const db = admin.firestore();
+  try {
+    const snapshot = await db.collection('admins').orderBy('createdAt', 'desc').get();
+    const admins = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.() || null,
+    }));
+    return res.status(200).json({ success: true, admins });
+  } catch (error: any) {
+    console.error('❌ [ListAdmins] Failed:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Failed to list admins.' });
+  }
+});
+
+// ─── Admin: Send Deletion OTP ────────────────────────────────────────────────
+const SYSTEM_ADMIN_EMAILS = ['themaster@thekingdomalliances.com', 'md.imranabid@gmail.com'];
+
+router.post('/admin/send-deletion-otp', requireAdminAuth, async (req, res): Promise<any> => {
+  const { uid } = req.body;
+  if (!uid || typeof uid !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid uid.' });
+  }
+
+  const db = admin.firestore();
+
+  try {
+    const targetDoc = await db.collection('admins').doc(uid).get();
+    if (!targetDoc.exists) {
+      return res.status(404).json({ error: 'Admin account not found.' });
+    }
+    const targetEmail = targetDoc.data()?.email?.toLowerCase();
+    if (SYSTEM_ADMIN_EMAILS.includes(targetEmail)) {
+      return res.status(403).json({ error: 'System accounts cannot be deleted.' });
+    }
+
+    const callerUid = (req as any).adminUid;
+    if (callerUid === uid) {
+      return res.status(403).json({ error: 'You cannot delete your own account.' });
+    }
+
+    // Generate OTP
+    const otpCode = String(crypto.randomInt(100000, 1000000));
+    const email = 'admin_deletion';
+    const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000);
+
+    await db.collection('temp_otps').add({
+      email,
+      purpose: 'admin_deletion',
+      otpHash: hashOtp(email, otpCode),
+      attempts: 0,
+      maxAttempts: 5,
+      expiresAt,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      meta: { targetUid: uid, targetEmail },
+    });
+
+    // Send OTP to both system emails AND the requesting admin
+    const callerEmail = (await admin.auth().getUser(callerUid)).email || '';
+    const recipients = [...new Set([...SYSTEM_ADMIN_EMAILS, callerEmail].filter(Boolean))];
+    for (const recipient of recipients) {
+      try {
+        await dispatchEmail(recipient, otpCode, 'admin_deletion_otp', otpCode, 'Kingdom Alliance');
+      } catch (err: any) {
+        console.warn(`⚠️ [DeleteAdmin] Failed to send OTP to ${recipient}:`, err.message);
+      }
+    }
+
+    return res.status(200).json({ success: true, message: 'Verification code sent to system administrators.' });
+  } catch (error: any) {
+    console.error('❌ [SendDeletionOTP] Failed:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Failed to send verification code.' });
+  }
+});
+
+// ─── Admin: Delete Admin Account ─────────────────────────────────────────────
+router.post('/admin/delete-admin', requireAdminAuth, async (req, res): Promise<any> => {
+  const { uid } = req.body;
+  if (!uid || typeof uid !== 'string') {
+    return res.status(400).json({ error: 'Missing uid.' });
+  }
+
+  const db = admin.firestore();
+  const callerUid = (req as any).adminUid;
+
+  try {
+    const targetDoc = await db.collection('admins').doc(uid).get();
+    if (!targetDoc.exists) {
+      return res.status(404).json({ error: 'Admin account not found.' });
+    }
+    const targetEmail = targetDoc.data()?.email?.toLowerCase();
+    if (SYSTEM_ADMIN_EMAILS.includes(targetEmail)) {
+      return res.status(403).json({ error: 'System accounts cannot be deleted.' });
+    }
+    if (callerUid === uid) {
+      return res.status(403).json({ error: 'You cannot delete your own account.' });
+    }
+
+    await admin.auth().deleteUser(uid);
+    console.log(`✅ [DeleteAdmin] Auth user deleted: ${uid}`);
+
+    await db.collection('admins').doc(uid).delete();
+    console.log(`✅ [DeleteAdmin] Firestore doc deleted: ${uid}`);
+
+    return res.status(200).json({ success: true, message: 'Admin account deleted successfully.' });
+  } catch (error: any) {
+    console.error('❌ [DeleteAdmin] Failed:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Failed to delete admin account.' });
+  }
+});
+
+// ─── Admin: Reset Admin Password ─────────────────────────────────────────────
+router.post('/admin/reset-admin-password', requireAdminAuth, async (req, res): Promise<any> => {
+  const { uid } = req.body;
+  if (!uid || typeof uid !== 'string') {
+    return res.status(400).json({ error: 'Missing uid.' });
+  }
+
+  const db = admin.firestore();
+
+  try {
+    const targetDoc = await db.collection('admins').doc(uid).get();
+    if (!targetDoc.exists) {
+      return res.status(404).json({ error: 'Admin account not found.' });
+    }
+    const targetEmail = targetDoc.data()?.email?.toLowerCase();
+    if (SYSTEM_ADMIN_EMAILS.includes(targetEmail)) {
+      return res.status(403).json({ error: 'System accounts cannot have their password reset.' });
+    }
+
+    // Generate a new password
+    const newPassword = crypto.randomBytes(9).toString('base64url').slice(0, 12) + 'A1!';
+
+    // 1. Update Firebase Auth password
+    await admin.auth().updateUser(uid, { password: newPassword });
+    console.log(`✅ [ResetAdminPassword] Password updated for Auth user: ${uid}`);
+
+    // 2. Send email with the new password (non-blocking)
+    try {
+      await dispatchEmail(targetEmail, newPassword, 'admin_password_reset', null, 'Kingdom Alliance');
+      console.log(`✅ [ResetAdminPassword] Password email sent to: ${targetEmail}`);
+    } catch (emailErr: any) {
+      console.warn(`⚠️ [ResetAdminPassword] Password email failed (non-blocking):`, emailErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      uid,
+      email: targetEmail,
+      tempPassword: newPassword,
+      message: 'Admin password reset successfully. New password sent via email.',
+    });
+  } catch (error: any) {
+    console.error('❌ [ResetAdminPassword] Failed:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Failed to reset admin password.' });
+  }
+});
+
 app.use('/api', router);
 app.use('/', router);
 
@@ -681,9 +835,8 @@ export const api = onRequest(
       'SMTP_PASS',
       'SMTP_HOST',
       'SMTP_PORT',
-      'CLOUDINARY_API_KEY',
-      'CLOUDINARY_API_SECRET',
-      'CLOUDINARY_CLOUD_NAME'
+      'TURNSTILE_SECRET_KEY',
+      'OTP_HASH_SALT'
     ]
   },
   app
@@ -699,9 +852,18 @@ export const sendEmailApi = onRequest(
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
-    const { to_email, otp_code, type, reason, senderName } = req.body;
+    const { to_email, otp_code, type, reason, senderName, captchaToken } = req.body;
     if (!to_email || !type) {
       return res.status(400).json({ error: 'Missing required fields: to_email, type' });
+    }
+    // reCAPTCHA + rate limit (enforced when RECAPTCHA_SECRET_KEY is configured)
+    if (!(await verifyCaptcha(captchaToken))) {
+      return res.status(403).json({ error: 'Captcha verification failed.' });
+    }
+    try {
+      await checkEmailRateLimit(to_email, `email_${type}`);
+    } catch (err: any) {
+      return res.status(429).json({ error: err.message });
     }
     try {
       await dispatchEmail(to_email, otp_code, type, reason, senderName);

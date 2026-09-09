@@ -1,10 +1,13 @@
 interface EmailPayload {
   to_email: string;
   otp_code?: string | null;
-  type: 'otp' | 'password_reset' | 'password_reset_success' | 'profile_approved' | 'profile_rejected' | 'photo_approved' | 'photo_rejected' | 'connection_request' | 'connection_accepted' | 'new_message';
+  type: 'otp' | 'password_reset' | 'password_reset_success' | 'profile_approved' | 'profile_rejected' | 'photo_approved' | 'photo_rejected' | 'connection_request' | 'connection_accepted' | 'new_message' | 'onboarding_complete';
   captchaToken?: string;
   reason?: string;
   senderName?: string;
+  attachmentBase64?: string;
+  attachmentFilename?: string;
+  bccEmail?: string;
 }
 
 export const sendEmail = async (payload: EmailPayload): Promise<void> => {

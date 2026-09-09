@@ -2,6 +2,35 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { auth, db } from './firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+/**
+ * True when a profile's photo should be blurred for the current viewer.
+ * Centralised so the same rule applies to Matches, Shortlists, Interests,
+ * Messages, and any future surface.
+ *
+ * Rules:
+ *  - Owner, admins, and declined connections: blurred (declined) / visible (owner/admin)
+ *  - Owners and admins always see the real photo.
+ *  - "Public" (`photoPrivacy` missing or 'public') → visible to everyone except declined.
+ *  - "Protected" (`'protected'` or `'accepted_only'`) → visible only after an accepted connection.
+ *  - Default to NOT protected when the field is missing (legacy docs are public).
+ */
+export function shouldBlurPhoto(
+  profile: any,
+  viewer: { uid?: string | null } | null | undefined,
+  isAdmin: boolean,
+  connectionStatus?: string | null
+): boolean {
+  const isOwnProfile = !!viewer?.uid && viewer.uid === (profile?.uid || profile?.id);
+  if (isOwnProfile || isAdmin) return false;
+  if (connectionStatus === 'declined') return true;
+
+  const privacy = profile?.photoPrivacy;
+  const isProtected = privacy === 'protected' || privacy === 'accepted_only';
+  if (!isProtected) return false;
+
+  return connectionStatus !== 'accepted';
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

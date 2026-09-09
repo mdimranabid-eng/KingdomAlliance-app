@@ -16,15 +16,21 @@ import {
   updateDoc,
   writeBatch,
   or,
-  and
+  and,
+  arrayUnion,
+  arrayRemove,
+  deleteField
 } from 'firebase/firestore';
 import { db, rtdb } from '../lib/firebase';
-import { ref, set, onValue, onDisconnect, remove, get } from 'firebase/database';
+import { ref, set, onValue, onDisconnect, remove } from 'firebase/database';
 import { useAuth } from '../lib/AuthContext';
-import { sendEmail } from '../lib/email';
+
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, User, ChevronLeft, Info, Search, Heart, MessageCircle } from 'lucide-react';
+import { Send, User, ChevronLeft, Info, Search, Heart, MessageCircle, ShieldAlert, MoreVertical, Trash2, Check } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
+import { OnlineIndicator } from '../components/OnlineIndicator';
+import ConfirmationModal from '../components/ConfirmationModal';
+import toast from 'react-hot-toast';
 
 export default function MessagesPage() {
   const { id: activeChatUserId } = useParams();
@@ -43,6 +49,16 @@ export default function MessagesPage() {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isOnline, setIsOnline] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleClickOutside = () => setShowMenu(false);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showMenu]);
 
   // If chatWith query param exists, redirect to the actual channel if allowed
   useEffect(() => {
@@ -292,6 +308,65 @@ export default function MessagesPage() {
     return () => unsubscribe();
   }, [activeChatUser?.id]);
 
+  const handleBlock = async () => {
+    if (!currentUser || !activeChatUserId || !connectionState || blocking) return;
+    setBlocking(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'declined',
+        declinedBy: currentUser.uid,
+        blocked: true
+      });
+
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        blockedUsers: arrayUnion(activeChatUserId)
+      });
+
+      const notifRef = collection(db, 'notifications');
+      const batch = writeBatch(db);
+
+      const qNotif1 = query(notifRef, where('userId', '==', currentUser.uid), where('fromId', '==', activeChatUserId));
+      const snapNotif1 = await getDocs(qNotif1);
+      snapNotif1.docs.forEach(d => batch.delete(d.ref));
+
+      await batch.commit();
+
+      setConnectionState({ ...connectionState, status: 'declined', declinedBy: currentUser.uid, blocked: true });
+      toast.success('User blocked');
+      navigate('/messages');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to block user.');
+    } finally {
+      setBlocking(false);
+      setShowBlockConfirm(false);
+    }
+  };
+
+  const handleUnblock = async () => {
+    if (!currentUser || !activeChatUserId || !connectionState || blocking) return;
+    setBlocking(true);
+    try {
+      await updateDoc(doc(db, 'interests', connectionState.id), {
+        status: 'accepted',
+        blocked: deleteField(),
+        declinedBy: deleteField()
+      });
+
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        blockedUsers: arrayRemove(activeChatUserId)
+      });
+
+      setConnectionState({ ...connectionState, status: 'accepted', blocked: false });
+      toast.success('User unblocked. Connection restored.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to unblock user.');
+    } finally {
+      setBlocking(false);
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !currentUser || !activeChatUserId) return;
@@ -326,88 +401,41 @@ export default function MessagesPage() {
         createdAt: serverTimestamp()
       });
 
-      // Fetch recipient email to dispatch notification
-      // --- SESSION-BASED EMAIL DIGEST START ---
-      // Check recipient's live status in RTDB
-      const recipientStatusRef = ref(rtdb, `status/${activeChatUserId}`);
-      const statusSnapshot = await get(recipientStatusRef);
-      const statusData = statusSnapshot.val();
-
-      // --- DEBUG LOGS START ---
-      console.log("DEBUG: Checking status for:", activeChatUserId);
-      console.log("DEBUG: Status data:", statusData);
-
-      // Only proceed if recipient is offline
-      if (!statusData || statusData.state === 'offline') {
-        console.log("DEBUG: Recipient is offline. Checking timestamps...");
-        const recipientSnap = await getDoc(
-          doc(db, 'users', activeChatUserId)
-        );
-        if (recipientSnap.exists()) {
-          const userData = recipientSnap.data();
-
-          const lastActive = userData?.lastActive?.toMillis() || 0;
-          const lastEmailSent = userData?.lastEmailSent?.toMillis() || 0;
-
-          console.log("DEBUG: lastEmailSent:", lastEmailSent, "lastActive:", lastActive);
-
-          // Send ONE email per offline session only
-          // lastEmailSent < lastActive means no email sent
-          // since they last logged in
-          if (lastEmailSent < lastActive) {
-            console.log("DEBUG: Condition met. Calling sendEmail...");
-            await sendEmail({
-              to_email: userData.email,
-              type: 'new_message',
-              senderName: currentUser.displayName || 'A member'
-            });
-            await updateDoc(doc(db, 'users', activeChatUserId), {
-              lastEmailSent: serverTimestamp()
-            });
-          } else {
-            console.log("DEBUG: Condition failed. Email already sent in this session.");
-          }
-        }
-      } else {
-         console.log("DEBUG: Recipient is online. Skipping email.");
-      }
-      // --- DEBUG LOGS END ---
-      // --- SESSION-BASED EMAIL DIGEST END ---
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `chats/${chatId}/messages`);
     }
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex glass-card rounded-[2.5rem] overflow-hidden">
+    <div className="h-[calc(100vh-8rem)] flex bg-white border border-[#eee7d8] shadow-[0_20px_50px_-25px_rgba(143,99,55,0.18)] rounded-[2.5rem] overflow-hidden">
       {/* Sidebar - Chat List */}
       <aside className={cn(
-        "w-full md:w-80 border-r border-outline-variant flex flex-col transition-all duration-300",
+        "w-full md:w-80 border-r border-[#e2ddd2] flex flex-col transition-all duration-300",
         activeChatUserId ? "hidden md:flex" : "flex"
       )}>
-        <div className="p-6 border-b border-outline-variant space-y-4">
-          <h2 className="font-headline text-2xl text-on-surface">Messages</h2>
+        <div className="p-6 border-b border-[#e2ddd2] space-y-4">
+          <h2 className="font-headline text-2xl text-[#4a3521]">Messages</h2>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a7a63]" />
             <input
               type="text"
               placeholder="Search conversations..."
-              className="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary"
+              className="w-full pl-10 pr-4 py-2 bg-[#f7f2e9] border border-[#e2ddd2] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#C9A84C]"
             />
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="p-8 text-center text-on-surface-variant">Loading chats...</div>
+            <div className="p-8 text-center text-[#8a7a63]">Loading chats...</div>
           ) : chats.length === 0 ? (
             <div className="p-12 text-center space-y-4">
-              <MessageCircle className="w-12 h-12 text-on-surface-variant/30 mx-auto" />
-              <p className="text-sm text-on-surface-variant">No conversations yet. Start by sending an interest to matches!</p>
-              <Link to="/matches" className="inline-block text-primary font-bold text-sm underline">Find Matches</Link>
+              <MessageCircle className="w-12 h-12 text-[#8a7a63]/30 mx-auto" />
+              <p className="text-sm text-[#8a7a63]">No conversations yet. Start by sending an interest to matches!</p>
+              <Link to="/matches" className="inline-block text-[#8f6337] font-bold text-sm underline">Find Matches</Link>
             </div>
           ) : (
-            <div className="divide-y divide-outline-variant/30">
+            <div className="divide-y divide-[#eee5d2]/30">
               {chats.map((chat) => {
                 const isActive = connectionState?.status === 'accepted';
                 const isLocked = activeChatUserId === chat.id && !isActive;
@@ -416,24 +444,27 @@ export default function MessagesPage() {
                     key={chat.id}
                     to={`/messages/${chat.id}`}
                     className={cn(
-                      "flex items-center gap-4 p-4 hover:bg-surface-variant transition-colors",
-                      activeChatUserId === chat.id && "bg-primary/5",
+                      "flex items-center gap-4 p-4 hover:bg-[#faf4ea] transition-colors",
+                      activeChatUserId === chat.id && "bg-[#faf4ea]",
                       isLocked && "opacity-50 grayscale pointer-events-none"
                     )}
                   >
-                    <div className="w-12 h-12 rounded-full border border-primary-container overflow-hidden flex-shrink-0">
+                    <div className="w-12 h-12 rounded-full border border-[#e2ddd2] overflow-hidden flex-shrink-0 relative">
                       <img src={chat.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.id}`} alt="" className="w-full h-full object-cover" />
+                      <div className="absolute -bottom-0.5 -right-0.5">
+                        <OnlineIndicator uid={chat.id} initialLastActive={chat.lastActive} />
+                      </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center">
-                        <h4 className="font-bold text-on-surface truncate">
+                        <h4 className="font-bold text-[#4a3521] truncate">
                           {chat.name}
                         </h4>
                         {chat.hasUnread && (
                           <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
                         )}
                       </div>
-                      <p className="text-xs text-on-surface-variant truncate">Click to start chatting</p>
+                      <p className="text-xs text-[#8a7a63] truncate">Click to start chatting</p>
                     </div>
                   </Link>
                 );
@@ -445,35 +476,35 @@ export default function MessagesPage() {
 
       {/* Main Chat Area */}
       <main className={cn(
-        "flex-1 flex flex-col bg-surface transition-all duration-300",
-        !activeChatUserId && "hidden md:flex items-center justify-center text-center p-12 bg-surface-container-low"
+        "flex-1 flex flex-col bg-white transition-all duration-300",
+        !activeChatUserId && "hidden md:flex items-center justify-center text-center p-12 bg-[#f7f2e9]"
       )}>
         {!activeChatUserId ? (
           <div className="max-w-xs space-y-4">
-            <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center mx-auto text-primary/30">
+            <div className="w-20 h-20 bg-[#faf4ea] rounded-[2rem] flex items-center justify-center mx-auto text-[#8f6337]/30">
               <MessageCircle className="w-10 h-10" />
             </div>
-            <h3 className="font-headline text-2xl text-on-surface">Your Sanctuary for Connection</h3>
-            <p className="text-sm text-on-surface-variant leading-relaxed">
+            <h3 className="font-headline text-2xl text-[#4a3521]">Your Sanctuary for Connection</h3>
+            <p className="text-sm text-[#8a7a63] leading-relaxed">
               Select a conversation to start building a meaningful relationship rooted in faith.
             </p>
           </div>
         ) : (
           <>
             {/* Chat Header */}
-            <header className="h-20 bg-surface border-b border-outline-variant flex items-center justify-between px-6">
+            <header className="h-20 bg-white border-b border-[#e2ddd2] flex items-center justify-between px-6">
               <div className="flex items-center gap-4">
-                <Link to="/messages" className="md:hidden p-2 hover:bg-surface-container rounded-lg">
-                  <ChevronLeft className="w-6 h-6 text-on-surface" />
+                <Link to="/messages" className="md:hidden p-2 hover:bg-[#faf4ea] rounded-lg">
+                  <ChevronLeft className="w-6 h-6 text-[#4a3521]" />
                 </Link>
                 {activeChatUser && (
                   <Link to={`/profile/${activeChatUser.id}`} className="flex items-center gap-3 group">
-                    <div className="w-10 h-10 rounded-full border border-primary-container overflow-hidden">
+                    <div className="w-10 h-10 rounded-full border border-[#e2ddd2] overflow-hidden">
                       <img src={activeChatUser.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeChatUser.id}`} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <div className="flex items-center">
-                        <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors">{activeChatUser.name}</h4>
+                        <h4 className="member-name member-name-sm text-[21px] leading-tight text-[#4a3521] group-hover:text-[#8f6337] transition-colors">{activeChatUser.name}</h4>
                         {isOnline && (
                           <span className="relative flex h-2.5 w-2.5 ml-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -490,15 +521,48 @@ export default function MessagesPage() {
                   </Link>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-surface-container rounded-xl text-on-surface-variant"><Info className="w-5 h-5" /></button>
+              <div className="flex items-center gap-2 relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                  className="p-2 hover:bg-[#faf4ea] rounded-xl text-[#8a7a63]"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+                {showMenu && (
+                  <div onClick={(e) => e.stopPropagation()} className="absolute right-0 top-12 bg-white border border-[#e2ddd2] rounded-xl shadow-lg z-50 min-w-[180px] py-1">
+                    <button
+                      onClick={() => { setShowMenu(false); navigate(`/profile/${activeChatUserId}`); }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-[#4a3521] hover:bg-[#faf4ea] flex items-center gap-2"
+                    >
+                      <Info className="w-4 h-4" />
+                      View Profile
+                    </button>
+                    {connectionState?.declinedBy === currentUser?.uid && (connectionState?.blocked || connectionState?.status === 'declined') ? (
+                      <button
+                        onClick={() => { setShowMenu(false); handleUnblock(); }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-green-700 hover:bg-green-50 flex items-center gap-2"
+                      >
+                        <Check className="w-4 h-4" />
+                        Unblock User
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setShowMenu(false); setShowBlockConfirm(true); }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        <ShieldAlert className="w-4 h-4" />
+                        Block User
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </header>
 
             {/* Messages List */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="flex justify-center mb-8">
-                <div className="px-4 py-1.5 bg-surface-container-high rounded-full border border-outline-variant text-[10px] font-label-lg uppercase tracking-widest text-on-surface-variant">
+                <div className="px-4 py-1.5 bg-surface-container-high rounded-full border border-[#e2ddd2] text-[10px] font-label-lg uppercase tracking-widest text-[#8a7a63]">
                   Today
                 </div>
               </div>
@@ -518,12 +582,12 @@ export default function MessagesPage() {
                     <div className={cn(
                       "px-4 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed",
                       isMine
-                        ? "bg-primary text-on-primary rounded-tr-none"
-                        : "bg-surface-container-highest text-on-surface rounded-tl-none border border-outline-variant/30"
+                        ? "bg-[#b3804c] text-white rounded-tr-none"
+                        : "bg-surface-container-highest text-[#4a3521] rounded-tl-none border border-[#e2ddd2]/30"
                     )}>
                       {msg.text}
                     </div>
-                    <span className="text-[10px] text-on-surface-variant opacity-60 px-1">
+                    <span className="text-[10px] text-[#8a7a63] opacity-60 px-1">
                       {msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sending...'}
                     </span>
                   </motion.div>
@@ -537,13 +601,13 @@ export default function MessagesPage() {
               <div ref={scrollRef} />
             </div>
             {/* Message Input */}
-            <div className="p-6 bg-surface border-t border-outline-variant">
+            <div className="p-6 bg-white border-t border-[#e2ddd2]">
               {connectionState?.status === 'accepted' ? (
                 <form
                   onSubmit={handleSendMessage}
-                  className="flex items-center gap-3 bg-surface-container-low p-2 pr-2 h-14 rounded-2xl border border-outline-variant focus-within:ring-2 focus-within:ring-primary shadow-inner"
+                  className="flex items-center gap-3 bg-[#f7f2e9] p-2 pr-2 h-14 rounded-2xl border border-[#e2ddd2] focus-within:ring-2 focus-within:ring-[#C9A84C] shadow-inner"
                 >
-                  <button type="button" className="p-2 hover:bg-surface-container h-10 w-10 flex items-center justify-center rounded-xl text-on-surface-variant">
+                  <button type="button" className="p-2 hover:bg-[#faf4ea] h-10 w-10 flex items-center justify-center rounded-xl text-[#8a7a63]">
                     <Info className="w-5 h-5" />
                   </button>
                   <input
@@ -581,12 +645,28 @@ export default function MessagesPage() {
                   <button
                     type="submit"
                     disabled={!newMessage.trim()}
-                    className="bg-primary text-on-primary h-10 px-6 rounded-xl font-label-lg hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                    className="h-10 px-6 rounded-xl font-label-lg hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 text-white bg-gradient-to-br from-[#b3804c] to-[#8f6337] shadow-[0_8px_20px_-8px_rgba(143,99,55,0.5)]"
                   >
                     <span className="hidden sm:inline">Send</span>
                     <Send className="w-4 h-4" />
                   </button>
                 </form>
+              ) : connectionState?.blocked || (connectionState?.status === 'declined') ? (
+                <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center font-bold text-sm border border-red-200 flex flex-col items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4" />
+                    You can no longer chat with this person.
+                  </div>
+                  {connectionState?.declinedBy === currentUser?.uid && (
+                    <button
+                      onClick={handleUnblock}
+                      disabled={blocking}
+                      className="px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-bold hover:bg-green-700 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {blocking ? 'Unblocking...' : 'Unblock & Restore Connection'}
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div className="p-4 bg-error/10 text-error rounded-xl text-center font-bold text-sm border border-error/20">
                   This chat is no longer active.
@@ -596,6 +676,17 @@ export default function MessagesPage() {
           </>
         )}
       </main>
+
+      <ConfirmationModal
+        isOpen={showBlockConfirm}
+        onClose={() => setShowBlockConfirm(false)}
+        onConfirm={handleBlock}
+        title="Block User"
+        message={`Are you sure you want to block ${activeChatUser?.name || 'this user'}? They will no longer be able to message you or see your profile. Your connection will be removed and chat messages will be deleted.`}
+        confirmText={blocking ? 'Blocking...' : 'Yes, Block'}
+        cancelText="No, Cancel"
+        isDestructive={true}
+      />
     </div>
   );
 }

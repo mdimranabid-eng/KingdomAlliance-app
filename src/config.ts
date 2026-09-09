@@ -42,10 +42,6 @@ export const CONFIG = {
   minAge: 18,
   maxAge: 70,
   defaultCountryCode: "+966",
-
-  // --- CLOUDINARY CONFIGURATION ---
-  cloudinaryCloudName: (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dvmx7w1a8").trim(), 
-  cloudinaryUploadPreset: (import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "kingdom_preset").trim(),
 };
 
 export default CONFIG;

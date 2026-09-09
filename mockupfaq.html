@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ — The Kingdom Alliances</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100;300;400;500;600&family=Cormorant+Garamond:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #C9A84C;
+      --gold-deep: #b8860b;
+      --ink: #4a3521;
+      --cream: #faf4ea;
+      --cream-dark: #f0e2cc;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      background: linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #b3804c 0%, #8f6337 100%);
+      padding: 60px 20px 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '✝';
+      position: absolute;
+      right: 10%;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 200px;
+      opacity: 0.08;
+      color: white;
+    }
+
+    .header .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+
+    .header .logo img {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+    }
+
+    .header .logo span {
+      font-size: 24px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .header h1 {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 100;
+      font-size: 48px;
+      color: white;
+      margin-bottom: 12px;
+    }
+
+    .header p {
+      font-size: 16px;
+      color: rgba(255,255,255,0.8);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* Container */
+    .container {
+      max-width: 900px;
+      margin: -40px auto 60px;
+      padding: 0 20px;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* Search */
+    .search-box {
+      background: white;
+      border-radius: 20px;
+      padding: 20px 28px;
+      box-shadow: 0 20px 50px -25px rgba(74,53,33,0.2);
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .search-box svg {
+      width: 20px;
+      height: 20px;
+      color: #a89f8d;
+      flex-shrink: 0;
+    }
+
+    .search-box input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--ink);
+      background: transparent;
+    }
+
+    .search-box input::placeholder { color: #c4bba8; }
+
+    /* Section */
+    .section {
+      margin-bottom: 32px;
+    }
+
+    .section-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--gold-deep);
+      margin-bottom: 16px;
+      padding-left: 4px;
+    }
+
+    /* FAQ Card */
+    .faq-card {
+      background: white;
+      border-radius: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 12px rgba(74,53,33,0.06);
+      overflow: hidden;
+      border: 1px solid #f0ead9;
+      transition: box-shadow 0.3s;
+    }
+
+    .faq-card:hover {
+      box-shadow: 0 8px 24px rgba(74,53,33,0.1);
+    }
+
+    .faq-question {
+      padding: 20px 24px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      user-select: none;
+    }
+
+    .faq-question h3 {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.5;
+    }
+
+    .faq-question .icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #faf4ea;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.3s, background 0.3s;
+    }
+
+    .faq-question .icon svg {
+      width: 14px;
+      height: 14px;
+      color: var(--gold-deep);
+      transition: transform 0.3s;
+    }
+
+    .faq-card.open .faq-question .icon {
+      background: var(--gold);
+    }
+
+    .faq-card.open .faq-question .icon svg {
+      color: white;
+      transform: rotate(180deg);
+    }
+
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease, padding 0.3s;
+    }
+
+    .faq-card.open .faq-answer {
+      max-height: 800px;
+      padding: 0 24px 20px;
+    }
+
+    .faq-answer p {
+      font-size: 14px;
+      line-height: 1.8;
+      color: #6b5e4f;
+      font-weight: 300;
+    }
+
+    .faq-answer ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+
+    .faq-answer li {
+      font-size: 14px;
+      line-height: 1.8;
+      color: #6b5e4f;
+      font-weight: 300;
+      margin-bottom: 4px;
+    }
+
+    .faq-answer .highlight {
+      background: #faf4ea;
+      border-left: 3px solid var(--gold);
+      padding: 12px 16px;
+      border-radius: 0 10px 10px 0;
+      margin: 12px 0;
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    .faq-answer .step {
+      display: flex;
+      gap: 12px;
+      margin: 10px 0;
+      align-items: flex-start;
+    }
+
+    .faq-answer .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--gold);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .faq-answer .step-text {
+      font-size: 14px;
+      line-height: 1.7;
+      color: #6b5e4f;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 40px 20px;
+      border-top: 1px solid #e8e2d5;
+      margin-top: 60px;
+    }
+
+    .footer p {
+      font-size: 13px;
+      color: #a89f8d;
+    }
+
+    .footer a {
+      color: var(--gold-deep);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .header h1 { font-size: 32px; }
+      .header p { font-size: 14px; }
+      .faq-question h3 { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo">
+      <img src="images/logo2.png" alt="Kingdom Alliance">
+      <span>The Kingdom Alliances</span>
+    </div>
+    <h1>Help Center</h1>
+    <p>Everything you need to know about finding your God-centered match</p>
+  </div>
+
+  <div class="container">
+
+    <div class="search-box">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="searchInput" placeholder="Search your question...">
+    </div>
+
+    <!-- GETTING STARTED -->
+    <div class="section">
+      <div class="section-title">Getting Started</div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How do I create an account?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>You can sign up in two ways:</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text"><strong>Google Sign-Up</strong> — Click "Sign up with Google" and select your Google account. Quick and easy.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text"><strong>Email Sign-Up</strong> — Enter your email and create a password. You'll receive a 6-digit verification code in your email.</div>
+          </div>
+          <div class="highlight">Both methods require you to complete the Cloudflare verification (checkbox) before proceeding.</div>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>What happens after I sign up?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text"><strong>Verify your email</strong> — Enter the 6-digit code sent to your inbox (email sign-up only).</div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text"><strong>Complete your profile</strong> — Fill in your details: name, age, height, church, lifestyle, preferences, and upload a photo.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text"><strong>Wait for admin review</strong> — Our team reviews your profile and photo. This usually takes within 24 hours.</div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text"><strong>Start connecting</strong> — Once approved, you can browse matches, send interests, and chat.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>Why was I redirected to the Waiting Room?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>After completing your profile, you'll see a "Waiting Room" page while our team reviews your application. This is normal! You'll receive an email as soon as your profile is approved.</p>
+          <div class="highlight">Please be patient — we personally review every profile to maintain a safe, faith-centered community.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE & PHOTOS -->
+    <div class="section">
+      <div class="section-title">Profile & Photos</div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How does photo moderation work?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Every photo uploaded to Kingdom Alliance is reviewed by our moderation team to ensure it meets our community guidelines.</p>
+          <ul>
+            <li><strong>Approved</strong> — Your photo is now visible to other members.</li>
+            <li><strong>Pending</strong> — Your photo is under review. It's not visible to others yet.</li>
+            <li><strong>Rejected</strong> — Your photo doesn't meet our guidelines. You'll receive an email with the reason and can upload a new one.</li>
+          </ul>
+          <div class="highlight">We'll send you an email notification for every photo status change so you're always updated.</div>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>What are the photo guidelines?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <ul>
+            <li>Photo must clearly show your face</li>
+            <li>No group photos as your main profile picture</li>
+            <li>No sunglasses or face-covering accessories</li>
+            <li>No inappropriate or suggestive content</li>
+            <li>No screenshots or low-quality images</li>
+            <li>Recent photos preferred (within last 2 years)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>Can I see other users' photos before connecting?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Photos are blurred until your connection is accepted. This protects everyone's privacy. Once you send an interest and they accept, both of your photos become visible to each other.</p>
+          <div class="highlight">You control who sees your photos. In Privacy Settings, you can change your photo visibility to "Accepted Connections Only."</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTIONS & MESSAGING -->
+    <div class="section">
+      <div class="section-title">Connections & Messaging</div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>Is there a limit to how many interests I can send?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Yes, you can send up to <strong>5 interests per day</strong> (within a 24-hour window). This helps maintain quality connections and prevents spam.</p>
+          <ul>
+            <li>If you've reached the limit, you'll see a notification with the reset time</li>
+            <li>The limit resets 24 hours after your first interest of the day</li>
+            <li>Declining or blocking does not count toward your limit</li>
+            <li>Only <strong>sent</strong> interests count — receiving interests has no limit</li>
+          </ul>
+          <div class="highlight">Tip: Be selective! Choose profiles that truly match your preferences to make the most of your daily limit.</div>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How do I send an interest?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Browse your matches and click the <strong>"Send Interest"</strong> button on any profile you like. They'll receive a notification (push notification and/or email) letting them know you're interested.</p>
+          <p style="margin-top: 8px;">Once they accept, you'll both be connected and can start chatting!</p>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>What happens when someone sends me an interest?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>You'll receive a <strong>push notification</strong> on your device and/or an <strong>email notification</strong> (if you're offline). You can view all received interests in the <strong>Interests</strong> tab.</p>
+          <p style="margin-top: 8px;">From there, you can:</p>
+          <ul>
+            <li><strong>Accept</strong> — You'll be connected and can start messaging</li>
+            <li><strong>Decline</strong> — They won't know you declined, and they can't send another interest</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How does messaging work?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Once a connection is accepted, you can message each other in real-time. Your chat history is preserved and secure.</p>
+          <ul>
+            <li>Messages are sent and received instantly</li>
+            <li>You'll see when the other person is typing</li>
+            <li>Online status shows if they're currently active</li>
+            <li>If you're offline, you'll receive an email notification for new messages</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>Will I be notified by email?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Yes! Here's when you'll receive email notifications:</p>
+          <ul>
+            <li><strong>Email verification</strong> — 6-digit code during registration</li>
+            <li><strong>Profile approved</strong> — When your profile goes live</li>
+            <li><strong>Profile rejected</strong> — With reason and next steps</li>
+            <li><strong>Photo approved</strong> — Your photo is now visible</li>
+            <li><strong>Photo rejected</strong> — With reason, you can upload a new one</li>
+            <li><strong>New message</strong> — When someone messages you (only if you're offline)</li>
+            <li><strong>New interest</strong> — When someone sends you an interest</li>
+            <li><strong>Interest accepted</strong> — When someone accepts your interest</li>
+          </ul>
+          <div class="highlight">You won't receive duplicate emails. If you're online, push notifications are used instead of email.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRIVETY & SAFETY -->
+    <div class="section">
+      <div class="section-title">Privacy & Safety</div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How do I decline someone?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>When you receive an interest, go to the <strong>Interests</strong> tab and click <strong>"Decline."</strong></p>
+          <ul>
+            <li>The other person will <strong>not</strong> be notified that you declined</li>
+            <li>They <strong>cannot</strong> send you another interest</li>
+            <li>Your profile remains hidden from them</li>
+          </ul>
+          <div class="highlight">Declining is completely private — no one knows except you.</div>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How do I block someone?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>You can block someone from their profile or from your chat conversation:</p>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">Go to their <strong>profile</strong> or open your <strong>chat</strong> with them</div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">Click the <strong>⋮ menu</strong> (three dots) in the top right</div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">Select <strong>"Block User"</strong></div>
+          </div>
+          <p style="margin-top: 12px;">After blocking:</p>
+          <ul>
+            <li>They <strong>cannot</strong> see your profile</li>
+            <li>They <strong>cannot</strong> send you messages</li>
+            <li>Your chat history is preserved (visible to you only)</li>
+            <li>They won't be notified that you blocked them</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How do I unblock someone?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Go to <strong>Settings → Privacy</strong> and find the <strong>Blocked Users</strong> section. Click <strong>"Unblock"</strong> next to their name to restore the connection.</p>
+          <div class="highlight">Unblocking restores your connection. You can then message each other again.</div>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>What happens when I block someone I was chatting with?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>The chat will show a message: <em>"You can no longer chat with this person."</em> The message input will be disabled.</p>
+          <p style="margin-top: 8px;">If you unblock them later, the chat will be restored and you can continue messaging.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT -->
+    <div class="section">
+      <div class="section-title">Account & Settings</div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How do I change my password?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Click <strong>"Forgot password?"</strong> on the login page. You'll receive a verification code to reset your password.</p>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>What does "Keep me signed in" do?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>When checked, you'll stay logged in even after closing your browser. If unchecked, you'll be logged out when you close the browser.</p>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>How do I delete my account?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>Go to <strong>Settings → Account</strong> and click <strong>"Delete Account."</strong> This action is permanent and cannot be undone. All your data, photos, and connections will be removed.</p>
+          <div class="highlight">If you're unsure, consider blocking your account instead by contacting support.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TROUBLESHOOTING -->
+    <div class="section">
+      <div class="section-title">Troubleshooting</div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>I didn't receive the verification code. What should I do?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <ul>
+            <li>Check your <strong>spam/junk</strong> folder</li>
+            <li>Make sure you entered the correct email address</li>
+            <li>Wait a few minutes — email delivery can sometimes be delayed</li>
+            <li>Click <strong>"Resend OTP"</strong> after the timer expires (120 seconds)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>I'm getting "Too many attempts" error. What should I do?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <p>This means you've made too many login attempts. Please wait a few minutes and try again. This is a security measure to protect your account.</p>
+        </div>
+      </div>
+
+      <div class="faq-card">
+        <div class="faq-question" onclick="toggle(this)">
+          <h3>The Cloudflare check isn't working. What should I do?</h3>
+          <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+        <div class="faq-answer">
+          <ul>
+            <li>Make sure you're using a <strong>supported browser</strong> (Chrome, Firefox, Safari, Edge)</li>
+            <li>Disable any <strong>ad blockers</strong> or <strong>VPN</strong> that might block the verification</li>
+            <li>Try <strong>refreshing the page</strong> and completing the check again</li>
+            <li>Clear your browser cache and cookies</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <p>Still have questions? <a href="/contact">Contact us</a> — we're happy to help.</p>
+    <p style="margin-top: 8px; font-size: 12px; color: #c4bba8;">&copy; 2026 The Kingdom Alliances. Built on Faith, Rooted in Love.</p>
+  </div>
+
+  <script>
+    function toggle(el) {
+      const card = el.closest('.faq-card');
+      const wasOpen = card.classList.contains('open');
+      
+      // Close all in same section
+      const section = card.closest('.section');
+      section.querySelectorAll('.faq-card.open').forEach(c => c.classList.remove('open'));
+      
+      if (!wasOpen) card.classList.add('open');
+    }
+
+    // Search
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase();
+      document.querySelectorAll('.faq-card').forEach(card => {
+        const question = card.querySelector('h3').textContent.toLowerCase();
+        const answer = card.querySelector('.faq-answer')?.textContent.toLowerCase() || '';
+        const match = question.includes(query) || answer.includes(query);
+        card.style.display = match ? 'block' : 'none';
+      });
+      // Show/hide section titles
+      document.querySelectorAll('.section').forEach(section => {
+        const visibleCards = section.querySelectorAll('.faq-card[style*="display: block"], .faq-card:not([style*="display: none"])');
+        const hasVisible = Array.from(section.querySelectorAll('.faq-card')).some(c => c.style.display !== 'none');
+        section.style.display = hasVisible ? 'block' : 'none';
+      });
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kingdom Alliance — Sanctuary Redesign Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #b3804c;
+    --navy-deep: #8f6337;
+    --navy-container: #d2a273;
+    --gold: #C9A84C;
+    --gold-soft: #dfc88a;
+    --gold-deep: #b8860b;
+    --ivory: #faf4ea;
+    --ivory-deep: #f3ede3;
+    --ink: #4a3521;
+    --muted: #64748b;
+    --hairline: rgba(201, 168, 76, 0.45);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Montserrat', sans-serif; background: #2b2014; color: var(--ink); }
+  .serif { font-family: 'Playfair Display', serif; }
+
+  /* ===== Showcase chrome ===== */
+  .showcase-nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 14px 28px;
+    background: rgba(43, 32, 20, 0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(201,168,76,0.25);
+  }
+  .showcase-nav .brand { color: var(--gold); font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; margin-right: auto; letter-spacing: 0.5px; }
+  .showcase-nav a {
+    color: #9fb0c8; text-decoration: none; font-size: 12.5px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase; padding: 8px 16px; border-radius: 999px;
+    border: 1px solid transparent; transition: all .25s;
+  }
+  .showcase-nav a:hover, .showcase-nav a.active { color: var(--gold); border-color: var(--hairline); }
+  .showcase-label {
+    max-width: 1240px; margin: 40px auto 18px; padding: 0 24px;
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  .showcase-label h2 { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--gold); font-weight: 500; }
+  .showcase-label span { color: #7f92ad; font-size: 13px; }
+  .frame {
+    max-width: 1240px; margin: 0 auto 30px; padding: 0 24px;
+  }
+  .frame-inner {
+    border-radius: 18px; overflow: hidden;
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,0.6);
+    border: 1px solid rgba(201,168,76,0.2);
+  }
+  .mobile-strip { display: flex; gap: 20px; justify-content: center; padding: 22px 24px 8px; }
+  .phone {
+    width: 320px; border-radius: 30px; overflow: hidden; border: 1px solid rgba(201,168,76,0.25);
+    box-shadow: 0 20px 50px -20px rgba(0,0,0,0.6); background: var(--ivory);
+    flex-shrink: 0;
+  }
+  .phone-label { text-align: center; color: #7f92ad; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding-bottom: 26px; }
+
+  /* ===== Shared design-system pieces ===== */
+  .cross-ornament { display: flex; align-items: center; gap: 14px; }
+  .cross-ornament::before, .cross-ornament::after { content: ''; height: 1px; flex: 1; background: var(--hairline); }
+  .field { position: relative; margin-bottom: 22px; }
+  .field input, .field select {
+    width: 100%; padding: 22px 16px 10px; font: 500 15px 'Montserrat'; color: var(--ink);
+    border: 1px solid #e2ddd2; border-radius: 14px; background: #fff; outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .field label {
+    position: absolute; left: 16px; top: 16px; font-size: 14px; color: #9aa3af;
+    pointer-events: none; transition: all .18s;
+  }
+  .field input:focus ~ label, .field input:not(:placeholder-shown) ~ label,
+  .field select:focus ~ label, .field.filled label {
+    top: 8px; font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--gold-deep); font-weight: 700;
+  }
+  .field input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.15); }
+  .btn-primary {
+    width: 100%; padding: 16px; border: none; border-radius: 14px; cursor: pointer;
+    background: linear-gradient(135deg, var(--navy) 0%, #96683a 100%);
+    color: #fff; font: 700 15px 'Montserrat'; letter-spacing: 0.4px;
+    box-shadow: 0 12px 30px -10px rgba(143,99,55,0.5);
+    position: relative; overflow: hidden; transition: transform .2s, box-shadow .2s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -10px rgba(143,99,55,0.55); }
+  .btn-primary::after {
+    content: ''; position: absolute; top: 0; left: -80%; width: 50%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(201,168,76,0.35), transparent);
+    transform: skewX(-20deg); animation: sheen 3.2s infinite;
+  }
+  @keyframes sheen { 0% {left:-80%} 55% {left:130%} 100% {left:130%} }
+  .btn-google {
+    width: 100%; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 12px;
+    background: #fff; border: 1px solid #e2ddd2; border-radius: 14px; cursor: pointer;
+    font: 600 14.5px 'Montserrat'; color: #374151;
+  }
+  .divider-or { display: flex; align-items: center; gap: 16px; color: #a89f8d; font-size: 10.5px; letter-spacing: 2px; text-transform: uppercase; margin: 20px 0; }
+  .divider-or::before, .divider-or::after { content: ''; height: 1px; flex: 1; background: #e8e2d5; }
+  .turnstile {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    border: 1px solid #e2ddd2; border-radius: 14px; padding: 12px 16px; background: #fff; margin-bottom: 22px;
+  }
+  .turnstile .cf { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #9aa3af; }
+  .turnstile .box { width: 28px; height: 28px; border: 2px solid var(--gold); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--gold-deep); font-size: 15px; font-weight: 700; }
+</style>
+<style>
+  /* ===== Split auth shell ===== */
+  .auth-shell { display: grid; grid-template-columns: 1fr 1fr; min-height: 720px; background: var(--ivory); }
+  @media (max-width: 860px) { .auth-shell { grid-template-columns: 1fr; } .auth-panel-left { display: none !important; } .auth-mobile-strip { display: block !important; } }
+  .auth-panel-left {
+    background:
+      radial-gradient(120% 90% at 20% 10%, rgba(226,190,146,0.45) 0%, transparent 55%),
+      linear-gradient(160deg, var(--navy) 0%, var(--navy-deep) 100%);
+    color: #fff; padding: 56px 52px; display: flex; flex-direction: column; position: relative; overflow: hidden;
+  }
+  .auth-panel-left .watermark {
+    position: absolute; right: -60px; bottom: -70px; font-size: 340px; opacity: 0.05; line-height: 1;
+    font-family: 'Playfair Display', serif; user-select: none;
+  }
+  .auth-panel-left .eyebrow { color: var(--gold-soft); font-size: 11px; letter-spacing: 3.5px; text-transform: uppercase; font-weight: 700; margin-bottom: 22px; }
+  .auth-panel-left h1 { font-family: 'Playfair Display', serif; font-weight: 500; font-size: 46px; line-height: 1.14; }
+  .auth-panel-left h1 em { color: var(--gold-soft); font-weight: 400; }
+  .auth-panel-left .verse { margin-top: 26px; color: #b9c6da; font-size: 14px; line-height: 1.75; font-weight: 300; max-width: 380px; }
+  .auth-panel-left .verse b { color: var(--gold-soft); font-weight: 600; }
+  .trust { margin-top: auto; display: flex; flex-direction: column; gap: 13px; padding-top: 40px; }
+  .trust div { display: flex; align-items: center; gap: 12px; color: #c6d1e2; font-size: 13.5px; font-weight: 500; }
+  .trust .tick { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--hairline); color: var(--gold-soft); display: flex; align-items: center; justify-content: center; font-size: 11px; }
+  .auth-panel-right { padding: 64px 58px; display: flex; flex-direction: column; justify-content: center; }
+  .auth-panel-right .mini-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 34px; }
+  .auth-panel-right .mini-brand .cross { width: 38px; height: 38px; border-radius: 11px; background: var(--navy); color: var(--gold-soft); display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .auth-panel-right .mini-brand span { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 16.5px; color: var(--navy); }
+  .auth-panel-right h2 { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 600; color: var(--navy); }
+  .auth-panel-right .sub { color: var(--muted); font-size: 14px; margin: 8px 0 30px; }
+  .field { position: relative; margin-bottom: 22px; }
+  .field input {
+    width: 100%; padding: 22px 16px 10px; font: 500 15px 'Montserrat'; color: var(--ink);
+    border: 1px solid #e2ddd2; border-radius: 14px; background: #fff; outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .field label {
+    position: absolute; left: 16px; top: 16px; font-size: 14px; color: #9aa3af;
+    pointer-events: none; transition: all .18s;
+  }
+  .field input:focus ~ label, .field input:not(:placeholder-shown) ~ label,
+  .field.filled label {
+    top: 8px; font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--gold-deep); font-weight: 700;
+  }
+  .field input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.15); }
+  .field .eye { position: absolute; right: 14px; top: 17px; color: #b6ae9c; font-size: 14px; cursor: pointer; }
+
+  .btn-primary {
+    width: 100%; padding: 16px; border: none; border-radius: 14px; cursor: pointer;
+    background: linear-gradient(135deg, var(--navy) 0%, #96683a 100%);
+    color: #fff; font: 700 15px 'Montserrat'; letter-spacing: 0.4px;
+    box-shadow: 0 12px 30px -10px rgba(143,99,55,0.5);
+    position: relative; overflow: hidden; transition: transform .2s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); }
+  .btn-primary::after {
+    content: ''; position: absolute; top: 0; left: -80%; width: 50%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(201,168,76,0.35), transparent);
+    transform: skewX(-20deg); animation: sheen 3.2s infinite;
+  }
+  @keyframes sheen { 0% {left:-80%} 55% {left:130%} 100% {left:130%} }
+  .btn-google {
+    width: 100%; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 12px;
+    background: #fff; border: 1px solid #e2ddd2; border-radius: 14px; cursor: pointer;
+    font: 600 14.5px 'Montserrat'; color: #374151;
+  }
+  .divider-or { display: flex; align-items: center; gap: 16px; color: #a89f8d; font-size: 10.5px; letter-spacing: 2px; text-transform: uppercase; margin: 20px 0; }
+  .divider-or::before, .divider-or::after { content: ''; height: 1px; flex: 1; background: #e8e2d5; }
+  .turnstile {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid #e2ddd2; border-radius: 14px; padding: 12px 16px; background: #fff; margin-bottom: 22px;
+  }
+  .turnstile .cf { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 10px; color: #9aa3af; }
+  .turnstile .box { width: 28px; height: 28px; border: 2px solid var(--gold); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--gold-deep); font-size: 15px; font-weight: 700; flex-shrink: 0; }
+  .form-row { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 22px; }
+  .form-row .remember { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--muted); }
+  .toggle { width: 38px; height: 21px; border-radius: 999px; background: var(--gold); position: relative; display: inline-block; }
+  .toggle::after { content: ''; position: absolute; right: 2.5px; top: 2.5px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+  .form-row a { color: var(--gold-deep); font-size: 13px; font-weight: 600; text-decoration: none; }
+  .auth-footer { text-align: center; margin-top: 26px; font-size: 13.5px; color: var(--muted); }
+  .auth-footer a { color: var(--navy); font-weight: 700; text-decoration: none; border-bottom: 1.5px solid var(--gold); padding-bottom: 1px; }
+  .auth-mobile-strip { display: none; background: linear-gradient(160deg, var(--navy), var(--navy-deep)); color: #fff; padding: 26px 26px 22px; }
+  .auth-mobile-strip .eyebrow { color: var(--gold-soft); font-size: 10px; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+  .auth-mobile-strip p { font-family: 'Playfair Display', serif; font-size: 21px; font-weight: 500; }
+  .auth-mobile-strip p em { color: var(--gold-soft); }
+  .mobile-strip { display: flex; gap: 20px; justify-content: center; padding: 22px 24px 8px; flex-wrap: wrap; }
+  .phone { width: 320px; border-radius: 30px; overflow: hidden; border: 1px solid rgba(201,168,76,0.25); box-shadow: 0 20px 50px -20px rgba(0,0,0,0.6); background: var(--ivory); flex-shrink: 0; }
+  .phone-label { text-align: center; color: #7f92ad; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding-bottom: 26px; }
+
+  /* ===== Login markup ===== */
+  .frame { max-width: 1240px; margin: 0 auto 30px; padding: 0 24px; }
+  .frame-inner { border-radius: 18px; overflow: hidden; box-shadow: 0 30px 80px -30px rgba(0,0,0,0.6); border: 1px solid rgba(201,168,76,0.2); }
+  .showcase-label { max-width: 1240px; margin: 44px auto 18px; padding: 0 24px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .showcase-label h2 { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--gold); font-weight: 500; }
+  .showcase-label span { color: #7f92ad; font-size: 13px; }
+
+  /* ===== Fine paper texture ===== */
+  .auth-panel-left::before, .ob-header::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    opacity: 0.14; mix-blend-mode: overlay;
+  }
+  .auth-panel-left > *, .ob-header > * { position: relative; z-index: 1; }
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.05; mix-blend-mode: multiply;
+  }
+
+  /* ===== Entrance movement ===== */
+  @keyframes riseIn { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes goldSweep { from { opacity: 0; letter-spacing: 6px; } to { opacity: 1; letter-spacing: 0.5px; } }
+  .anim { animation: riseIn .9s cubic-bezier(.22,.9,.3,1) both; }
+  .fade { animation: fadeIn 1.1s ease both; }
+  .sweep { animation: goldSweep 1.2s cubic-bezier(.22,.9,.3,1) both; }
+  .d1 { animation-delay: .08s; } .d2 { animation-delay: .2s; } .d3 { animation-delay: .34s; }
+  .d4 { animation-delay: .5s; } .d5 { animation-delay: .66s; } .d6 { animation-delay: .8s; }
+  .brand-logo { width: 44px; height: 44px; object-fit: contain; border-radius: 10px; }
+  .logo-lg { width: 54px; height: 54px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25)); }
+</style>
+</head>
+<body>
+
+<nav class="showcase-nav">
+  <span class="brand" style="display:flex; align-items:center; gap:10px;"><img src="logo.png" class="brand-logo" alt=""> Sanctuary Redesign — Mockups</span>
+  <a href="#login">Login</a>
+  <a href="#register">Register</a>
+  <a href="#onboarding">Onboarding</a>
+  <a href="#profile">Profile</a>
+</nav>
+
+<!-- ============ 1 · LOGIN ============ -->
+<div class="showcase-label" id="login"><h2>1 · Login — “The Welcoming Door”</h2><span>desktop · split-screen</span></div>
+<div class="frame"><div class="frame-inner">
+  <div class="auth-shell">
+    <div class="auth-panel-left">
+      <div class="watermark">✝</div>
+      <div class="anim d1" style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
+        <img src="logo.png" class="logo-lg" alt="Kingdom Alliance logo">
+        <div>
+          <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:16px;">The Kingdom Alliances</div>
+          <div style="color:var(--gold-soft); font-size:10px; letter-spacing:3px; text-transform:uppercase; font-weight:700;">Christian Matrimony</div>
+        </div>
+      </div>
+      <h1 class="anim sweep d2">Welcome <em>back</em>,<br>beloved.</h1>
+      <div class="cross-ornament anim fade d3" style="max-width:220px; margin:26px 0 0;"><span style="color:var(--gold-soft); font-size:15px;">✝</span></div>
+      <p class="verse">“Two are better than one… For if they fall, the one will lift up his fellow.”<br><b>— Ecclesiastes 4:9–10</b></p>
+      <div class="trust">
+        <div><span class="tick">✓</span> Faith-centered community</div>
+        <div><span class="tick">✓</span> Every profile prayerfully reviewed</div>
+        <div><span class="tick">✓</span> Private by design — you choose who sees you</div>
+      </div>
+    </div>
+    <div class="auth-panel-right">
+      <div class="mini-brand anim d1"><img src="logo.png" class="brand-logo" alt=""><span>The Kingdom Alliances</span></div>
+      <h2 class="anim sweep d2">Sign in to continue</h2>
+      <p class="sub anim fade d3">Your journey continues — your matches await.</p>
+      <div class="anim d4">
+        <div class="field"><input type="email" placeholder=" "><label>Email address</label></div>
+        <div class="field filled"><input type="password" value="••••••••••"><label>Password</label><span class="eye">👁</span></div>
+        <div class="form-row">
+          <div class="remember"><span class="toggle"></span> Keep me signed in</div>
+          <a href="#">Forgot password?</a>
+        </div>
+        <div class="turnstile">
+          <div class="box">✓</div>
+          <div style="flex:1; font-size:12.5px; color:var(--muted); font-weight:500;">Verified — you're human</div>
+          <div class="cf">Cloudflare <b style="color:#f48120;">◐</b> Turnstile</div>
+        </div>
+        <button class="btn-primary">Sign In</button>
+      </div>
+      <div class="divider-or anim fade d5">or</div>
+      <button class="btn-google anim fade d5"><svg width="19" height="19" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1c-4.3 0-8.01 2.47-9.82 6.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google</button>
+      <div class="auth-footer anim fade d6">New to The Kingdom Alliances? <a href="#register">Begin your journey</a></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="mobile-strip">
+  <div>
+    <div class="phone">
+      <div class="auth-mobile-strip">
+        <div class="eyebrow">The Kingdom Alliances</div>
+        <p>Welcome <em>back,</em> beloved.</p>
+        <p style="font-size:12px; color:#b9c6da; font-family:'Montserrat'; margin-top:8px; font-weight:300;">“Two are better than one…” — Eccl. 4:9</p>
+      </div>
+      <div style="padding:26px 22px;">
+        <div class="field"><input type="email" placeholder=" "><label>Email address</label></div>
+        <div class="field filled"><input type="password" value="••••••••"><label>Password</label><span class="eye">👁</span></div>
+        <div class="turnstile"><div class="box">✓</div><div style="flex:1; font-size:11.5px; color:var(--muted); font-weight:500;">Verified — human</div><div class="cf">Turnstile</div></div>
+        <button class="btn-primary" style="padding:14px;">Sign In</button>
+        <div class="auth-footer" style="margin-top:20px;">New here? <a href="#register">Begin your journey</a></div>
+      </div>
+    </div>
+    <div class="phone-label">mobile · login</div>
+  </div>
+</div>
+
+<style>
+  /* ===== Register ===== */
+  .step-ring { display: flex; align-items: flex-start; gap: 0; margin-bottom: 34px; }
+  .step-ring .step {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; width: 86px; flex-shrink: 0;
+  }
+  .step-ring .ring {
+    width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font: 700 14px 'Montserrat'; border: 1.5px solid #ddd6c8; color: #b3ac9c; background: #fff;
+  }
+  .step-ring .ring.active { border-color: var(--gold); color: var(--gold-deep); box-shadow: 0 0 0 5px rgba(201,168,76,0.15); }
+  .step-ring .ring.done { border-color: var(--gold); background: var(--gold); color: #fff; }
+  .step-ring .lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--navy); text-align: center; line-height: 1.3; }
+  .step-ring .lbl.dim { color: #b3ac9c; }
+  .step-ring .thread { height: 1.5px; flex: 1; background: #e5dfcf; margin-top: 21px; }
+  .step-ring .thread.done { background: linear-gradient(90deg, var(--gold), var(--gold-soft)); }
+  .terms-card {
+    display: flex; gap: 14px; align-items: flex-start; padding: 18px 16px;
+    border: 1px solid #e2ddd2; border-radius: 16px; background: #fffdf8; margin-bottom: 22px;
+  }
+  .terms-card .chk {
+    width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--gold); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: #fff; background: var(--gold); font-size: 13px; font-weight: 700;
+  }
+  .terms-card p { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+  .terms-card p a { color: var(--gold-deep); font-weight: 700; text-decoration: none; }
+</style>
+
+<!-- ============ 2 · REGISTER ============ -->
+<div class="showcase-label" id="register"><h2>2 · Register — “Begin Your Journey”</h2><span>desktop · visual twin of login</span></div>
+<div class="frame"><div class="frame-inner">
+  <div class="auth-shell">
+    <div class="auth-panel-left">
+      <div class="watermark">✝</div>
+      <div class="anim d1" style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
+        <img src="logo.png" class="logo-lg" alt="Kingdom Alliance logo">
+        <div>
+          <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:16px;">The Kingdom Alliances</div>
+          <div style="color:var(--gold-soft); font-size:10px; letter-spacing:3px; text-transform:uppercase; font-weight:700;">Christian Matrimony</div>
+        </div>
+      </div>
+      <h1 class="anim sweep d2">Begin your journey to a <em>God-centered</em> union.</h1>
+      <div class="cross-ornament" style="max-width:220px; margin:26px 0 0;"><span style="color:var(--gold-soft); font-size:15px;">✝</span></div>
+      <p class="verse">"For I know the plans I have for you, declares the Lord, plans to give you hope and a future."<br><b>— Jeremiah 29:11</b></p>
+      <div class="trust">
+        <div><span class="tick">✓</span> takes 5 minutes</div>
+        <div><span class="tick">✓</span> reviewed within 24 hours</div>
+        <div><span class="tick">✓</span> your information is never public</div>
+      </div>
+    </div>
+    <div class="auth-panel-right">
+      <div class="mini-brand anim d1"><img src="logo.png" class="brand-logo" alt=""><span>The Kingdom Alliances</span></div>
+      <h2 class="anim sweep d2">Create your profile</h2>
+      <p class="sub anim fade d3">Step 1 of 3 — your account details.</p>
+      <div class="step-ring">
+        <div class="step"><div class="ring active">1</div><div class="lbl">Account</div></div>
+        <div class="thread"></div>
+        <div class="step"><div class="ring">2</div><div class="lbl dim">Verify</div></div>
+        <div class="thread"></div>
+        <div class="step"><div class="ring">3</div><div class="lbl dim">Profile</div></div>
+      </div>
+      <div class="field filled"><input type="text" value="Mary Tanabi"><label>Full name</label></div>
+      <div class="field"><input type="email" placeholder=" "><label>Email address</label></div>
+      <div class="field"><input type="password" placeholder=" "><label>Password (8+ chars, number &amp; symbol)</label></div>
+      <div class="field"><input type="password" placeholder=" "><label>Confirm password</label></div>
+      <div class="terms-card">
+        <div class="chk">✓</div>
+        <p>I have read and agree to the <a>Terms &amp; Conditions</a> and the <a>Privacy Policy</a>, and I affirm that the information I provide is truthful.</p>
+      </div>
+      <div class="turnstile">
+        <div class="box">✓</div>
+        <div style="flex:1; font-size:12.5px; color:var(--muted); font-weight:500;">Verified — you're human</div>
+        <div class="cf">Cloudflare <b style="color:#f48120;">◐</b> Turnstile</div>
+      </div>
+      <button class="btn-primary">Create Account</button>
+      <div class="divider-or">or</div>
+      <button class="btn-google"><svg width="19" height="19" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1c-4.3 0-8.01 2.47-9.82 6.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Sign up with Google</button>
+      <div class="auth-footer">Already a member? <a href="#login">Sign in</a></div>
+    </div>
+  </div>
+</div></div>
+
+<style>
+  /* ===== Onboarding ===== */
+  .ob-wrap { background: var(--ivory); min-height: 700px; }
+  .ob-header {
+    background: linear-gradient(135deg, var(--navy), var(--navy-deep));
+    padding: 34px 48px 46px; color: #fff; position: relative; overflow: hidden;
+  }
+  .ob-header .watermark { position: absolute; right: -30px; top: -50px; font-size: 220px; opacity: 0.05; font-family: 'Playfair Display', serif; line-height: 1; }
+  .ob-header .eyebrow { color: var(--gold-soft); font-size: 10.5px; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; margin-bottom: 10px; }
+  .ob-header h2 { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 500; }
+  .ob-header h2 em { color: var(--gold-soft); }
+  .ob-header p { color: #b9c6da; font-size: 13.5px; margin-top: 8px; font-weight: 300; }
+  .ob-progress { display: flex; align-items: center; gap: 0; padding: 26px 48px 0; position: relative; z-index: 2; }
+  .ob-progress .dia {
+    width: 16px; height: 16px; transform: rotate(45deg); border-radius: 4px;
+    border: 1.5px solid #d8d1c0; background: #fff; position: relative; z-index: 2; flex-shrink: 0;
+  }
+  .ob-progress .dia.done { background: var(--gold); border-color: var(--gold); }
+  .ob-progress .dia.active { border-color: var(--gold); box-shadow: 0 0 0 5px rgba(201,168,76,0.18); }
+  .ob-progress .line { height: 1.5px; flex: 1; background: #e5dfcf; }
+  .ob-progress .line.done { background: linear-gradient(90deg, var(--gold), var(--gold-soft)); }
+  .ob-progress .nm { position: absolute; top: 22px; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; color: #9aa3af; text-transform: uppercase; transform: translateX(-50%); white-space: nowrap; }
+  .ob-progress .nm.done { color: var(--gold-deep); }
+  .ob-progress .nm.active { color: var(--navy); }
+  .ob-body { max-width: 760px; margin: 40px auto; padding: 0 24px; }
+  .ob-card { background: #fff; border: 1px solid #eee7d8; border-radius: 24px; padding: 38px 40px; box-shadow: 0 20px 50px -25px rgba(143,99,55,0.18); }
+  .ob-card h3 { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--navy); font-weight: 600; }
+  .ob-card .sec { font-size: 10.5px; font-weight: 700; letter-spacing: 2.2px; text-transform: uppercase; color: var(--gold-deep); margin: 26px 0 14px; display: flex; align-items: center; gap: 12px; }
+  .ob-card .sec::after { content: ''; height: 1px; flex: 1; background: #f0ead9; }
+  .gender-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .gender-card {
+    border: 1.5px solid #e2ddd2; border-radius: 18px; padding: 22px 18px; text-align: center; cursor: pointer;
+    transition: all .2s; background: #fff;
+  }
+  .gender-card.sel { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(201,168,76,0.14); background: #fffdf6; }
+  .gender-card .ic { font-size: 26px; margin-bottom: 8px; }
+  .gender-card .t { font-weight: 700; font-size: 15px; color: var(--navy); }
+  .gender-card .d { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+  .ob-footer { display: flex; justify-content: space-between; margin-top: 32px; }
+  .btn-ghost { padding: 14px 30px; border-radius: 14px; border: 1.5px solid #e2ddd2; background: #fff; font: 700 14px 'Montserrat'; color: var(--navy); cursor: pointer; }
+  .btn-next { padding: 14px 36px; border-radius: 14px; border: none; background: linear-gradient(135deg, var(--navy), #96683a); color: #fff; font: 700 14px 'Montserrat'; cursor: pointer; box-shadow: 0 10px 26px -10px rgba(143,99,55,0.5); display: flex; align-items: center; gap: 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    padding: 9px 18px; border-radius: 999px; border: 1.5px solid #e2ddd2; background: #fff;
+    font: 600 12.5px 'Montserrat'; color: #8a8272; cursor: pointer; transition: all .2s;
+  }
+  .chip.sel { border-color: var(--gold); background: #fdf8ec; color: var(--gold-deep); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
+</style>
+
+<!-- ============ 3 · ONBOARDING ============ -->
+<div class="showcase-label" id="onboarding"><h2>3 · Onboarding — “Guided Journal”</h2><span>step 3 of 5 · chrome restyle, logic untouched</span></div>
+<div class="frame"><div class="frame-inner">
+  <div class="ob-wrap">
+    <div class="ob-header">
+      <div class="watermark">✝</div>
+      <div class="anim d1" style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <img src="logo.png" class="brand-logo" alt="">
+        <div>
+          <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:15px;">The Kingdom Alliances</div>
+          <div style="color:var(--gold-soft); font-size:9.5px; letter-spacing:3px; text-transform:uppercase; font-weight:700;">Christian Matrimony</div>
+        </div>
+      </div>
+      <h2 class="anim sweep d2">Tell us about <em>yourself</em></h2>
+      <p class="anim fade d3">Honest, thoughtful answers help us find the partner God has prepared for you.</p>
+    </div>
+    <div class="ob-progress">
+      <div class="dia done"></div><div class="nm done" style="left:6%;">Basics</div>
+      <div class="line done"></div>
+      <div class="dia done"></div><div class="nm done" style="left:31%;">Faith</div>
+      <div class="line done"></div>
+      <div class="dia active"></div><div class="nm active" style="left:56%;">Career</div>
+      <div class="line"></div>
+      <div class="dia"></div><div class="nm" style="left:81%;">Preferences</div>
+      <div class="line"></div>
+      <div class="dia"></div><div class="nm" style="left:97%; transform:none; font-size:16px; top:20px;">✝</div>
+    </div>
+    <div class="ob-body">
+      <div class="ob-card">
+        <h3>Your background</h3>
+        <div class="sec">Profile for</div>
+        <div class="gender-cards">
+          <div class="gender-card sel"><div class="ic">👰</div><div class="t">Bride</div><div class="d">Creating a profile for myself</div></div>
+          <div class="gender-card"><div class="ic">🤵</div><div class="t">Groom</div><div class="d">Creating a profile for myself</div></div>
+        </div>
+        <div class="sec">Personal details</div>
+        <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:14px; margin-bottom:16px;">
+          <div class="field filled" style="margin:0;"><input type="text" value="Mary Wangari Tanabi"><label>Full name</label></div>
+          <div class="field" style="margin:0;"><input type="tel" placeholder=" "><label>Mobile number</label></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Date of birth</label></div>
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Height</label></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Marital status</label></div>
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Number of children</label></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Country of residence</label></div>
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>City / Town</label></div>
+        </div>
+        <div class="ob-footer">
+          <button class="btn-ghost">← Back</button>
+          <button class="btn-next">Save &amp; Continue <span>→</span></button>
+        </div>
+      </div>
+
+      <div class="ob-card" style="margin-top:26px;">
+        <div class="sec" style="margin-top:0;">Next step preview — Faith &amp; Church</div>
+        <h3>Your walk of faith</h3>
+        <p style="font-size:12.5px; color:var(--muted); margin:6px 0 4px;">This is the heart of our community — it helps members find someone who shares their values.</p>
+        <div class="sec">Church details</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Denomination</label></div>
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Baptized (year)</label></div>
+        </div>
+        <div class="field filled" style="margin-bottom:16px;"><input type="text" value="Christ the King Cathedral"><label>Church name</label></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Church city</label></div>
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Church area</label></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Pastor's name</label></div>
+          <div class="field" style="margin:0;"><input type="text" placeholder=" "><label>Pastor's number</label></div>
+        </div>
+        <div class="sec">Spiritual involvement</div>
+        <div class="chips">
+          <span class="chip sel"> Choir </span><span class="chip"> Sunday school </span><span class="chip sel"> Youth ministry </span><span class="chip"> Ushering </span><span class="chip"> Prayer group </span><span class="chip"> Outreach </span>
+        </div>
+        <div class="ob-footer">
+          <button class="btn-ghost">← Back</button>
+          <button class="btn-next">Save &amp; Continue <span>→</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<style>
+  /* ===== Profile (modern) ===== */
+  .pf2-cover {
+    height: 190px; position: relative; overflow: hidden;
+    background:
+      radial-gradient(90% 120% at 80% 10%, rgba(226,190,146,0.45) 0%, transparent 60%),
+      linear-gradient(120deg, var(--navy) 0%, var(--navy-deep) 70%, #7c5326 100%);
+  }
+  .pf2-cover::before {
+    content: ''; position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    opacity: 0.14; mix-blend-mode: overlay;
+  }
+  .pf2-cover .ornament {
+    position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
+    font-family: 'Playfair Display', serif; font-size: 170px; opacity: 0.08; line-height: 1; color: #fff;
+  }
+  .pf2-nav { display: flex; align-items: center; gap: 10px; padding: 18px 40px; position: relative; z-index: 2; }
+  .pf2-nav .brand-sm { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 15px; color: #fff; display: flex; align-items: center; gap: 10px; }
+  .pf2-nav .links { margin-left: auto; display: flex; gap: 24px; font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.75); }
+  .pf2-nav .links b { color: var(--gold-soft); }
+  .pf2-head { display: flex; align-items: flex-end; gap: 26px; padding: 0 48px; margin-top: -74px; position: relative; z-index: 3; }
+  .pf2-avatar {
+    width: 150px; height: 150px; border-radius: 32px; flex-shrink: 0;
+    border: 5px solid #fff; box-shadow: 0 18px 40px -16px rgba(74,53,33,0.45);
+    background: linear-gradient(160deg, #e9dcc4, #cbb58e);
+    display: flex; align-items: center; justify-content: center; font-size: 56px;
+  }
+  .pf2-idblock { flex: 1; padding-bottom: 6px; }
+  .pf2-name { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .pf2-sub { color: #8a7a65; font-size: 13.5px; margin-top: 5px; font-weight: 500; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pf2-sub .dot { width: 3px; height: 3px; border-radius: 50%; background: #c9bda9; }
+  .pf2-edit {
+    margin-bottom: 10px; padding: 11px 24px; border-radius: 13px; cursor: pointer;
+    border: 1.5px solid #e5dcc9; background: #fff; color: var(--navy); font: 700 13px 'Montserrat';
+    display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 18px -8px rgba(74,53,33,0.25);
+  }
+  .pf2-stats { display: flex; max-width: 1240px; margin: 26px auto 0; padding: 0 48px; }
+  .pf2-stat { flex: 1; text-align: center; padding: 18px 10px; background: #fff; border: 1px solid #eee5d2; border-left: none; }
+  .pf2-stat:first-child { border-radius: 20px 0 0 20px; border-left: 1px solid #eee5d2; }
+  .pf2-stat:last-child { border-radius: 0 20px 20px 0; }
+  .pf2-stat .v { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; color: var(--navy); }
+  .pf2-stat .k { font-size: 10px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #a89f8d; margin-top: 3px; }
+  .pf2-body { max-width: 1240px; margin: 0 auto; padding: 26px 48px 56px; }
+  .pf2-tabs { display: flex; gap: 6px; margin-bottom: 22px; border-bottom: 1px solid #eee5d2; }
+  .pf2-tab { padding: 13px 22px; font: 600 13.5px 'Montserrat'; color: #a89f8d; cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -1px; }
+  .pf2-tab.active { color: var(--navy); border-bottom-color: var(--gold); }
+  .pf2-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 22px; }
+  .pf2-card { background: #fff; border: 1px solid #eee5d2; border-radius: 20px; padding: 24px 26px; box-shadow: 0 14px 34px -22px rgba(74,53,33,0.25); margin-bottom: 22px; }
+  .pf2-card .sec { font-size: 10.5px; font-weight: 700; letter-spacing: 2.2px; text-transform: uppercase; color: var(--gold-deep); display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .pf2-card .sec::after { content: ''; height: 1px; flex: 1; background: #f0ead9; }
+  .pf2-card p { font-size: 13.5px; color: #5c4d3c; line-height: 1.8; }
+  .kv2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+  .kv2 div { background: var(--ivory); border-radius: 12px; padding: 11px 14px; }
+  .kv2 div b { display: block; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: #a89f8d; font-weight: 700; margin-bottom: 2px; }
+  .kv2 div span { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .pf2-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .pf2-gallery .shot { height: 130px; border-radius: 16px; background: linear-gradient(160deg, #ecdfc9, #d8c6a4); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .pf2-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 13px; border-radius: 999px; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; }
+  .pf2-badge.gold { background: linear-gradient(135deg, var(--gold-soft), var(--gold)); color: #3d2f05; }
+  .pf2-badge.mint { background: #e7f4ec; color: #1c7a3d; border: 1px solid #c4e3cf; }
+  .pf2-cta {
+    margin-top: 18px; width: 100%; padding: 15px; border-radius: 14px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--navy), #96683a); color: #fff; font: 700 14px 'Montserrat';
+    box-shadow: 0 12px 28px -12px rgba(143,99,55,0.55); display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .pf2-cta2 { margin-top: 10px; width: 100%; padding: 14px; border-radius: 14px; border: 1.5px solid #e5dcc9; background: #fff; color: var(--navy); font: 700 13.5px 'Montserrat'; cursor: pointer; }
+</style>
+
+<!-- ============ 4 · PROFILE ============ -->
+<div class="showcase-label" id="profile"><h2>4 · Profile — Modern Member Profile</h2><span>cover banner · overlapping avatar · stats · tabs</span></div>
+<div class="frame"><div class="frame-inner">
+  <div style="background: var(--ivory);">
+    <div class="pf2-cover">
+      <div class="pf2-nav">
+        <div class="brand-sm anim d1"><img src="logo.png" class="brand-logo" alt=""> The Kingdom Alliances</div>
+        <div class="links anim fade d1"><span>Dashboard</span><span>Matches</span><span>Messages</span><b>My Profile</b></div>
+      </div>
+      <div class="ornament">✝</div>
+    </div>
+    <div class="pf2-head">
+      <div class="pf2-avatar anim d2">👰🏻</div>
+      <div class="pf2-idblock anim sweep d3">
+        <div class="pf2-name">Mary Tanabi <span class="pf2-badge gold">✦ Verified</span></div>
+        <div class="pf2-sub"><span>KA-M-2026-0148</span><span class="dot"></span><span>28 yrs</span><span class="dot"></span><span>Nakuru, Kenya</span><span class="dot"></span><span>Catholic</span><span class="dot"></span><span>Teacher</span></div>
+      </div>
+      <button class="pf2-edit anim fade d4">✎ Edit Profile</button>
+    </div>
+    <div class="pf2-stats anim fade d4">
+      <div class="pf2-stat"><div class="v">128</div><div class="k">Profile Views</div></div>
+      <div class="pf2-stat"><div class="v">14</div><div class="k">Interests</div></div>
+      <div class="pf2-stat"><div class="v">6</div><div class="k">Shortlisted By</div></div>
+      <div class="pf2-stat"><div class="v">98%</div><div class="k">Profile Complete</div></div>
+      <div class="pf2-stat"><div class="v">Mar '26</div><div class="k">Member Since</div></div>
+    </div>
+    <div class="pf2-body anim fade d5">
+      <div class="pf2-tabs">
+        <div class="pf2-tab active">About</div>
+        <div class="pf2-tab">Faith</div>
+        <div class="pf2-tab">Gallery</div>
+        <div class="pf2-tab">Partner Preferences</div>
+        <div class="pf2-tab">Privacy</div>
+      </div>
+      <div class="pf2-grid">
+        <div>
+          <div class="pf2-card">
+            <div class="sec">About Me</div>
+            <p>I am a devout Catholic who loves serving in the church choir and children's ministry. I value prayer, family, and honest conversation. I'm looking for a God-fearing partner to build a Christ-centered home with.</p>
+            <div style="margin-top:14px;"><span class="pf2-badge mint">✓ Approved</span>&nbsp; <span class="pf2-badge gold">✦ Verified Member</span></div>
+          </div>
+          <div class="pf2-card">
+            <div class="sec">Essentials</div>
+            <div class="kv2">
+              <div><b>Marital status</b><span>Never married</span></div>
+              <div><b>Height</b><span>5'6"</span></div>
+              <div><b>Education</b><span>B.Ed, Egerton University</span></div>
+              <div><b>Profession</b><span>Secondary teacher</span></div>
+              <div><b>Languages</b><span>English · Swahili</span></div>
+              <div><b>Diet</b><span>Non-vegetarian</span></div>
+            </div>
+          </div>
+          <div class="pf2-card">
+            <div class="sec">Faith &amp; Church</div>
+            <div class="kv2">
+              <div><b>Denomination</b><span>Catholic</span></div>
+              <div><b>Baptized</b><span>Yes, 1998</span></div>
+              <div><b>Church</b><span>Christ the King Cathedral</span></div>
+              <div><b>Ministry</b><span>Choir · Catechism</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="pf2-card">
+            <div class="sec">Gallery</div>
+            <div class="pf2-gallery">
+              <div class="shot">🖼</div><div class="shot">🖼</div><div class="shot">＋</div>
+            </div>
+          </div>
+          <div class="pf2-card" style="text-align:center;">
+            <div class="sec" style="justify-content:center;">Daily Verse</div>
+            <p style="font-style:italic; font-family:'Playfair Display',serif; font-size:15px; color:var(--navy);">"Love is patient, love is kind."</p>
+            <p style="font-size:11px; color:#a89f8d; margin-top:6px;">— 1 Corinthians 13:4</p>
+          </div>
+          <button class="pf2-cta">♥ Express Interest</button>
+          <button class="pf2-cta2">☆ Add to Shortlist</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div style="text-align:center; padding:10px 24px 60px; color:#5d6f8a; font-size:12.5px;">
+  ✦ Sanctuary Redesign concept — Login · Register · Onboarding · Profile &nbsp;|&nbsp; Landing page &amp; logo intentionally untouched
+</div>
+
+</body>
+</html>
+

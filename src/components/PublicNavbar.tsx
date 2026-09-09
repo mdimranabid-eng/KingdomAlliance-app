@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useSettings } from '../lib/SettingsContext';
@@ -7,39 +7,40 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function PublicNavbar() {
   const { settings } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
-  const [onDark, setOnDark] = useState(false); // default dark text for non-landing pages
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const [onDark, setOnDark] = useState(false);
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
 
-  // Intersection Observer: detect if current section has dark background
   useEffect(() => {
-    const snapContainer = document.querySelector('.snap-container');
-    if (!snapContainer) return;
+    let rafId: number;
+    let lastValue = false;
 
-    const sections = snapContainer.querySelectorAll('section');
-    if (!sections.length) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
-            // Hero section (first section) has dark video background
-            const isFirst = entry.target === sections[0];
-            setOnDark(isFirst);
-          }
-        });
-      },
-      {
-        root: snapContainer,
-        threshold: [0.5, 0.6, 0.7],
+    const checkDark = () => {
+      const snapContainer = document.querySelector('.snap-container');
+      if (!snapContainer) {
+        if (lastValue !== false) setOnDark(false);
+        rafId = requestAnimationFrame(checkDark);
+        return;
       }
-    );
+      const firstSection = snapContainer.querySelector('section');
+      if (!firstSection) {
+        if (lastValue !== false) setOnDark(false);
+        rafId = requestAnimationFrame(checkDark);
+        return;
+      }
+      const containerTop = snapContainer.getBoundingClientRect().top;
+      const sectionBottom = firstSection.getBoundingClientRect().bottom;
+      const newValue = sectionBottom > containerTop + 80;
+      if (newValue !== lastValue) {
+        lastValue = newValue;
+        setOnDark(newValue);
+      }
+      rafId = requestAnimationFrame(checkDark);
+    };
 
-    sections.forEach((section) => observerRef.current!.observe(section));
-
-    return () => observerRef.current?.disconnect();
+    rafId = requestAnimationFrame(checkDark);
+    return () => cancelAnimationFrame(rafId);
   }, []);
 
   const textPrimary = onDark ? 'text-white' : 'text-[#4a3521]';
@@ -104,11 +105,13 @@ export default function PublicNavbar() {
               </Link>
               <Link
                 to="/register"
-                className={`text-[15px] font-medium px-6 py-2.5 rounded-full transition-all duration-300 ${
-                  onDark
-                    ? 'bg-white/15 text-white border border-white/25 hover:bg-white/25'
-                    : 'bg-[#4a3521] text-white border border-[#4a3521] hover:bg-[#3a2a1a]'
-                }`}
+                style={{
+                  ...(onDark
+                    ? { backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.25)' }
+                    : { backgroundColor: '#4a3521', color: '#dfc88a', border: '1px solid #4a3521' }),
+                  transition: 'all 0.3s ease'
+                }}
+                className="text-[15px] font-medium px-6 py-2.5 rounded-full hover:opacity-80"
               >
                 Join Now
               </Link>

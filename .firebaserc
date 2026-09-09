@@ -1,5 +1,6 @@
 {
   "projects": {
+    "default": "kingdom-alliance-v2",
     "staging": "kingdom-alliance-staging",
     "production": "kingdom-alliance-v2"
   },

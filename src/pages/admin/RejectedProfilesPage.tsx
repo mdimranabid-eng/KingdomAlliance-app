@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, getDoc, deleteDoc, where, orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin } from 'lucide-react';
+import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin, ArrowLeft } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType, calculateAge } from '../../lib/utils';
+import { useNavigate } from 'react-router-dom';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
-import { secureDeletePhoto } from '../../lib/cloudinary';
 
 const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
 
@@ -90,6 +90,7 @@ interface UserProfile {
 }
 
 export default function RejectedProfilesPage() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -217,28 +218,7 @@ export default function RejectedProfilesPage() {
       
       // FALLBACK WORKFLOW: Perform client-side cascade deletions directly if the local Express API is not running
       try {
-        // 1. Programmatically delete Cloudinary assets via secure backend endpoint
-        const urlsToDelete = new Set<string>();
-        if (selectedUser.photoUrl) urlsToDelete.add(selectedUser.photoUrl);
-        if (selectedUser.pendingPhotoUrl) urlsToDelete.add(selectedUser.pendingPhotoUrl);
-        if (Array.isArray(selectedUser.gallery)) {
-          selectedUser.gallery.forEach((p: any) => {
-            if (p && p.url) urlsToDelete.add(p.url);
-          });
-        }
-
-        // Delete each Cloudinary URL securely
-        for (const url of urlsToDelete) {
-          if (url && url.includes('cloudinary.com')) {
-            try {
-              await secureDeletePhoto(url);
-            } catch (cloudinaryErr) {
-              console.error(`[Admin Delete Fallback] Failed Cloudinary asset secure deletion: ${url}`, cloudinaryErr);
-            }
-          }
-        }
-
-        // 3. Purge all Documents in /interests where fromId == targetUserUid or toId == targetUserUid
+        // 1. Purge all Documents in /interests where fromId == targetUserUid or toId == targetUserUid
         const interestsQueryFrom = query(collection(db, 'interests'), where('fromId', '==', targetUserUid));
         const interestsQueryTo = query(collection(db, 'interests'), where('toId', '==', targetUserUid));
         const [interestsFromSnap, interestsToSnap] = await Promise.all([
@@ -313,58 +293,67 @@ export default function RejectedProfilesPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-headline text-4xl text-on-surface">Rejected Profiles</h1>
-          <p className="text-on-surface-variant">Review, reinstate, or permanently delete rejected or suspended user accounts</p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate('/admin/approvals')}
+            className="mt-1 p-2 hover:bg-[#1a2e4a]/5 rounded-full transition-colors text-[#64748b]"
+            title="Back to Approvals"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-[28px] font-semibold text-[#0f172a] tracking-tight">Rejected Profiles</h1>
+            <p className="text-sm text-[#64748b] mt-0.5">Review, reinstate, or permanently delete rejected or suspended user accounts</p>
+          </div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="bg-surface-container-low p-4 rounded-3xl border border-outline-variant">
+      <div className="admin-card p-4">
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
           <input 
             type="text"
-            placeholder="Search rejected by name or email..."
+            placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl text-[13px] ring-1 ring-black/[0.06] focus:ring-2 focus:ring-[#1a2e4a]/20 outline-none transition-all"
           />
         </div>
       </div>
 
       {/* User Table */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl overflow-hidden shadow-sm">
+      <div className="admin-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[750px]">
-            <thead className="bg-surface-container border-b border-outline-variant">
+            <thead className="border-b border-black/[0.04]">
               <tr>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">User Details</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Type</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Photos</th>
-                <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-right">Actions</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">User</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Type</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Photos</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant/30">
+            <tbody className="divide-y divide-black/[0.03]">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                  <td colSpan={5} className="px-6 py-16 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-[#1a2e4a] mx-auto" />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-on-surface-variant">
+                  <td colSpan={5} className="px-6 py-16 text-center text-sm text-[#64748b]">
                     No rejected or suspended profiles found.
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-surface-variant/5">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container">
+                  <tr key={user.id} className="hover:bg-[#f8fafc] transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full overflow-hidden bg-[#f1f5f9] ring-1 ring-black/[0.04]">
                           <img 
                             src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} 
                             className="w-full h-full object-cover" 
@@ -372,56 +361,55 @@ export default function RejectedProfilesPage() {
                           />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-on-surface">{user.name}</p>
-                          <p className="text-xs text-on-surface-variant">{user.email}</p>
+                          <p className="text-[13px] font-semibold text-[#0f172a]">{user.name}</p>
+                          <p className="text-[11px] text-[#64748b]">{user.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full",
-                        user.profileType === 'bride' ? "bg-secondary-container/10 text-secondary-container" : "bg-primary-container/10 text-primary-container"
+                        "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md",
+                        user.profileType === 'bride' ? "bg-pink-50 text-pink-700" : "bg-blue-50 text-blue-700"
                       )}>
                         {user.profileType}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                        <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 w-fit",
-                        user.status === 'active' ? "bg-green-100 text-green-700" : 
-                        user.status === 'suspended' ? "bg-amber-100 text-amber-700" : "bg-error/10 text-error"
+                        "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md inline-flex items-center gap-1",
+                        user.status === 'active' ? "bg-emerald-50 text-emerald-700" : 
+                        user.status === 'suspended' ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
                       )}>
-                        <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                        <div className="w-1 h-1 rounded-full bg-current" />
                         {user.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       {user.photoStatus === 'pending' || (user.gallery && user.gallery.some((p: any) => p.status === 'pending')) ? (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-primary/10 text-primary rounded-full flex items-center gap-1 w-fit animate-pulse">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md inline-flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           Pending
                         </span>
                       ) : user.photoStatus === 'rejected' ? (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-error/10 text-error rounded-full flex items-center gap-1 w-fit">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-red-50 text-red-700 rounded-md inline-flex items-center gap-1">
                           <XCircle className="w-3 h-3" />
                           Rejected
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-1 w-fit">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md inline-flex items-center gap-1">
                           <CheckCircle className="w-3 h-3" />
                           Approved
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2.5">
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button 
                           onClick={() => setSelectedUser(user)}
-                          className="p-2.5 bg-[#2563eb] text-white rounded-xl hover:bg-[#1d4ed8] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                          className="p-2 text-[#1a2e4a] hover:bg-[#1a2e4a]/5 rounded-lg transition-colors"
                           title="View Details"
                         >
                           <Eye className="w-4 h-4" />
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">View Details</span>
                         </button>
 
                         <button 
@@ -429,13 +417,10 @@ export default function RejectedProfilesPage() {
                             setSelectedUser(user);
                             setShowApproveConfirm(true);
                           }}
-                          className="p-2.5 bg-[#16a34a] text-white rounded-xl hover:bg-[#15803d] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                           title="Approve User"
                         >
                           <UserCheck className="w-4 h-4" />
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
-                            Approve Profile
-                          </span>
                         </button>
                         
                         <button 
@@ -443,13 +428,10 @@ export default function RejectedProfilesPage() {
                             setSelectedUser(user);
                             setShowDeleteConfirm(true);
                           }}
-                          className="p-2.5 bg-[#ef4444] text-white rounded-xl hover:bg-[#dc2626] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete User"
                         >
                           <Trash2 className="w-4 h-4" />
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
-                            Delete User
-                          </span>
                         </button>
                       </div>
                     </td>
@@ -467,19 +449,19 @@ export default function RejectedProfilesPage() {
         onClose={() => setSelectedUser(null)}
         actions={
           selectedUser && (
-            <div className="flex gap-4 w-full">
+            <div className="flex gap-3 w-full">
               <button
                 onClick={() => setShowApproveConfirm(true)}
-                className="flex-1 py-4 bg-[#16a34a] text-white rounded-2xl font-bold hover:bg-[#15803d] shadow-lg flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-2"
               >
-                <Check className="w-5 h-5" />
+                <Check className="w-4 h-4" />
                 Approve
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="flex-1 py-4 bg-[#ef4444] text-white rounded-2xl font-bold hover:bg-[#dc2626] shadow-lg flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 shadow-sm flex items-center justify-center gap-2"
               >
-                <Trash2 className="w-5 h-5" />
+                <Trash2 className="w-4 h-4" />
                 Delete
               </button>
             </div>
@@ -502,29 +484,29 @@ export default function RejectedProfilesPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl z-10 text-center"
+              className="relative w-full max-w-md bg-white rounded-[2rem] p-8 shadow-2xl ring-1 ring-black/[0.06] z-10"
             >
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 mx-auto mb-6">
-                <CheckCircle className="w-8 h-8" />
+              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mx-auto mb-5">
+                <CheckCircle className="w-7 h-7" />
               </div>
-              <h3 className="text-2xl font-bold text-[#040e2a]">Approve Application?</h3>
-              <p className="text-on-surface-variant mt-4 leading-relaxed">
-                Are you sure you want to approve <strong>{selectedUser.name}</strong>'s application? This will activate their account and grant them active access to the matrimonial network.
+              <h3 className="text-xl font-semibold text-[#0f172a] text-center">Approve Profile?</h3>
+              <p className="text-sm text-[#64748b] mt-2 text-center leading-relaxed">
+                Reactivate <strong className="text-[#0f172a]">{selectedUser.name}</strong>'s profile? They will regain access to the platform.
               </p>
-              <div className="grid grid-cols-2 gap-4 mt-8">
+              <div className="grid grid-cols-2 gap-3 mt-6">
                 <button
                   disabled={approvingUser}
                   onClick={() => setShowApproveConfirm(false)}
-                  className="px-6 py-3 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl text-sm font-medium text-[#64748b] bg-[#f1f5f9] hover:bg-[#e2e8f0] transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   disabled={approvingUser}
                   onClick={handleApproveUser}
-                  className="px-6 py-3 bg-[#16a34a] text-white rounded-xl font-bold hover:bg-[#15803d] transition-all flex items-center justify-center gap-2"
+                  className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
                 >
-                  {approvingUser ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm'}
+                  {approvingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
                 </button>
               </div>
             </motion.div>
@@ -547,40 +529,41 @@ export default function RejectedProfilesPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-surface-container-lowest rounded-[2rem] p-8 shadow-2xl border border-error/20 z-10"
+              className="relative w-full max-w-md bg-white rounded-[2rem] p-8 shadow-2xl ring-1 ring-black/[0.06] z-10"
             >
-              <div className="text-center space-y-6">
-                <div className="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto">
-                  <Trash2 className="w-8 h-8 text-error" />
+              <div className="h-1.5 bg-gradient-to-r from-red-500 to-red-700 -mx-8 -mt-8 rounded-t-[2rem]" />
+              <div className="text-center space-y-5 mt-4">
+                <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+                  <Trash2 className="w-7 h-7 text-red-500" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-headline text-2xl text-on-surface font-semibold text-error">User Data will be Permanently Deleted</h3>
-                  <div className="text-sm text-on-surface-variant space-y-4 pt-4 text-left bg-surface-container-low p-6 rounded-2xl border border-outline-variant">
-                    <p className="font-bold text-error uppercase tracking-widest text-[10px]">Cascading Deletion Process will purge:</p>
-                    <ul className="space-y-2 list-disc pl-4 font-medium text-xs">
-                      <li>Personal Profile Details & Document `/users`</li>
-                      <li>Cloudinary profile images and active gallery</li>
-                      <li>All sent & received connection `/interests`</li>
-                      <li>User bookmarks & `/shortlists` mappings</li>
-                      <li>All peer-to-peer `/chats` & nested messaging history</li>
+                  <h3 className="text-lg font-semibold text-[#0f172a]">Permanently Delete User</h3>
+                  <div className="text-[13px] text-[#64748b] space-y-3 pt-3 text-left bg-[#f8fafc] p-4 rounded-xl ring-1 ring-black/[0.04]">
+                    <p className="font-semibold text-red-600 text-[11px] uppercase tracking-wider">Cascading deletion will purge:</p>
+                    <ul className="space-y-1.5 list-disc pl-3 text-[12px]">
+                      <li>Profile details &amp; document <code className="bg-white px-1 rounded text-[#0f172a]">/users</code></li>
+                      <li>Cloudinary images &amp; gallery</li>
+                      <li>All <code className="bg-white px-1 rounded text-[#0f172a]">/interests</code> connections</li>
+                      <li>Shortlists &amp; bookmarks</li>
+                      <li>Chat history &amp; messages</li>
                     </ul>
-                    <p className="text-[11px] font-semibold text-on-surface-variant mt-2">This operation is irreversible.</p>
+                    <p className="text-[11px] font-medium text-[#94a3b8] pt-1">This operation is irreversible.</p>
                   </div>
                 </div>
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-2">
                   <button 
                     disabled={deletingUser}
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 py-3 bg-surface-container text-on-surface rounded-xl font-bold hover:bg-surface-variant transition-all disabled:opacity-50"
+                    className="flex-1 py-2.5 bg-[#f1f5f9] text-[#0f172a] rounded-xl text-[13px] font-medium hover:bg-[#e2e8f0] transition-all disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     disabled={deletingUser}
                     onClick={handleDeleteUser}
-                    className="flex-1 py-3 bg-error text-white rounded-xl font-bold hover:bg-error/80 transition-all shadow-lg shadow-error/20 flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-[13px] font-medium hover:bg-red-600 transition-all flex items-center justify-center gap-2"
                   >
-                    {deletingUser ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Proceed'}
+                    {deletingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Proceed'}
                   </button>
                 </div>
               </div>
@@ -597,10 +580,10 @@ export default function RejectedProfilesPage() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
             className={cn(
-              "fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 backdrop-blur-md font-semibold text-sm",
+              "fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 backdrop-blur-md font-medium text-[13px]",
               notification.type === 'success' 
-                ? "bg-[#15803d]/90 text-white border-green-500/20" 
-                : "bg-error/90 text-white border-error-container/20"
+                ? "bg-emerald-600/95 text-white border-emerald-500/20" 
+                : "bg-red-500/95 text-white border-red-400/20"
             )}
           >
             {notification.type === 'success' ? (

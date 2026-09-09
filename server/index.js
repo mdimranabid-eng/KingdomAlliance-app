@@ -397,7 +397,9 @@ app.post('/api/admin/approve-photo', requireAdminAuth, async (req, res) => {
           transaction.update(userRef, {
             photoUrl: targetPhoto,
             photoURL: targetPhoto,
+            thumbUrl: item.thumbUrl || item.pendingThumbUrl || userData.thumbUrl || '',
             pendingPhotoUrl: '',
+            pendingPhotoThumbUrl: '',
             photoStatus: 'approved',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             notifications: admin.firestore.FieldValue.arrayUnion({
@@ -640,6 +642,57 @@ app.post('/api/verify-admin-email', async (req, res) => {
 
 
 // ─── Start Server ──────────────────────────────────────────────────────────────
+
+
+// ─── Onboarding Confirmation Email ───────────────────────────────────────────
+// Mirrors the Cloud Functions /send-onboarding-email (functions/src/api.ts).
+// The dev Vite proxy routes /api -> this server (localhost:3001), so the
+// endpoint must exist here too. The production biodata-PDF variant lives in
+// the Cloud Function; this variant sends the HTML confirmation email.
+
+app.post('/api/send-onboarding-email', async (req, res) => {
+  const { uid } = req.body;
+
+  if (uid === undefined || uid === null || typeof uid === 'string' && uid.trim() === '') {
+    return res.status(400).json({ error: 'Missing or invalid uid in request body.' });
+  }
+
+  try {
+    const userSnap = await db.collection('users').doc(uid).get();
+    if (userSnap.exists === false) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const userData = userSnap.data() || {};
+    const email = userData.email;
+    const name = userData.fullName || userData.name || 'Member';
+
+    if (email === undefined || email === null || email === '') {
+      return res.status(400).json({ error: 'User document has no email address.' });
+    }
+
+    const subject = 'Welcome to Kingdom Alliance — Your Profile Was Submitted';
+    const htmlContent =
+      '<div style="font-family: Arial, sans-serif; color: #040e2a; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">' +
+      '<h2 style="color: #1a2e4a;">Profile Submitted Successfully</h2>' +
+      '<p>Dear ' + name + ',</p>' +
+      '<p>Thank you for completing your Kingdom Alliance profile. Your biodata has been submitted to our review team and is now in the approval queue.</p>' +
+      '<p>You will receive a confirmation email as soon as your profile has been reviewed. Until then, your profile is not visible to other members.</p>' +
+      '<p style="font-size: 14px; color: #64748b;">If you have any questions, feel free to reach out via the Contact page.</p>' +
+      '<br/>' +
+      '<p style="margin-bottom: 5px;">Regards,</p>' +
+      '<p style="margin-top: 0;"><strong>Thank You,</strong><br/>The Kingdom Alliance Team</p>' +
+      '</div>';
+
+    await dispatchEmail(email, subject, htmlContent);
+
+    console.log('[OnboardingEmail] Confirmation sent to ' + email + ' (uid: ' + uid + ')');
+    return res.status(200).json({ success: true, message: 'Onboarding email sent successfully.' });
+  } catch (error) {
+    console.error('[OnboardingEmail] Failed:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Failed to send onboarding email.' });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   const emulatorMode = !!process.env.FIRESTORE_EMULATOR_HOST;

@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { collection, query, getDocs, updateDoc, doc, serverTimestamp, where, orderBy, limit, deleteDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Eye, UserX, UserCheck, Printer } from 'lucide-react';
+import { Search, User, Mail, ShieldAlert, Edit, Trash2, Filter, MoreVertical, CheckCircle, XCircle, Ban, Phone, Database, Loader2, Clock, Download, Info, ShieldCheck, Heart, Church, GraduationCap, Briefcase, Ruler, Activity, Quote, Users, Eye, UserX, UserCheck, Printer, ArrowLeft } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType, calculateAge, parseFirestoreDate } from '../../lib/utils';
-import { Link, useSearchParams } from 'react-router-dom';
-import { secureDeletePhoto } from '../../lib/cloudinary';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import AdminUserDetailModal from '../../components/admin/AdminUserDetailModal';
 
@@ -118,6 +117,7 @@ interface UserProfile {
 }
 
 export default function AdminUserManagement() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [interests, setInterests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,28 +227,7 @@ export default function AdminUserManagement() {
       
       // FALLBACK WORKFLOW: Perform client-side cascade deletions directly if the local Express API is not running
       try {
-        // 1. Programmatically delete Cloudinary assets via secure backend endpoint
-        const urlsToDelete = new Set<string>();
-        if (selectedUser.photoUrl) urlsToDelete.add(selectedUser.photoUrl);
-        if (selectedUser.pendingPhotoUrl) urlsToDelete.add(selectedUser.pendingPhotoUrl);
-        if (Array.isArray(selectedUser.gallery)) {
-          selectedUser.gallery.forEach((p: any) => {
-            if (p && p.url) urlsToDelete.add(p.url);
-          });
-        }
-
-        // Delete each Cloudinary URL securely
-        for (const url of urlsToDelete) {
-          if (url && url.includes('cloudinary.com')) {
-            try {
-              await secureDeletePhoto(url);
-            } catch (cloudinaryErr) {
-              console.error(`[Admin Delete Fallback] Failed Cloudinary asset secure deletion: ${url}`, cloudinaryErr);
-            }
-          }
-        }
-
-        // 3. Purge all Documents in /interests where fromId == targetUserUid or toId == targetUserUid
+        // 1. Purge all Documents in /interests where fromId == targetUserUid or toId == targetUserUid
         const interestsQueryFrom = query(collection(db, 'interests'), where('fromId', '==', targetUserUid));
         const interestsQueryTo = query(collection(db, 'interests'), where('toId', '==', targetUserUid));
         const [interestsFromSnap, interestsToSnap] = await Promise.all([
@@ -356,6 +335,9 @@ export default function AdminUserManagement() {
   const filteredConnections = connections.filter(conn => {
     if (filterStatus === 'interest-sent' && conn.status !== 'pending') return false;
     if (filterStatus === 'connected-successfully' && conn.status !== 'accepted') return false;
+    
+    // Exclude connections involving deleted users
+    if (conn.senderName === 'Unknown User' || conn.receiverName === 'Unknown User') return false;
     
     const term = searchTerm.toLowerCase();
     return conn.senderName.toLowerCase().includes(term) ||
@@ -492,43 +474,52 @@ export default function AdminUserManagement() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-headline text-4xl text-on-surface">
-            {filterStatus === 'interest-sent' ? 'Pending Interests' :
-             filterStatus === 'connected-successfully' ? 'Successful Connections' :
-             'User Management'}
-          </h1>
-          <p className="text-on-surface-variant">
-            {filterStatus === 'interest-sent' ? 'View and print sent requests waiting for response' :
-             filterStatus === 'connected-successfully' ? 'View and print successfully accepted matches' :
-             'Search, edit, and manage user accounts'}
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate('/admin')}
+            className="mt-1 p-2 hover:bg-[#1a2e4a]/5 rounded-full transition-colors text-[#64748b]"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-[28px] font-semibold text-[#0f172a] tracking-tight">
+              {filterStatus === 'interest-sent' ? 'Pending Interests' :
+               filterStatus === 'connected-successfully' ? 'Successful Connections' :
+               'User Management'}
+            </h1>
+            <p className="text-sm text-[#64748b] mt-0.5">
+              {filterStatus === 'interest-sent' ? 'View and print sent requests waiting for response' :
+               filterStatus === 'connected-successfully' ? 'View and print successfully accepted matches' :
+               'Search, edit, and manage user accounts'}
+            </p>
+          </div>
         </div>
         {(filterStatus === 'interest-sent' || filterStatus === 'connected-successfully') && (
           <button
             onClick={handlePrintConnections}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-[#040e2a] hover:bg-[#040e2a]/90 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1a2e4a] hover:bg-[#0f1d32] text-white rounded-xl text-[13px] font-medium transition-colors shadow-sm"
           >
-            <Printer className="w-5 h-5" />
+            <Printer className="w-4 h-4" />
             Print Report
           </button>
         )}
       </div>
 
       {/* Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-surface-container-low p-4 rounded-3xl border border-outline-variant">
-        <div className="relative md:col-span-2">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
+      <div className="admin-card p-4 flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
           <input 
             type="text"
             placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl text-[13px] ring-1 ring-black/[0.06] focus:ring-2 focus:ring-[#1a2e4a]/20 outline-none transition-all"
           />
         </div>
         <div className="flex items-center gap-2">
-          <Filter className="w-5 h-5 text-on-surface-variant ml-2" />
+          <Filter className="w-4 h-4 text-[#94a3b8]" />
           <select 
             value={filterStatus}
             onChange={(e: any) => {
@@ -541,7 +532,7 @@ export default function AdminUserManagement() {
               }
               setSearchParams(searchParams);
             }}
-            className="flex-1 px-4 py-3 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            className="px-3 py-2.5 bg-white rounded-xl text-[13px] ring-1 ring-black/[0.06] focus:ring-2 focus:ring-[#1a2e4a]/20 outline-none"
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
@@ -555,67 +546,67 @@ export default function AdminUserManagement() {
       </div>
 
       {/* User Table */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl overflow-hidden shadow-sm">
+      <div className="admin-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[750px]">
-            <thead className="bg-surface-container border-b border-outline-variant">
+            <thead className="border-b border-black/[0.04]">
               {filterStatus === 'interest-sent' || filterStatus === 'connected-successfully' ? (
                 <tr>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Sender (Initiated By)</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-center">Direction</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Receiver (Recipient)</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Date</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-right">Status</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Sender</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider text-center">Direction</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Receiver</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Date</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider text-right">Status</th>
                 </tr>
               ) : (
                 <tr>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">User Details</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Type</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Status</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest">Photos</th>
-                  <th className="px-6 py-4 font-label-caps text-xs text-on-surface-variant uppercase tracking-widest text-right">Actions</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">User</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Type</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Photos</th>
+                  <th className="px-5 py-3 text-[11px] font-semibold text-[#64748b] uppercase tracking-wider text-right">Actions</th>
                 </tr>
               )}
             </thead>
-            <tbody className="divide-y divide-outline-variant/30">
+            <tbody className="divide-y divide-black/[0.03]">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                  <td colSpan={5} className="px-6 py-16 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-[#1a2e4a] mx-auto" />
                   </td>
                 </tr>
               ) : (filterStatus === 'interest-sent' || filterStatus === 'connected-successfully') ? (
                 filteredConnections.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-on-surface-variant">
+                    <td colSpan={5} className="px-6 py-16 text-center text-sm text-[#64748b]">
                       No records found matching your criteria.
                     </td>
                   </tr>
                 ) : (
                   filteredConnections.map((conn) => (
-                    <tr key={conn.id} className="hover:bg-surface-variant/5">
-                      <td className="px-6 py-4">
+                    <tr key={conn.id} className="hover:bg-[#f8fafc] transition-colors">
+                      <td className="px-5 py-3.5">
                         <div>
-                          <p className="text-sm font-bold text-on-surface">{conn.senderName}</p>
-                          <p className="text-xs text-on-surface-variant">{conn.senderEmail} <span className="capitalize">({conn.senderType})</span></p>
+                          <p className="text-[13px] font-semibold text-[#0f172a]">{conn.senderName}</p>
+                          <p className="text-[11px] text-[#64748b]">{conn.senderEmail} <span className="capitalize">({conn.senderType})</span></p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center text-on-surface-variant font-bold text-lg">
-                        &rarr;
+                      <td className="px-5 py-3.5 text-center text-[#94a3b8] font-medium">
+                        →
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-5 py-3.5">
                         <div>
-                          <p className="text-sm font-bold text-on-surface">{conn.receiverName}</p>
-                          <p className="text-xs text-on-surface-variant">{conn.receiverEmail} <span className="capitalize">({conn.receiverType})</span></p>
+                          <p className="text-[13px] font-semibold text-[#0f172a]">{conn.receiverName}</p>
+                          <p className="text-[11px] text-[#64748b]">{conn.receiverEmail} <span className="capitalize">({conn.receiverType})</span></p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-on-surface-variant">
+                      <td className="px-5 py-3.5 text-[13px] text-[#64748b]">
                         {conn.createdAt?.seconds ? new Date(conn.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-5 py-3.5 text-right">
                         <span className={cn(
-                          "text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full",
-                          conn.status === 'accepted' ? "bg-green-100 text-green-700" : "bg-gold/10 text-gold"
+                          "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md",
+                          conn.status === 'accepted' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
                         )}>
                           {conn.status === 'accepted' ? 'Connected' : 'Pending'}
                         </span>
@@ -625,16 +616,16 @@ export default function AdminUserManagement() {
                 )
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-on-surface-variant">
+                  <td colSpan={5} className="px-6 py-16 text-center text-sm text-[#64748b]">
                     No users found matching your criteria.
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-surface-variant/5">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container">
+                  <tr key={user.id} className="hover:bg-[#f8fafc] transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full overflow-hidden bg-[#f1f5f9] ring-1 ring-black/[0.04]">
                           <img 
                             src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} 
                             className="w-full h-full object-cover" 
@@ -642,28 +633,28 @@ export default function AdminUserManagement() {
                           />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-on-surface">{user.name}</p>
-                          <p className="text-xs text-on-surface-variant">{user.email}</p>
+                          <p className="text-[13px] font-semibold text-[#0f172a]">{user.name}</p>
+                          <p className="text-[11px] text-[#64748b]">{user.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full",
-                        user.profileType === 'bride' ? "bg-secondary-container/10 text-secondary-container" : "bg-primary-container/10 text-primary-container"
+                        "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md",
+                        user.profileType === 'bride' ? "bg-pink-50 text-pink-700" : "bg-blue-50 text-blue-700"
                       )}>
                         {user.profileType}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       {(() => {
                         const effectiveStatus = getEffectiveStatus(user);
                         return (
                           <span className={cn(
-                            "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 w-fit",
-                            effectiveStatus === 'active' ? "bg-green-100 text-green-700" : 
-                            effectiveStatus === 'inactive' ? "bg-slate-100 text-slate-500" :
-                            effectiveStatus === 'suspended' ? "bg-gold/10 text-gold" : "bg-error/10 text-error"
+                            "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md inline-flex items-center gap-1",
+                            effectiveStatus === 'active' ? "bg-emerald-50 text-emerald-700" : 
+                            effectiveStatus === 'inactive' ? "bg-[#f1f5f9] text-[#64748b]" :
+                            effectiveStatus === 'suspended' ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
                           )}>
                             <div className="w-1 h-1 rounded-full bg-current" />
                             {effectiveStatus}
@@ -671,33 +662,32 @@ export default function AdminUserManagement() {
                         );
                       })()}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       {user.photoStatus === 'pending' || (user.gallery && user.gallery.some((p: any) => p.status === 'pending')) ? (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-primary/10 text-primary rounded-full flex items-center gap-1 w-fit animate-pulse">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md inline-flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           Pending
                         </span>
                       ) : user.photoStatus === 'rejected' ? (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-error/10 text-error rounded-full flex items-center gap-1 w-fit">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-red-50 text-red-700 rounded-md inline-flex items-center gap-1">
                           <XCircle className="w-3 h-3" />
                           Rejected
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-1 w-fit">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md inline-flex items-center gap-1">
                           <CheckCircle className="w-3 h-3" />
                           Approved
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
+                    <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button 
                             onClick={() => setSelectedUser(user)}
-                            className="p-2.5 bg-[#2563eb] text-white rounded-xl hover:bg-[#1d4ed8] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                            className="p-2 text-[#1a2e4a] hover:bg-[#1a2e4a]/5 rounded-lg transition-colors"
                             title="View Details"
                           >
                             <Eye className="w-4 h-4" />
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">View Details</span>
                           </button>
                           
                           {(() => {
@@ -714,15 +704,12 @@ export default function AdminUserManagement() {
                                   }
                                 }}
                                 className={cn(
-                                  "p-2.5 text-white rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm group relative",
-                                  isActive ? "bg-[#dc2626] hover:bg-[#b91c1c]" : "bg-[#d97706] hover:bg-[#c2410c]"
+                                  "p-2 rounded-lg transition-colors",
+                                  isActive ? "text-amber-600 hover:bg-amber-50" : "text-emerald-600 hover:bg-emerald-50"
                                 )}
                                 title={isActive ? 'Suspend User' : 'Re-activate User'}
                               >
                                 {isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
-                                  {isActive ? 'Suspend User' : 'Re-activate User'}
-                                </span>
                               </button>
                             );
                           })()}
@@ -732,13 +719,10 @@ export default function AdminUserManagement() {
                               setSelectedUser(user);
                               setShowDeleteConfirm(true);
                             }}
-                            className="p-2.5 bg-[#ef4444] text-white rounded-xl hover:bg-[#dc2626] hover:scale-110 active:scale-95 transition-all shadow-sm group relative"
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete User"
                           >
                             <Trash2 className="w-4 h-4" />
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
-                              Delete User
-                            </span>
                           </button>
                         </div>
                     </td>
@@ -773,40 +757,41 @@ export default function AdminUserManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-surface-container-lowest rounded-[2rem] p-8 shadow-2xl border border-error/20"
+              className="relative w-full max-w-md bg-white rounded-[2rem] p-8 shadow-2xl ring-1 ring-black/[0.06] z-10"
             >
-              <div className="text-center space-y-6">
-                <div className="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto">
-                  <Trash2 className="w-8 h-8 text-error" />
+              <div className="h-1.5 bg-gradient-to-r from-red-500 to-red-700 -mx-8 -mt-8 rounded-t-[2rem]" />
+              <div className="text-center space-y-5 mt-4">
+                <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+                  <Trash2 className="w-7 h-7 text-red-500" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-headline text-2xl text-on-surface font-semibold text-error">User Data will be Permanently Deleted</h3>
-                  <div className="text-sm text-on-surface-variant space-y-4 pt-4 text-left bg-surface-container-low p-6 rounded-2xl border border-outline-variant">
-                    <p className="font-bold text-error uppercase tracking-widest text-[10px]">Cascading Deletion Process will purge:</p>
-                    <ul className="space-y-2 list-disc pl-4 font-medium text-xs">
-                      <li>Personal Profile Details & Document `/users`</li>
-                      <li>Cloudinary profile images and active gallery</li>
-                      <li>All sent & received connection `/interests`</li>
-                      <li>User bookmarks & `/shortlists` mappings</li>
-                      <li>All peer-to-peer `/chats` & nested messaging history</li>
+                  <h3 className="text-lg font-semibold text-[#0f172a]">Permanently Delete User</h3>
+                  <div className="text-[13px] text-[#64748b] space-y-3 pt-3 text-left bg-[#f8fafc] p-4 rounded-xl ring-1 ring-black/[0.04]">
+                    <p className="font-semibold text-red-600 text-[11px] uppercase tracking-wider">Cascading deletion will purge:</p>
+                    <ul className="space-y-1.5 list-disc pl-3 text-[12px]">
+                      <li>Profile details &amp; document <code className="bg-white px-1 rounded text-[#0f172a]">/users</code></li>
+                      <li>Cloudinary images &amp; gallery</li>
+                      <li>All <code className="bg-white px-1 rounded text-[#0f172a]">/interests</code> connections</li>
+                      <li>Shortlists &amp; bookmarks</li>
+                      <li>Chat history &amp; messages</li>
                     </ul>
-                    <p className="text-[11px] font-semibold text-on-surface-variant mt-2">This operation is irreversible.</p>
+                    <p className="text-[11px] font-medium text-[#94a3b8] pt-1">This operation is irreversible.</p>
                   </div>
                 </div>
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-2">
                   <button 
                     disabled={deletingUser}
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 py-3 bg-surface-container text-on-surface rounded-xl font-bold hover:bg-surface-variant transition-all disabled:opacity-50"
+                    className="flex-1 py-2.5 bg-[#f1f5f9] text-[#0f172a] rounded-xl text-[13px] font-medium hover:bg-[#e2e8f0] transition-all disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     disabled={deletingUser}
                     onClick={handleDeleteUser}
-                    className="flex-1 py-3 bg-error text-white rounded-xl font-bold hover:bg-error/80 transition-all shadow-lg shadow-error/20 flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-[13px] font-medium hover:bg-red-600 transition-all flex items-center justify-center gap-2"
                   >
-                    {deletingUser ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Proceed'}
+                    {deletingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Proceed'}
                   </button>
                 </div>
               </div>
@@ -823,10 +808,10 @@ export default function AdminUserManagement() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
             className={cn(
-              "fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 backdrop-blur-md font-semibold text-sm",
+              "fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 backdrop-blur-md font-medium text-[13px]",
               notification.type === 'success' 
-                ? "bg-[#15803d]/90 text-white border-green-500/20" 
-                : "bg-error/90 text-white border-error-container/20"
+                ? "bg-emerald-600/95 text-white border-emerald-500/20" 
+                : "bg-red-500/95 text-white border-red-400/20"
             )}
           >
             {notification.type === 'success' ? (

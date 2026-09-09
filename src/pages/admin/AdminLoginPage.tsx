@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import { motion } from 'motion/react';
-import { ShieldCheck, Lock, Mail, Loader2, AlertCircle, Key, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Loader2, AlertCircle, Key } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { KingdomCrossIcon } from '../../components/KingdomCrossIcon';
 import { signInWithEmailAndPassword, getMultiFactorResolver, TotpMultiFactorGenerator, signOut, multiFactor } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs, deleteDoc, addDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { formatAuthError } from '../../lib/utils';
-import { sendEmail } from '../../lib/email';
+import { requestOtp, verifyOtp } from '../../services/otpService';
 import { QRCodeSVG } from 'qrcode.react';
+
+const proverbs = [
+  { ref: 'Proverbs 18:22', text: '"He who finds a wife finds a good thing and obtains favor from the Lord."' },
+  { ref: 'Proverbs 31:10', text: '"An excellent wife who can find? She is far more precious than jewels."' },
+  { ref: 'Ecclesiastes 4:9', text: '"Two are better than one, because they have a good reward for their toil."' },
+  { ref: 'Genesis 2:18', text: '"It is not good that the man should be alone; I will make a helper fit for him."' },
+  { ref: 'Song of Solomon 8:6', text: '"Set me as a seal upon your heart, as a seal upon your arm."' },
+  { ref: '1 Corinthians 13:4', text: '"Love is patient and kind; love does not envy or boast."' },
+];
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -17,29 +26,38 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // MFA Login states (already enrolled)
+
   const [mfaResolver, setMfaResolver] = useState<any>(null);
   const [mfaCode, setMfaCode] = useState('');
 
-  // Flow State: 'LOGIN' | 'VERIFY_OTP' | 'ENROLL_MFA'
   const [step, setStep] = useState<'LOGIN' | 'VERIFY_OTP' | 'ENROLL_MFA'>('LOGIN');
 
-  // OTP Verification states
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
 
-  // QR Code MFA enrollment states
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [totpSecret, setTotpSecret] = useState<any>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [mfaEnrollError, setMfaEnrollError] = useState<string | null>(null);
 
+  const [currentVerse, setCurrentVerse] = useState(0);
+  const [verseFading, setVerseFading] = useState(false);
+
   const { signIn, user, isAdmin, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
-  // Auto-redirect fully authenticated admins
-  React.useEffect(() => {
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVerseFading(true);
+      setTimeout(() => {
+        setCurrentVerse(prev => (prev + 1) % proverbs.length);
+        setVerseFading(false);
+      }, 500);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     const checkRedirect = async () => {
       if (user && isAdmin) {
         const enrolledFactors = multiFactor(user).enrolledFactors;
@@ -55,8 +73,7 @@ export default function AdminLoginPage() {
     checkRedirect();
   }, [user, isAdmin, navigate]);
 
-  // Session Recovery: if user is signed in but isAdmin is false, check if they need OTP or MFA
-  React.useEffect(() => {
+  useEffect(() => {
     const checkSessionState = async () => {
       if (user && !isAdmin) {
         try {
@@ -86,12 +103,6 @@ export default function AdminLoginPage() {
     checkSessionState();
   }, [user, isAdmin]);
 
-  const generateOTP = () => {
-    const array = new Uint32Array(1);
-    window.crypto.getRandomValues(array);
-    return String(array[0] % 900000 + 100000);
-  };
-
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -102,7 +113,6 @@ export default function AdminLoginPage() {
       const user = userCredential.user;
       setIsRedirecting(true);
 
-      // Verify admin status via Firebase Custom Claims
       const idTokenResult = await user.getIdTokenResult();
       if (!idTokenResult.claims.admin) {
         await signOut(auth);
@@ -112,7 +122,6 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Fetch admins doc from Firestore to check emailVerified status
       const adminDocRef = doc(db, 'admins', user.uid);
       const adminDocSnap = await getDoc(adminDocRef);
 
@@ -128,41 +137,13 @@ export default function AdminLoginPage() {
       const emailVerifiedInDoc = adminData?.emailVerified === true;
 
       if (!emailVerifiedInDoc) {
-        // Paused! Send OTP to verify identity
-        const code = generateOTP();
-        if (import.meta.env.DEV) {
-          console.log(`🔑 [DEV ONLY] Generated Admin Login OTP for ${email}: ${code}`);
-        }
-
-        // Delete any old OTPs for this email in temp_otps
-        const oldOtpsQuery = query(collection(db, 'temp_otps'), where('email', '==', email));
-        const oldOtpsSnap = await getDocs(oldOtpsQuery);
-        const deletePromises = oldOtpsSnap.docs.map(d => deleteDoc(d.ref));
-        await Promise.all(deletePromises);
-
-        // Store new OTP
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-        await addDoc(collection(db, 'temp_otps'), {
-          email: email,
-          otp: code,
-          expiresAt: Timestamp.fromDate(expiresAt),
-          createdAt: serverTimestamp()
-        });
-
-        // Send Email
-        await sendEmail({
-          to_email: email,
-          otp_code: code,
-          type: 'otp'
-        });
-
+        await requestOtp(email, 'admin_login');
         setStep('VERIFY_OTP');
         setLoading(false);
         setIsRedirecting(false);
         return;
       }
 
-      // Check if MFA is already enrolled for this user
       const enrolledFactors = multiFactor(user).enrolledFactors;
       if (enrolledFactors.length === 0) {
         setStep('ENROLL_MFA');
@@ -172,7 +153,6 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Successful admin login
       navigate('/admin');
     } catch (error: any) {
       setIsRedirecting(false);
@@ -180,7 +160,7 @@ export default function AdminLoginPage() {
         const resolver = getMultiFactorResolver(auth, error);
         setMfaResolver(resolver);
         setLoading(false);
-        return; // Stop the login process and wait for the code
+        return;
       }
       console.error("Admin Login Error:", error);
       setError(formatAuthError(error));
@@ -194,32 +174,7 @@ export default function AdminLoginPage() {
     setOtpError(null);
 
     try {
-      const q = query(
-        collection(db, 'temp_otps'),
-        where('email', '==', email),
-        where('otp', '==', otpCode)
-      );
-      const snapshot = await getDocs(q);
-
-      if (snapshot.empty) {
-        setOtpError("Invalid OTP code. Please check and try again.");
-        setLoading(false);
-        return;
-      }
-
-      const otpDoc = snapshot.docs[0];
-      const otpData = otpDoc.data();
-      const now = Timestamp.now();
-
-      if (otpData.expiresAt.toMillis() < now.toMillis()) {
-        await deleteDoc(otpDoc.ref);
-        setOtpError("OTP has expired. Please log in again to receive a new OTP.");
-        setLoading(false);
-        return;
-      }
-
-      // Cleanup verified OTP
-      await deleteDoc(otpDoc.ref);
+      await verifyOtp(email, otpCode, 'admin_login');
 
       const currentUser = auth.currentUser;
       if (!currentUser) {
@@ -228,10 +183,8 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Get ID token to authenticate with the backend
       const idToken = await currentUser.getIdToken();
 
-      // Call the verifyAdminEmail Cloud Function dynamically depending on environment
       const isDev = import.meta.env.MODE === 'development';
       const verifyEndpoint = isDev
         ? '/api/verify-admin-email'
@@ -252,13 +205,9 @@ export default function AdminLoginPage() {
         throw new Error(errData.error || 'Verification endpoint failed.');
       }
 
-      // Force refresh the token so the client Auth instance immediately knows emailVerified is true
       await currentUser.getIdToken(true);
-
-      // Refresh Auth Context profile so it sets isAdmin to true
       await refreshProfile();
 
-      // Proceed to 2FA Google Authenticator QR Scan/Verification
       const enrolledFactors = multiFactor(currentUser).enrolledFactors;
       if (enrolledFactors.length === 0) {
         setStep('ENROLL_MFA');
@@ -298,8 +247,6 @@ export default function AdminLoginPage() {
       }
       const assertion = TotpMultiFactorGenerator.assertionForEnrollment(totpSecret, verificationCode);
       await multiFactor(auth.currentUser!).enroll(assertion, "Admin Authenticator");
-      
-      // Successfully enrolled, route to admin dashboard
       navigate('/admin');
     } catch (err: any) {
       console.error("MFA enrollment failed:", err);
@@ -315,22 +262,21 @@ export default function AdminLoginPage() {
     try {
       setError('');
       const assertion = TotpMultiFactorGenerator.assertionForSignIn(
-        mfaResolver.hints[0].uid, 
+        mfaResolver.hints[0].uid,
         mfaCode
       );
       const userCredential = await mfaResolver.resolveSignIn(assertion);
-      
-      // Check Admin Privileges
+
       const adminDoc = await getDoc(doc(db, 'admins', userCredential.user.uid));
       if (!adminDoc.exists()) {
         await auth.signOut();
-        setError("❌ Access Denied: Administrator privileges required.");
+        setError("Access Denied: Administrator privileges required.");
         setMfaResolver(null);
         setLoading(false);
         setIsRedirecting(false);
         return;
       }
-      
+
       navigate('/admin');
     } catch (err: any) {
       console.error("MFA Error:", err);
@@ -342,10 +288,10 @@ export default function AdminLoginPage() {
 
   if (loading && step === 'LOGIN' && !mfaResolver) {
     return (
-      <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4">
-        <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          <p className="text-on-surface-variant font-headline text-lg tracking-wide animate-pulse">
+      <div className="min-h-[100dvh] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #0f2035 50%, #0a1628 100%)' }}>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-[#C9A84C] animate-spin" />
+          <p className="text-[#b89a72] text-sm tracking-widest uppercase animate-pulse" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             Verifying administrative credentials...
           </p>
         </div>
@@ -354,166 +300,284 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4 relative">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
+    <div className="min-h-[100dvh] flex relative overflow-hidden" style={{ background: '#fafafa' }}>
+
+      {/* ─── LEFT PANEL: Brand & Scripture (Desktop) ─── */}
+      <div
+        className="hidden lg:flex w-1/2 relative flex-col items-center justify-center p-12 overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #0a1628 0%, #0f2035 50%, #0a1628 100%)' }}
       >
-        <div className="flex flex-col items-center mb-12">
-          <div className="w-20 h-20 bg-primary/10 rounded-[2rem] flex items-center justify-center mb-6">
-            <ShieldCheck className="w-10 h-10 text-primary" />
-          </div>
-          <h1 className="font-headline text-4xl text-on-surface text-center">Admin Access</h1>
-          <p className="text-on-surface-variant text-center mt-2">Kingdom Alliance Administration Portal</p>
+        {/* Ambient glow */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 30% 50%, rgba(201,168,76,0.12) 0%, transparent 60%)' }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 70% 80%, rgba(143,99,55,0.08) 0%, transparent 50%)' }} />
+
+        {/* Grain overlay */}
+        <div className="sanctuary-grain absolute inset-0 pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col items-center text-center max-w-md">
+          {/* Cross */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, ease: [0.22, 0.9, 0.3, 1] }}
+          >
+            <KingdomCrossIcon size="lg" className="mb-8" />
+          </motion.div>
+
+          {/* Brand name */}
+          <motion.h1
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 0.9, 0.3, 1] }}
+            className="text-4xl font-light tracking-tight mb-3"
+            style={{ fontFamily: "'Cormorant Garamond', serif", color: '#C9A84C' }}
+          >
+            Kingdom Alliance
+          </motion.h1>
+
+          {/* Tagline */}
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 0.9, 0.3, 1] }}
+            className="text-[11px] font-semibold uppercase tracking-[0.25em] mb-16"
+            style={{ fontFamily: "'Montserrat', sans-serif", color: '#b89a72' }}
+          >
+            Administration Portal
+          </motion.p>
+
+          {/* Scripture verse */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.45, ease: [0.22, 0.9, 0.3, 1] }}
+            className="relative min-h-[100px] flex flex-col items-center justify-center"
+          >
+            <div
+              className={`text-center transition-opacity duration-500 ${verseFading ? 'opacity-0' : 'opacity-100'}`}
+            >
+              <p
+                className="text-lg italic leading-relaxed mb-3"
+                style={{ fontFamily: "'Cormorant Garamond', serif", color: 'rgba(201,168,76,0.8)' }}
+              >
+                {proverbs[currentVerse].text}
+              </p>
+              <p
+                className="text-[10px] uppercase tracking-[0.2em]"
+                style={{ fontFamily: "'Montserrat', sans-serif", color: 'rgba(184,154,114,0.5)' }}
+              >
+                — {proverbs[currentVerse].ref}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Trust indicators */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+            className="flex items-center gap-6 mt-16"
+          >
+            {['Secure', 'Verified', 'Trusted'].map((word) => (
+              <span
+                key={word}
+                className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em]"
+                style={{ fontFamily: "'Montserrat', sans-serif", color: 'rgba(184,154,114,0.4)' }}
+              >
+                <span className="w-1 h-1 rounded-full" style={{ background: 'rgba(201,168,76,0.3)' }} />
+                {word}
+              </span>
+            ))}
+          </motion.div>
         </div>
+      </div>
 
-        <div className="bg-surface-container-lowest rounded-[2.5rem] p-8 lg:p-12 border border-outline-variant shadow-2xl space-y-8">
-          {mfaResolver ? (
-            /* 2FA CODE SIGN IN FORM */
-            <form onSubmit={handleVerifyMfaCode} className="space-y-4">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-on-surface">Two-Factor Authentication</h2>
-                <p className="text-sm text-on-surface-variant mt-1">
-                  Enter the 6-digit verification code from your authenticator app to secure your session.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-on-surface">Verification Code</label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={mfaCode}
-                  onChange={(e) => setMfaCode(e.target.value)}
-                  className="w-full mt-1 p-3 bg-surface border border-outline-variant rounded-2xl text-center text-xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-primary text-on-surface"
-                  required
-                />
-              </div>
-
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-4 bg-error/10 text-error rounded-2xl border border-error/20 flex items-center gap-3 text-sm"
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span>{error}</span>
-                </motion.div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-4 bg-primary text-on-primary font-bold rounded-2xl hover:shadow-xl transition-all flex items-center justify-center gap-2"
-                disabled={loading}
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify Code"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMfaResolver(null)}
-                className="w-full py-4 bg-surface-container text-on-surface font-bold rounded-2xl border border-outline-variant hover:bg-surface-container-high transition-all mt-2"
-              >
-                Cancel & Go Back
-              </button>
-            </form>
-          ) : (
-            /* LOGIN FORM (EMAIL / PASSWORD) */
-            <form onSubmit={handleAdminLogin} className="space-y-6" autoComplete="off">
-              <input
-                type="text"
-                name="prevent_autofill_email"
-                style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
-                tabIndex={-1}
-                aria-hidden="true"
-              />
-              <input
-                type="password"
-                name="prevent_autofill_password"
-                style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
-                tabIndex={-1}
-                aria-hidden="true"
-              />
-
-              <div className="space-y-2">
-                <label className="block font-label-sm text-on-surface uppercase tracking-wider">Admin Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder=""
-                    autoComplete="off"
-                    className="w-full pl-12 pr-4 py-4 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-on-surface"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block font-label-sm text-on-surface uppercase tracking-wider">Access Token / Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder=""
-                    autoComplete="new-password"
-                    className="w-full pl-12 pr-4 py-4 bg-surface border border-outline-variant rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-on-surface"
-                  />
-                </div>
-              </div>
-
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-4 bg-error/10 text-error rounded-2xl border border-error/20 flex items-center gap-3 text-sm"
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span>{error}</span>
-                </motion.div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    <ShieldCheck className="w-6 h-6" />
-                    Secure Login
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          <p className="text-[10px] text-center text-on-surface-variant leading-relaxed uppercase tracking-tighter">
-            This is a secure area. All actions are logged and audited.
-            Unauthorized access attempts are reported to cybersecurity.
+      {/* ─── RIGHT PANEL: Form Area ─── */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative">
+        {/* Mobile brand header */}
+        <div className="lg:hidden flex flex-col items-center mb-8">
+          <KingdomCrossIcon size="md" className="mb-3" />
+          <h1
+            className="text-2xl font-light tracking-tight"
+            style={{ fontFamily: "'Cormorant Garamond', serif", color: '#1a2e4a' }}
+          >
+            Kingdom Alliance
+          </h1>
+          <p className="text-[10px] uppercase tracking-[0.2em] mt-1" style={{ color: '#b89a72' }}>
+            Administration Portal
           </p>
         </div>
 
-        <div className="mt-8 text-center">
-          <button
-            onClick={() => navigate('/')}
-            className="text-on-surface-variant hover:text-primary transition-colors text-sm font-bold flex items-center justify-center gap-2 mx-auto"
-          >
-            <KingdomCrossIcon size="sm" /> Back to Kingdom Alliance
-          </button>
-        </div>
-      </motion.div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 0.9, 0.3, 1] }}
+          className="w-full max-w-md"
+        >
+          {/* Card with Double-Bezel */}
+          <div className="bg-white rounded-[2rem] shadow-[0_32px_64px_-12px_rgba(26,46,74,0.1)] ring-1 ring-black/[0.06] p-1.5">
+            <div className="bg-white rounded-[calc(2rem-6px)] p-8 lg:p-10">
+              {/* Card header */}
+              <div className="text-center mb-8">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #C9A84C15, #8f633710)' }}>
+                  <ShieldCheck className="w-7 h-7" style={{ color: '#C9A84C' }} />
+                </div>
+                <h2 className="text-2xl font-semibold text-[#0f172a]" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                  Admin Access
+                </h2>
+                <p className="text-sm mt-1.5" style={{ color: '#64748b' }}>
+                  Sign in to your administrator account
+                </p>
+              </div>
 
-      {/* POPUP MODAL FOR EMAIL OTP VERIFICATION */}
+              {/* Form content */}
+              {mfaResolver ? (
+                /* ─── MFA CODE FORM ─── */
+                <form onSubmit={handleVerifyMfaCode} className="space-y-5">
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold text-[#1a2e4a]">Two-Factor Authentication</h3>
+                    <p className="text-sm mt-1" style={{ color: '#64748b' }}>
+                      Enter the 6-digit code from your authenticator app.
+                    </p>
+                  </div>
+
+                  <div className="s-field">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder=" "
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                      className="!text-center !font-mono !text-xl !tracking-widest"
+                      required
+                    />
+                    <label>Verification Code</label>
+                  </div>
+
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-3.5 bg-red-50 text-red-700 rounded-xl border border-red-200 flex items-center gap-3 text-sm"
+                    >
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      <span>{error}</span>
+                    </motion.div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="sanctuary-btn !rounded-full flex items-center justify-center gap-2"
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify Code"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMfaResolver(null)}
+                    className="w-full py-3 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                    style={{ color: '#64748b' }}
+                  >
+                    Cancel & Go Back
+                  </button>
+                </form>
+              ) : (
+                /* ─── LOGIN FORM ─── */
+                <form onSubmit={handleAdminLogin} className="space-y-5" autoComplete="off">
+                  <input
+                    type="text"
+                    name="prevent_autofill_email"
+                    style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="password"
+                    name="prevent_autofill_password"
+                    style={{ position: 'absolute', top: -1000, left: -1000, width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+
+                  <div className="s-field">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: '#94a3b8', zIndex: 1 }} />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder=" "
+                      autoComplete="off"
+                      className="!pl-12"
+                    />
+                    <label style={{ left: 48 }}>Admin Email</label>
+                  </div>
+
+                  <div className="s-field">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: '#94a3b8', zIndex: 1 }} />
+                    <input
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder=" "
+                      autoComplete="new-password"
+                      className="!pl-12"
+                    />
+                    <label style={{ left: 48 }}>Password</label>
+                  </div>
+
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-3.5 bg-red-50 text-red-700 rounded-xl border border-red-200 flex items-center gap-3 text-sm"
+                    >
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      <span>{error}</span>
+                    </motion.div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="sanctuary-btn !rounded-full flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-5 h-5" />
+                        Secure Login
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-center text-[10px] flex items-center justify-center gap-1.5 pt-1" style={{ color: '#94a3b8' }}>
+                    <Lock className="w-3 h-3" />
+                    Secure admin access · All actions audited
+                  </p>
+                </form>
+              )}
+            </div>
+          </div>
+
+          {/* Back link */}
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => navigate('/')}
+              className="text-sm font-medium flex items-center justify-center gap-2 mx-auto transition-colors hover:text-[#C9A84C]"
+              style={{ color: '#94a3b8' }}
+            >
+              <KingdomCrossIcon size="sm" />
+              Back to Kingdom Alliance
+            </button>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ─── OTP VERIFICATION MODAL ─── */}
       {step === 'VERIFY_OTP' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
@@ -522,74 +586,81 @@ export default function AdminLoginPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-md bg-surface border border-outline-variant rounded-[2.5rem] p-8 md:p-10 shadow-2xl space-y-6 z-10"
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-md z-10"
           >
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-primary">
-                  <Mail className="w-6 h-6" />
-                </div>
-                <h2 className="text-2xl font-bold text-on-surface">Verify Your Email</h2>
-                <p className="text-sm text-on-surface-variant mt-1 text-center">
-                  We've sent a 6-digit OTP to your registered email <strong className="text-on-surface">{email}</strong> to verify your identity.
-                </p>
+            <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden ring-1 ring-black/[0.06]">
+              {/* Gold accent bar */}
+              <div className="h-1.5" style={{ background: 'linear-gradient(to right, #C9A84C, #8f6337)' }} />
+
+              <div className="p-8">
+                <form onSubmit={handleVerifyOtp} className="space-y-5">
+                  <div className="text-center">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #C9A84C15, #8f633710)' }}>
+                      <Mail className="w-7 h-7" style={{ color: '#C9A84C' }} />
+                    </div>
+                    <h3 className="text-xl font-semibold text-[#0f172a]">Verify Your Email</h3>
+                    <p className="text-sm mt-1.5" style={{ color: '#64748b' }}>
+                      We've sent a 6-digit code to <strong className="text-[#1a2e4a]">{email}</strong>
+                    </p>
+                  </div>
+
+                  <div className="s-field">
+                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: '#94a3b8', zIndex: 1 }} />
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder=" "
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      className="!pl-12 !text-center !font-mono !text-xl !tracking-widest"
+                      required
+                    />
+                    <label style={{ left: 48 }}>Enter OTP Code</label>
+                  </div>
+
+                  {otpError && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-3.5 bg-red-50 text-red-700 rounded-xl border border-red-200 flex items-center gap-3 text-sm"
+                    >
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      <span>{otpError}</span>
+                    </motion.div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="sanctuary-btn !rounded-full flex items-center justify-center gap-2"
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Continue"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await signOut(auth);
+                      setStep('LOGIN');
+                      setOtpCode('');
+                      setOtpError(null);
+                    }}
+                    className="w-full py-3 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                    style={{ color: '#64748b' }}
+                  >
+                    Cancel
+                  </button>
+                </form>
               </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Enter OTP Code</label>
-                <div className="relative">
-                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
-                  <input
-                    type="text"
-                    maxLength={6}
-                    placeholder="000000"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    className="w-full pl-12 pr-4 py-4 bg-surface border border-outline-variant rounded-2xl text-center text-xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-primary text-on-surface"
-                    required
-                  />
-                </div>
-              </div>
-
-              {otpError && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-4 bg-error/10 text-error rounded-2xl border border-error/20 flex items-center gap-3 text-sm"
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span>{otpError}</span>
-                </motion.div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-4 bg-primary text-on-primary font-bold rounded-2xl hover:shadow-xl transition-all flex items-center justify-center gap-2"
-                disabled={loading}
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Continue"}
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  await signOut(auth);
-                  setStep('LOGIN');
-                  setOtpCode('');
-                  setOtpError(null);
-                }}
-                className="w-full py-4 bg-surface-container text-on-surface font-bold rounded-2xl border border-outline-variant hover:bg-surface-container-high transition-all mt-2"
-              >
-                Cancel
-              </button>
-            </form>
+            </div>
           </motion.div>
         </div>
       )}
 
-      {/* POPUP MODAL FOR 2FA GOOGLE AUTHENTICATOR ENROLLMENT */}
+      {/* ─── MFA ENROLLMENT MODAL ─── */}
       {step === 'ENROLL_MFA' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
@@ -598,76 +669,85 @@ export default function AdminLoginPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-md bg-surface border border-outline-variant rounded-[2.5rem] p-8 md:p-10 shadow-2xl space-y-6 z-10"
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-md z-10"
           >
-            <form onSubmit={handleVerifyAndEnrollMfa} className="space-y-6">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-primary">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <h2 className="text-2xl font-bold text-on-surface">Secure Admin Account</h2>
-                <p className="text-sm text-on-surface-variant mt-1 text-center">
-                  Google Authenticator (2FA) setup is required. Scan the QR code to continue.
-                </p>
+            <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden ring-1 ring-black/[0.06]">
+              {/* Gold accent bar */}
+              <div className="h-1.5" style={{ background: 'linear-gradient(to right, #C9A84C, #8f6337)' }} />
+
+              <div className="p-8">
+                <form onSubmit={handleVerifyAndEnrollMfa} className="space-y-5">
+                  <div className="text-center">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #C9A84C15, #8f633710)' }}>
+                      <ShieldCheck className="w-7 h-7" style={{ color: '#C9A84C' }} />
+                    </div>
+                    <h3 className="text-xl font-semibold text-[#0f172a]">Secure Your Account</h3>
+                    <p className="text-sm mt-1.5" style={{ color: '#64748b' }}>
+                      Set up Google Authenticator (2FA) to continue.
+                    </p>
+                  </div>
+
+                  {qrCodeUrl && (
+                    <div className="p-4 bg-white rounded-2xl border border-gray-100 flex justify-center shadow-inner">
+                      <QRCodeSVG value={qrCodeUrl} size={180} />
+                    </div>
+                  )}
+
+                  <p className="text-xs text-center leading-relaxed" style={{ color: '#94a3b8' }}>
+                    Scan the QR code with your authenticator app, then enter the 6-digit code below.
+                  </p>
+
+                  <div className="s-field">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder=" "
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                      className="!text-center !font-mono !text-xl !tracking-widest"
+                      required
+                    />
+                    <label>Authenticator Code</label>
+                  </div>
+
+                  {mfaEnrollError && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-3.5 bg-red-50 text-red-700 rounded-xl border border-red-200 flex items-center gap-3 text-sm"
+                    >
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      <span>{mfaEnrollError}</span>
+                    </motion.div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="sanctuary-btn !rounded-full flex items-center justify-center gap-2"
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Complete Setup"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await signOut(auth);
+                      setStep('LOGIN');
+                      setVerificationCode('');
+                      setMfaEnrollError(null);
+                    }}
+                    className="w-full py-3 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                    style={{ color: '#64748b' }}
+                  >
+                    Cancel
+                  </button>
+                </form>
               </div>
-
-              {qrCodeUrl && (
-                <div className="p-4 bg-white rounded-2xl border border-outline-variant flex justify-center shadow-inner">
-                  <QRCodeSVG value={qrCodeUrl} size={180} />
-                </div>
-              )}
-
-              <p className="text-xs text-on-surface-variant text-center leading-relaxed">
-                Scan the QR code above with your authenticator app, then enter the generated 6-digit code below to register your device.
-              </p>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant text-left">Authenticator Code</label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full p-4 bg-surface border border-outline-variant rounded-2xl text-center text-xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-primary text-on-surface"
-                  required
-                />
-              </div>
-
-              {mfaEnrollError && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="p-4 bg-error/10 text-error rounded-2xl border border-error/20 flex items-center gap-3 text-sm"
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span>{mfaEnrollError}</span>
-                </motion.div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-4 bg-primary text-on-primary font-bold rounded-2xl hover:shadow-xl transition-all flex items-center justify-center gap-2"
-                disabled={loading}
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Complete Setup"}
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  await signOut(auth);
-                  setStep('LOGIN');
-                  setVerificationCode('');
-                  setMfaEnrollError(null);
-                }}
-                className="w-full py-4 bg-surface-container text-on-surface font-bold rounded-2xl border border-outline-variant hover:bg-surface-container-high transition-all mt-2"
-              >
-                Cancel
-              </button>
-            </form>
+            </div>
           </motion.div>
         </div>
       )}

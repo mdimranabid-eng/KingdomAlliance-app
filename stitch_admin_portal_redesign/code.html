@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-primary": "#ffffff", "on-error-container": "#93000a", "tertiary-fixed": "#d3e4ff", "on-tertiary-container": "#6886ae", "on-background": "#131b2e", "on-error": "#ffffff", "primary-fixed": "#d6e3fe", "tertiary-fixed-dim": "#aac9f4", "on-primary-fixed": "#0e1c2f", "background": "#faf8ff", "on-secondary": "#ffffff", "surface-variant": "#dae2fd", "surface": "#faf8ff", "surface-container-high": "#e2e7ff", "surface-bright": "#faf8ff", "on-tertiary-fixed": "#001c38", "on-secondary-container": "#745c00", "secondary": "#735c00", "primary-container": "#0e1c2f", "primary": "#000000", "outline": "#75777d", "primary-fixed-dim": "#bac7e1", "outline-variant": "#c5c6cd", "surface-container-highest": "#dae2fd", "surface-tint": "#525f75", "surface-container": "#eaedff", "surface-dim": "#d2d9f4", "surface-container-low": "#f2f3ff", "surface-container-lowest": "#ffffff", "on-surface-variant": "#44474c", "secondary-container": "#fed65b", "tertiary": "#000000", "inverse-surface": "#283044", "on-secondary-fixed-variant": "#574500", "on-secondary-fixed": "#241a00", "on-tertiary": "#ffffff", "inverse-on-surface": "#eef0ff", "on-surface": "#131b2e", "on-tertiary-fixed-variant": "#29486d", "error": "#ba1a1a", "inverse-primary": "#bac7e1", "on-primary-container": "#77849c", "on-primary-fixed-variant": "#3a475c", "tertiary-container": "#001c38", "error-container": "#ffdad6", "secondary-fixed": "#ffe088", "secondary-fixed-dim": "#e9c349" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "max-width": "1600px", "margin-tablet": "1.5rem", "margin-desktop": "2.5rem", "gutter-xl": "2rem", "gutter-lg": "1.5rem", "sidebar-collapsed-width": "80px", "sidebar-width": "280px", "gutter-md": "1rem", "gutter-sm": "0.5rem", "gutter-xs": "0.25rem", "margin-mobile": "1rem" }, "fontFamily": { "headline-lg": [ "Plus Jakarta Sans" ], "body-lg": [ "Inter" ], "display-lg-mobile": [ "Plus Jakarta Sans" ], "label-sm": [ "Inter" ], "body-md": [ "Inter" ], "headline-xl": [ "Plus Jakarta Sans" ], "headline-xl-mobile": [ "Plus Jakarta Sans" ], "headline-sm": [ "Plus Jakarta Sans" ], "title-md": [ "Plus Jakarta Sans" ], "display-lg": [ "Plus Jakarta Sans" ], "body-sm": [ "Inter" ], "label-md": [ "Inter" ] }, "fontSize": { "headline-lg": [ "1.75rem", { "lineHeight": "2.25rem", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "body-lg": [ "1.125rem", { "lineHeight": "1.75rem", "letterSpacing": "-0.01em", "fontWeight": "400" } ], "display-lg-mobile": [ "2.25rem", { "lineHeight": "2.75rem", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "label-sm": [ "0.6875rem", { "lineHeight": "1rem", "letterSpacing": "0.06em", "fontWeight": "700" } ], "body-md": [ "0.875rem", { "lineHeight": "1.375rem", "letterSpacing": "0em", "fontWeight": "400" } ], "headline-xl": [ "2.25rem", { "lineHeight": "2.75rem", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "headline-xl-mobile": [ "1.75rem", { "lineHeight": "2.25rem", "letterSpacing": "-0.01em", "fontWeight": "700" } ], "headline-sm": [ "1.25rem", { "lineHeight": "1.75rem", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "title-md": [ "1rem", { "lineHeight": "1.5rem", "letterSpacing": "0em", "fontWeight": "600" } ], "display-lg": [ "3.5rem", { "lineHeight": "4rem", "letterSpacing": "-0.03em", "fontWeight": "700" } ], "body-sm": [ "0.75rem", { "lineHeight": "1.125rem", "letterSpacing": "0.01em", "fontWeight": "400" } ], "label-md": [ "0.875rem", { "lineHeight": "1.25rem", "letterSpacing": "0.01em", "fontWeight": "600" } ] } } } };</script></head><body class="bg-background font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-sidebar-width bg-primary-container text-on-primary-fixed z-50 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="flex flex-col"><div class="h-16 px-gutter-lg flex items-center gap-gutter-sm border-b border-primary-fixed-variant/20"><div class="flex items-center gap-2.5"><span class="text-secondary-fixed text-[1.4rem] font-bold">†</span><span class="font-title-md text-title-md text-on-primary font-bold tracking-tight">The Kingdom Alliances</span></div></div><div class="px-gutter-md mt-gutter-md mb-gutter-xs"><span class="font-label-sm text-label-sm uppercase text-on-primary-container tracking-wider px-gutter-sm">OVERVIEW</span></div><nav class="flex flex-col gap-gutter-xs px-gutter-sm"><a aria-current="page" class="flex items-center gap-gutter-sm px-gutter-md py-gutter-sm transition-colors bg-secondary text-on-secondary font-label-md rounded-lg shadow-sm" data-path="dashboard" href="#"><span class="material-symbols-outlined text-[1.25rem]">dashboard</span><span class="font-label-md text-label-md">Dashboard</span></a></nav><div class="px-gutter-md mt-gutter-lg mb-gutter-xs"><span class="font-label-sm text-label-sm uppercase text-on-primary-container tracking-wider px-gutter-sm">CONFIGURATION</span></div><nav class="flex flex-col gap-gutter-xs px-gutter-sm"><a class="flex items-center gap-gutter-sm px-gutter-md py-gutter-sm rounded-lg text-on-primary-fixed hover:bg-surface-container-highest hover:text-on-surface transition-colors" data-path="church-info" href="#"><span class="material-symbols-outlined text-[1.25rem]">church</span><span class="font-label-md text-label-md">Church Info</span></a><a class="flex items-center gap-gutter-sm px-gutter-md py-gutter-sm rounded-lg text-on-primary-fixed hover:bg-surface-container-highest hover:text-on-surface transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[1.25rem]">settings</span><span class="font-label-md text-label-md">Settings</span></a></nav></div><div class="p-gutter-md flex flex-col gap-gutter-xs border-t border-primary-fixed-variant/20"><a class="flex items-center gap-gutter-sm px-gutter-sm py-2 rounded-lg text-tertiary-fixed hover:text-white transition-colors font-label-md text-body-sm" href="#"><span class="material-symbols-outlined text-[1.125rem]">description</span><span>Generate Report</span></a><a class="flex items-center gap-gutter-sm px-gutter-sm py-2 rounded-lg text-tertiary-fixed hover:text-white transition-colors font-label-md text-body-sm" href="#"><span class="material-symbols-outlined text-[1.125rem]">person</span><span>Member View</span></a><div class="mt-2 bg-tertiary-container rounded-lg p-gutter-sm flex items-center justify-between"><div class="flex flex-col"><span class="font-label-sm text-label-sm text-secondary-fixed font-semibold">Network Status</span><span class="font-body-sm text-[0.7rem] text-tertiary-fixed">Sovereign Grid Active</span></div><span class="h-2 w-2 rounded-full bg-secondary-container animate-pulse"></span></div></div></aside><div class="pl-sidebar-width"><header class="fixed top-0 right-0 left-sidebar-width h-16 bg-surface/80 backdrop-blur-xl z-40 flex items-center justify-between px-gutter-lg shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="flex items-center gap-gutter-md"><!-- Verbatim Breadcrumb matching source --><div class="flex items-center gap-2"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-primary-container text-white font-label-sm text-[0.7rem] font-bold tracking-wider">ADMIN</span><span class="text-outline text-xs">›</span><span class="font-title-md text-title-md text-on-surface font-semibold">Dashboard</span></div><div class="hidden xl:flex items-center gap-gutter-xs bg-surface-container-low px-gutter-sm py-gutter-xs rounded-lg ml-2"><span class="h-2 w-2 rounded-full bg-secondary"></span><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Kingdom Alliance Grid</span></div></div><div class="flex items-center gap-gutter-md"><a class="flex items-center gap-1 text-on-surface-variant hover:text-on-surface text-body-sm transition-colors" href="#"><span class="material-symbols-outlined text-[1.125rem]">help_outline</span><span>Help</span></a><a class="flex items-center gap-1 text-on-surface-variant hover:text-error text-body-sm transition-colors" href="#"><span class="material-symbols-outlined text-[1.125rem]">logout</span><span>Logout</span></a><div class="h-4 w-px bg-outline-variant mx-1"></div><div class="flex items-center gap-gutter-sm"><div class="flex flex-col text-right hidden sm:flex"><span class="font-label-md text-label-md text-on-surface">Lord Chancellor</span><span class="font-label-sm text-label-sm text-secondary">Administrator</span></div><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/AEtjO1Wi_U7KR0ngA98CHWPGmgUNApE_eE0WubTYMig7GRWVgcaOGP84o7OYU4j8_z00LQIv9vhjWpWJFiKq9xorkbYYR5xR4hZGnZ-b0JSfipRlO5BZ9WlMchQLvZK6b-ju_MgeEAp2kUEYB0Vil9fvyTVL-HEdQ-gF0mtslj9BSngjToNnBXtqOENCktxCbXaaWwftf6L1jmLDTsBxN3w234IiJtbqJxN0s0duj8ZTHRE0zjaaFHAPvMNBJA"/></div></div></header><main class="w-full pt-16 bg-surface min-h-screen px-gutter-lg py-gutter-lg"><div class="flex flex-col w-full gap-gutter-xl pb-gutter-xl">
+<!-- Top Ambient Command Area & Hero Banner -->
+<div class="relative w-full rounded-xl bg-gradient-to-r from-primary-container via-primary-container to-surface-container-highest p-gutter-lg text-on-primary shadow-xl overflow-hidden">
+<!-- Atmospheric Ambient Glows -->
+<div class="absolute -top-24 -right-24 w-96 h-96 bg-secondary/15 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute -bottom-20 left-1/3 w-80 h-80 bg-surface-variant/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-gutter-lg">
+<div class="flex flex-col gap-gutter-xs max-w-3xl">
+<div class="flex flex-wrap items-center gap-gutter-sm">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-container/20 text-secondary-fixed text-label-sm font-label-sm uppercase tracking-wider">
+<span class="h-1.5 w-1.5 rounded-full bg-secondary-container animate-ping"></span>
+            ADMIN &gt; Dashboard
+          </span>
+<span class="text-on-primary-container font-label-sm text-label-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[0.875rem] text-secondary">verified_user</span>
+            Ecclesial Telemetry Verified
+          </span>
+</div>
+<h1 class="font-headline-xl text-headline-xl tracking-tight text-surface-lowest">
+          Dashboard
+        </h1>
+<p class="font-body-md text-body-md text-on-primary-container font-light">
+          Kingdom Alliance administration
+        </p>
+</div>
+<!-- Controls & Verbatim Action Button: Generate Report -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center gap-gutter-md">
+<!-- Timeframe Pill -->
+<div class="inline-flex p-1 bg-surface-container-lowest/10 backdrop-blur-md rounded-lg gap-0.5">
+<button class="px-3 py-1 rounded bg-secondary text-on-secondary font-label-sm text-label-sm shadow-sm transition-all">Today</button>
+<button class="px-3 py-1 rounded font-label-sm text-label-sm text-on-primary-container hover:text-white transition-all">7D</button>
+<button class="px-3 py-1 rounded font-label-sm text-label-sm text-on-primary-container hover:text-white transition-all">30D</button>
+<button class="px-3 py-1 rounded font-label-sm text-label-sm text-on-primary-container hover:text-white transition-all">YTD</button>
+</div>
+<div class="flex items-center gap-gutter-sm">
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-secondary-container text-on-secondary-fixed font-label-md text-label-md shadow-md hover:brightness-105 transition-all font-semibold">
+<span class="material-symbols-outlined text-[1.125rem]">description</span>
+<span>Generate Report</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Bento Grid Row 1: KPI Telemetry Command Deck & Operations & Queues -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-gutter-lg items-stretch">
+<!-- Col 8: Hero KPI Command Deck (Verbatim Labels matching Screenshot 2026-09-06 at 17.11.32) -->
+<div class="xl:col-span-8 bg-surface-container-lowest rounded-xl p-gutter-lg shadow-sm flex flex-col justify-between relative overflow-hidden">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-gutter-sm mb-gutter-md">
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">Real-time Metrics</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Alliance Telemetry &amp; Covenant Conversion</h2>
+</div>
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">
+<span class="h-2 w-2 rounded-full bg-secondary"></span>
+            Sync Active
+          </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Real-time</span>
+</div>
+</div>
+<!-- 6 KPI Matrix matching source exactly -->
+<div class="grid grid-cols-2 md:grid-cols-6 gap-gutter-sm my-gutter-sm">
+<!-- 1. TOTAL USERS -->
+<div class="flex flex-col p-3 rounded-lg bg-surface-container-low/70 border border-surface-container/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-[0.7rem] uppercase font-bold text-on-surface-variant">TOTAL USERS</span>
+<span class="material-symbols-outlined text-secondary text-[1rem]">group</span>
+</div>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">24</span>
+<span class="font-label-sm text-label-sm text-secondary font-semibold">+14%</span>
+</div>
+<span class="font-body-sm text-[0.7rem] text-outline mt-0.5">Active profiles</span>
+</div>
+<!-- 2. PENDING -->
+<div class="flex flex-col p-3 rounded-lg bg-surface-container-low/70 border border-surface-container/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-[0.7rem] uppercase font-bold text-on-surface-variant">PENDING</span>
+<span class="material-symbols-outlined text-outline text-[1rem]">hourglass_empty</span>
+</div>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold text-secondary">0</span>
+<span class="inline-flex px-1.5 py-0.5 rounded text-[0.65rem] font-bold bg-secondary-fixed text-on-secondary-fixed">All Clear</span>
+</div>
+<span class="font-body-sm text-[0.7rem] text-outline mt-0.5">Zero backlog</span>
+</div>
+<!-- 3. ACTIVE TODAY -->
+<div class="flex flex-col p-3 rounded-lg bg-surface-container-low/70 border border-surface-container/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-[0.7rem] uppercase font-bold text-on-surface-variant">ACTIVE TODAY</span>
+<span class="material-symbols-outlined text-secondary text-[1rem]">trending_up</span>
+</div>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">1</span>
+<span class="h-2 w-2 rounded-full bg-secondary-container animate-pulse"></span>
+</div>
+<span class="font-body-sm text-[0.7rem] text-outline mt-0.5">Online session</span>
+</div>
+<!-- 4. NEW THIS WEEK -->
+<div class="flex flex-col p-3 rounded-lg bg-surface-container-low/70 border border-surface-container/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-[0.7rem] uppercase font-bold text-on-surface-variant">NEW THIS WEEK</span>
+<span class="material-symbols-outlined text-secondary text-[1rem]">verified_user</span>
+</div>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">1</span>
+<span class="font-label-sm text-[0.7rem] text-secondary font-semibold">Verified</span>
+</div>
+<span class="font-body-sm text-[0.7rem] text-outline mt-0.5">Recent register</span>
+</div>
+<!-- 5. INTERESTS SENT -->
+<div class="flex flex-col p-3 rounded-lg bg-surface-container-low/70 border border-surface-container/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-[0.7rem] uppercase font-bold text-on-surface-variant truncate">INTERESTS SENT</span>
+<span class="material-symbols-outlined text-error text-[1rem]">favorite</span>
+</div>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">8</span>
+</div>
+<span class="font-body-sm text-[0.7rem] text-secondary font-semibold mt-0.5">4 Connected</span>
+</div>
+<!-- 6. MATCHES -->
+<div class="flex flex-col p-3 rounded-lg bg-surface-container-low/70 border border-surface-container/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-[0.7rem] uppercase font-bold text-on-surface-variant">MATCHES</span>
+<span class="material-symbols-outlined text-secondary text-[1rem]">check_circle</span>
+</div>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">4</span>
+<span class="material-symbols-outlined text-secondary text-[0.9rem]">verified</span>
+</div>
+<span class="font-body-sm text-[0.7rem] text-outline mt-0.5">Ratified pledges</span>
+</div>
+</div>
+<!-- Weekly Trend Visual Chart with verbatim subtext -->
+<div class="mt-gutter-md pt-gutter-md bg-surface-container-low/40 rounded-lg p-gutter-md border border-surface-container/40">
+<div class="flex items-center justify-between mb-2">
+<span class="font-title-md text-title-md text-on-surface font-semibold">Activity &amp; Match Trajectory</span>
+<span class="font-label-sm text-label-sm text-secondary font-semibold tracking-wide">98.2% Governance Alignment</span>
+</div>
+<div class="w-full h-32 flex items-end">
+<svg class="w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 700 120">
+<defs>
+<lineargradient id="curveFill" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#fed65b" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#fed65b" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<line stroke="#dae2fd" stroke-dasharray="4 4" stroke-width="1" x1="0" x2="700" y1="30" y2="30"></line>
+<line stroke="#dae2fd" stroke-dasharray="4 4" stroke-width="1" x1="0" x2="700" y1="75" y2="75"></line>
+<path d="M0,95 C100,85 180,110 260,70 C340,30 420,65 520,38 C600,15 650,22 700,12 L700,120 L0,120 Z" fill="url(#curveFill)"></path>
+<path d="M0,95 C100,85 180,110 260,70 C340,30 420,65 520,38 C600,15 650,22 700,12" fill="none" stroke="#735c00" stroke-linecap="round" stroke-width="3"></path>
+<circle cx="260" cy="70" fill="#fed65b" r="4" stroke="#735c00" stroke-width="2"></circle>
+<circle cx="520" cy="38" fill="#fed65b" r="4" stroke="#735c00" stroke-width="2"></circle>
+<circle cx="700" cy="12" fill="#735c00" r="5" stroke="#faf8ff" stroke-width="2"></circle>
+</svg>
+</div>
+<div class="flex justify-between font-label-sm text-label-sm text-outline mt-2 px-1">
+<span>Mon</span>
+<span>Tue</span>
+<span>Wed</span>
+<span>Thu</span>
+<span>Fri</span>
+<span>Sat</span>
+<span class="text-secondary font-bold">Today</span>
+</div>
+</div>
+</div>
+<!-- Col 4: Operations & Queues (Top-right card) -->
+<div class="xl:col-span-4 bg-primary-container rounded-xl p-gutter-lg shadow-sm text-on-primary-fixed flex flex-col justify-between relative overflow-hidden">
+<div class="absolute -top-16 -right-16 w-52 h-52 bg-secondary-container/20 rounded-full blur-2xl pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between mb-gutter-sm">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary-fixed">Administration</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-container/20 text-secondary-fixed text-label-sm font-label-sm font-semibold">
+<span class="h-1.5 w-1.5 rounded-full bg-secondary-container"></span>
+            Live
+          </span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-primary mb-gutter-xs">Operations &amp; Queues</h3>
+<p class="font-body-sm text-body-sm text-on-primary-container">Continuous canonical verification and alliance request status.</p>
+</div>
+<!-- Circular Gauge telemetry -->
+<div class="flex items-center justify-center my-gutter-sm">
+<div class="relative flex items-center justify-center">
+<svg class="w-36 h-36 transform -rotate-90" viewbox="0 0 160 160">
+<circle cx="80" cy="80" fill="transparent" r="68" stroke="#001c38" stroke-width="8"></circle>
+<circle cx="80" cy="80" fill="transparent" r="68" stroke="#fed65b" stroke-dasharray="427" stroke-dashoffset="10" stroke-linecap="round" stroke-width="8"></circle>
+<circle cx="80" cy="80" fill="transparent" r="52" stroke="#001c38" stroke-width="7"></circle>
+<circle cx="80" cy="80" fill="transparent" r="52" stroke="#d6e3fe" stroke-dasharray="326" stroke-dashoffset="20" stroke-linecap="round" stroke-width="7"></circle>
+<circle cx="80" cy="80" fill="transparent" r="36" stroke="#001c38" stroke-width="6"></circle>
+<circle cx="80" cy="80" fill="transparent" r="36" stroke="#e9c349" stroke-dasharray="226" stroke-dashoffset="0" stroke-linecap="round" stroke-width="6"></circle>
+</svg>
+<div class="absolute flex flex-col items-center justify-center text-center">
+<span class="font-headline-sm text-headline-sm font-bold text-on-primary">100%</span>
+<span class="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider">Processed</span>
+</div>
+</div>
+</div>
+<!-- Verbatim Status Items Box -->
+<div class="flex flex-col gap-2 bg-tertiary-container/60 p-gutter-sm rounded-lg backdrop-blur-sm">
+<div class="flex items-center justify-between text-body-sm">
+<span class="text-on-primary-fixed flex items-center gap-1.5 font-medium">
+<span class="material-symbols-outlined text-[1rem] text-secondary-fixed">assignment_turned_in</span>
+            Approvals
+          </span>
+<span class="font-label-sm text-label-sm text-secondary-fixed font-semibold">Clear (All processed)</span>
+</div>
+<div class="flex items-center justify-between text-body-sm">
+<span class="text-on-primary-fixed flex items-center gap-1.5 font-medium">
+<span class="material-symbols-outlined text-[1rem] text-primary-fixed">photo_camera</span>
+            Photos
+          </span>
+<span class="font-label-sm text-label-sm text-primary-fixed font-semibold">Clean (Nothing to review)</span>
+</div>
+<div class="flex items-center justify-between text-body-sm">
+<span class="text-on-primary-fixed flex items-center gap-1.5 font-medium">
+<span class="material-symbols-outlined text-[1rem] text-secondary-fixed-dim">favorite</span>
+            Interests
+          </span>
+<span class="font-label-sm text-label-sm text-secondary-fixed-dim font-semibold">8 (4 connected)</span>
+</div>
+</div>
+<!-- Verbatim Status Callout pill -->
+<div class="mt-3 p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-200 text-xs flex items-center gap-2">
+<span class="material-symbols-outlined text-[1.125rem] text-emerald-400">check_circle</span>
+<div>
+<span class="font-semibold">Queue Healthy</span>: All registration requests have been processed.
+</div>
+</div>
+<button class="w-full mt-gutter-md py-2.5 px-4 rounded-lg bg-surface-container-highest hover:bg-surface-variant text-on-surface font-label-md text-label-md transition-colors flex items-center justify-center gap-2 shadow-sm font-semibold">
+<span>Open Operations Queue</span>
+<span class="material-symbols-outlined text-[1rem]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Bento Grid Row 2: User Profiles Composition & Operations & Quick Actions -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-gutter-lg items-stretch">
+<!-- Col 7: User Profiles Composition (Donut chart card) -->
+<div class="xl:col-span-7 bg-surface-container-lowest rounded-xl p-gutter-lg shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-gutter-sm mb-gutter-md">
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Demographic Telemetry</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">User Profiles Composition</h3>
+</div>
+<!-- Segment Tabs -->
+<div class="flex items-center p-1 bg-surface-container-low rounded-lg gap-1">
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded bg-surface-container-lowest shadow-xs text-on-surface font-semibold">Gender</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded text-on-surface-variant hover:text-on-surface">Age Cohort</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded text-on-surface-variant hover:text-on-surface">Diocese</button>
+</div>
+</div>
+<!-- Donut Visualization with "24 PROFILES" in center -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter-md items-center py-gutter-sm">
+<div class="md:col-span-5 flex flex-col items-center justify-center">
+<div class="relative flex items-center justify-center">
+<svg class="w-40 h-40 transform -rotate-90" viewbox="0 0 120 120">
+<!-- Grooms (58.3% -> 14/24 -> 175.8 offset) -->
+<circle cx="60" cy="60" fill="transparent" r="48" stroke="#3b82f6" stroke-dasharray="301.6" stroke-dashoffset="0" stroke-linecap="round" stroke-width="16"></circle>
+<!-- Brides (41.7% -> 10/24) -->
+<circle cx="60" cy="60" fill="transparent" r="48" stroke="#f43f5e" stroke-dasharray="301.6" stroke-dashoffset="175.8" stroke-linecap="round" stroke-width="16"></circle>
+</svg>
+<div class="absolute text-center flex flex-col items-center justify-center">
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface">24</span>
+<span class="font-label-sm text-[0.65rem] font-bold text-on-surface-variant tracking-wider uppercase">PROFILES</span>
+</div>
+</div>
+</div>
+<!-- Demographic Breakdown (Grooms 14, Brides 10) -->
+<div class="md:col-span-7 flex flex-col gap-gutter-sm justify-center">
+<div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-low border border-surface-container/60">
+<div class="flex items-center gap-2.5">
+<span class="h-3 w-3 rounded-full bg-blue-500"></span>
+<span class="font-title-md text-title-md text-on-surface font-medium">Grooms</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">14</span>
+<span class="font-label-sm text-label-sm text-outline">58.3%</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-low border border-surface-container/60">
+<div class="flex items-center gap-2.5">
+<span class="h-3 w-3 rounded-full bg-rose-500"></span>
+<span class="font-title-md text-title-md text-on-surface font-medium">Brides</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">10</span>
+<span class="font-label-sm text-label-sm text-secondary font-semibold">41.7%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Micro Metric Bar Footnote -->
+<div class="grid grid-cols-3 gap-gutter-sm pt-gutter-md border-t border-surface-container mt-gutter-md text-center">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Median Age</span>
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface mt-0.5">29 yrs</span>
+<span class="font-body-sm text-body-sm text-outline">24 - 36 span</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Courtship Mean</span>
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface mt-0.5">4.2 mo</span>
+<span class="font-body-sm text-body-sm text-secondary font-semibold">-0.8 mo vs avg</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Allied Parishes</span>
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface mt-0.5">12 Hubs</span>
+<span class="font-body-sm text-body-sm text-outline">Trans-national</span>
+</div>
+</div>
+</div>
+<!-- Col 5: Operations & Quick Actions (Right middle card) -->
+<div class="xl:col-span-5 bg-surface-container-lowest rounded-xl p-gutter-lg shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-gutter-sm">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Operational Controls</span>
+<span class="flex items-center gap-1 font-label-sm text-label-sm text-outline">
+<span class="h-2 w-2 rounded-full bg-secondary"></span>
+            Ready
+          </span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-gutter-md">Operations &amp; Quick Actions</h3>
+<!-- 4 Interactive Action Tiles -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-gutter-md">
+<!-- Tile 1: User Approvals -->
+<div class="group p-gutter-md rounded-xl bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer flex flex-col justify-between min-h-[135px] border border-surface-container/60">
+<div class="flex items-start justify-between">
+<div class="p-2 rounded-lg bg-primary-container text-on-primary">
+<span class="material-symbols-outlined text-[1.25rem]">how_to_reg</span>
+</div>
+<span class="inline-flex px-2 py-0.5 rounded text-label-sm font-label-sm bg-secondary-fixed text-on-secondary-fixed font-bold">Review</span>
+</div>
+<div>
+<span class="font-title-md text-title-md text-on-surface font-semibold group-hover:text-secondary transition-colors">User Approvals</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Review &amp; Approve</p>
+</div>
+</div>
+<!-- Tile 2: Photo Moderation -->
+<div class="group p-gutter-md rounded-xl bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer flex flex-col justify-between min-h-[135px] border border-surface-container/60">
+<div class="flex items-start justify-between">
+<div class="p-2 rounded-lg bg-surface-container-high text-secondary">
+<span class="material-symbols-outlined text-[1.25rem]">photo_library</span>
+</div>
+<span class="inline-flex px-2 py-0.5 rounded text-label-sm font-label-sm bg-surface-container-highest text-on-surface font-medium">Clean</span>
+</div>
+<div>
+<span class="font-title-md text-title-md text-on-surface font-semibold group-hover:text-secondary transition-colors">Photo Moderation</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Moderate Photos</p>
+</div>
+</div>
+<!-- Tile 3: User Management -->
+<div class="group p-gutter-md rounded-xl bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer flex flex-col justify-between min-h-[135px] border border-surface-container/60">
+<div class="flex items-start justify-between">
+<div class="p-2 rounded-lg bg-surface-container-high text-primary-container">
+<span class="material-symbols-outlined text-[1.25rem]">manage_accounts</span>
+</div>
+<span class="inline-flex px-2 py-0.5 rounded text-label-sm font-label-sm bg-surface-container-highest text-on-surface-variant">Active</span>
+</div>
+<div>
+<span class="font-title-md text-title-md text-on-surface font-semibold group-hover:text-secondary transition-colors">User Management</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Management</p>
+</div>
+</div>
+<!-- Tile 4: Announcements -->
+<div class="group p-gutter-md rounded-xl bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer flex flex-col justify-between min-h-[135px] border border-surface-container/60">
+<div class="flex items-start justify-between">
+<div class="p-2 rounded-lg bg-primary-container text-secondary-fixed">
+<span class="material-symbols-outlined text-[1.25rem]">campaign</span>
+</div>
+<span class="inline-flex px-2 py-0.5 rounded text-label-sm font-label-sm bg-secondary-container/30 text-secondary font-bold">Broadcast</span>
+</div>
+<div>
+<span class="font-title-md text-title-md text-on-surface font-semibold group-hover:text-secondary transition-colors">Announcements</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Outreach</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Sub-links / footer: Rejected Profiles & Church Info -->
+<div class="mt-gutter-md pt-gutter-sm border-t border-surface-container flex items-center justify-between text-body-sm text-on-surface-variant">
+<a class="flex items-center gap-1.5 hover:text-secondary font-medium transition-colors" href="#">
+<span class="material-symbols-outlined text-[1.125rem]">block</span>
+<span>Rejected Profiles</span>
+</a>
+<a class="flex items-center gap-1.5 hover:text-secondary font-medium transition-colors" href="#">
+<span class="material-symbols-outlined text-[1.125rem]">church</span>
+<span>Church Info</span>
+<span class="material-symbols-outlined text-[0.875rem]">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+<!-- Bento Grid Row 3: Bottom Live Activity & Audit Trail Data Table -->
+<div class="w-full bg-surface-container-lowest rounded-xl p-gutter-lg shadow-sm">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-gutter-md mb-gutter-md">
+<div>
+<div class="flex items-center gap-2">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Ledger Telemetry</span>
+<span class="h-2 w-2 rounded-full bg-secondary-container animate-pulse"></span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Live Activity &amp; Audit Trail</h3>
+</div>
+<!-- Action Filters -->
+<div class="flex flex-wrap items-center gap-gutter-sm">
+<div class="inline-flex rounded-lg bg-surface-container-low p-1 text-label-sm font-label-sm">
+<button class="px-3 py-1 rounded bg-surface-container-lowest text-on-surface shadow-xs font-semibold">All Records</button>
+<button class="px-3 py-1 rounded text-on-surface-variant hover:text-on-surface">Matches</button>
+<button class="px-3 py-1 rounded text-on-surface-variant hover:text-on-surface">Moderation</button>
+<button class="px-3 py-1 rounded text-on-surface-variant hover:text-on-surface">Approvals</button>
+</div>
+<button class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[1rem]">filter_list</span>
+<span>Filter</span>
+</button>
+</div>
+</div>
+<!-- Audit Ledger Table with exact required columns -->
+<div class="overflow-x-auto w-full">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider">
+<th class="py-3 px-4 rounded-l">Timestamp</th>
+<th class="py-3 px-4">User / Profile</th>
+<th class="py-3 px-4">Action / Event</th>
+<th class="py-3 px-4">Category</th>
+<th class="py-3 px-4 rounded-r text-right">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container font-body-sm text-body-sm text-on-surface">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="py-3.5 px-4 font-mono text-outline">14:28:02 UTC</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-2.5">
+<div class="h-7 w-7 rounded-full bg-secondary-container/30 text-secondary flex items-center justify-center font-bold text-[0.75rem]">
+                  DK
+                </div>
+<span class="font-title-md text-title-md text-on-surface font-medium">David K. &amp; Sarah M.</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<span class="text-on-surface font-medium">Match Ratified</span>
+</td>
+<td class="py-3.5 px-4 text-on-surface-variant">Mutual Covenant</td>
+<td class="py-3.5 px-4 text-right">
+<span class="inline-flex px-2.5 py-1 rounded-full text-label-sm font-label-sm bg-secondary text-on-secondary font-semibold">
+                Ratified
+              </span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="py-3.5 px-4 font-mono text-outline">13:54:19 UTC</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-2.5">
+<div class="h-7 w-7 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center font-bold text-[0.75rem]">
+                  AP
+                </div>
+<span class="font-title-md text-title-md text-on-surface font-medium">Alexander P.</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-1">
+<span>Photo Approved</span>
+<span class="text-secondary font-semibold text-xs">(Pass)</span>
+</div>
+</td>
+<td class="py-3.5 px-4 text-on-surface-variant">Photo Moderation</td>
+<td class="py-3.5 px-4 text-right">
+<span class="inline-flex px-2.5 py-1 rounded-full text-label-sm font-label-sm bg-surface-container-highest text-on-surface font-semibold">
+                Approved
+              </span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="py-3.5 px-4 font-mono text-outline">12:11:45 UTC</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-2.5">
+<div class="h-7 w-7 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center font-bold text-[0.75rem]">
+                  RV
+                </div>
+<span class="font-title-md text-title-md text-on-surface font-medium">Rachel V.</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<span>User Endorsed</span>
+</td>
+<td class="py-3.5 px-4 text-on-surface-variant">User Approvals</td>
+<td class="py-3.5 px-4 text-right">
+<span class="inline-flex px-2.5 py-1 rounded-full text-label-sm font-label-sm bg-primary-container text-on-primary font-semibold">
+                Endorsed
+              </span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="py-3.5 px-4 font-mono text-outline">10:05:12 UTC</td>
+<td class="py-3.5 px-4">
+<div class="flex items-center gap-2.5">
+<div class="h-7 w-7 rounded-full bg-secondary-container/20 text-secondary flex items-center justify-center font-bold text-[0.75rem]">
+                  JE
+                </div>
+<span class="font-title-md text-title-md text-on-surface font-medium">Jonathan E.</span>
+</div>
+</td>
+<td class="py-3.5 px-4">
+<span>Interest Sent</span>
+</td>
+<td class="py-3.5 px-4 text-on-surface-variant">Courtship Inquiry</td>
+<td class="py-3.5 px-4 text-right">
+<span class="inline-flex px-2.5 py-1 rounded-full text-label-sm font-label-sm bg-secondary-fixed text-on-secondary-fixed font-semibold">
+                Connected
+              </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Ledger Footer / Pagination Telemetry -->
+<div class="flex flex-col sm:flex-row items-center justify-between gap-gutter-sm mt-gutter-md pt-gutter-md border-t border-surface-container text-body-sm text-on-surface-variant">
+<div class="flex items-center gap-2">
+<span class="h-2 w-2 rounded-full bg-secondary"></span>
+<span>Showing 4 of 24 Verified User Activities</span>
+</div>
+<div class="flex items-center gap-gutter-xs">
+<button class="px-3 py-1 rounded bg-surface-container-low hover:bg-surface-container text-on-surface font-label-sm text-label-sm">Previous</button>
+<span class="px-2 font-label-sm text-label-sm text-on-surface font-bold">1</span>
+<button class="px-3 py-1 rounded bg-surface-container-low hover:bg-surface-container text-on-surface font-label-sm text-label-sm">Next</button>
+</div>
+</div>
+</div>
+</div></main></div></body></html>

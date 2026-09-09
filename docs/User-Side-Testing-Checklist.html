@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kingdom Alliance — User-Side Testing Checklist</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #0f172a;
+    --navy-light: #1e293b;
+    --gold: #C9A84C;
+    --gold-dark: #b3804c;
+    --gold-light: #f5f0e0;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
+    --white: #ffffff;
+    --red: #ef4444;
+    --green: #22c55e;
+    --blue: #3b82f6;
+    --amber: #f59e0b;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 16mm 18mm 20mm 18mm;
+    @bottom-center {
+      content: counter(page) " / " counter(pages);
+      font-family: 'Inter', sans-serif;
+      font-size: 8px;
+      color: #94a3b8;
+      letter-spacing: 0.1em;
+    }
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--gray-800);
+    line-height: 1.6;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    background: var(--white);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ─── Cover Page ─── */
+  .cover {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, #0a1628 0%, #0f2035 40%, #162236 70%, #0a1628 100%);
+  }
+
+  .cover::after {
+    content: '';
+    position: absolute;
+    top: 20%; right: 10%;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cover-content {
+    position: relative;
+    z-index: 1;
+    max-width: 500px;
+  }
+
+  .cover-cross {
+    width: 60px; height: 60px;
+    margin: 0 auto 40px;
+    opacity: 0.9;
+  }
+
+  .cover-cross svg {
+    width: 100%; height: 100%;
+    fill: var(--gold);
+  }
+
+  .cover-brand {
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+    font-weight: 400;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+    margin-bottom: 8px;
+  }
+
+  .cover-tagline {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    color: rgba(184,154,114,0.6);
+    margin-bottom: 60px;
+  }
+
+  .cover-divider {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--gold), transparent);
+    margin: 0 auto 40px;
+  }
+
+  .cover-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--white);
+    line-height: 1.3;
+    margin-bottom: 12px;
+  }
+
+  .cover-subtitle {
+    font-size: 13px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.5);
+    max-width: 380px;
+    margin: 0 auto 50px;
+  }
+
+  .cover-meta {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+  }
+
+  .cover-meta-item {
+    text-align: center;
+  }
+
+  .cover-meta-label {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: rgba(184,154,114,0.4);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .cover-meta-value {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    font-weight: 400;
+  }
+
+  .cover-footer {
+    position: absolute;
+    bottom: 30px;
+    left: 0; right: 0;
+    text-align: center;
+    z-index: 1;
+  }
+
+  .cover-footer p {
+    font-size: 8px;
+    color: rgba(184,154,114,0.3);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* ─── Table of Contents ─── */
+  .toc {
+    page-break-after: always;
+    padding: 40px 0;
+  }
+
+  .toc-header {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 8px;
+  }
+
+  .toc-subtitle {
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .toc-list {
+    list-style: none;
+  }
+
+  .toc-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .toc-item-num {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--gold);
+    width: 30px;
+    flex-shrink: 0;
+  }
+
+  .toc-item-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-800);
+    flex: 1;
+  }
+
+  .toc-item-count {
+    font-size: 10px;
+    color: var(--gray-400);
+    font-weight: 400;
+  }
+
+  .toc-item-dots {
+    flex: 1;
+    border-bottom: 1px dotted var(--gray-300);
+    margin: 0 12px;
+    height: 1px;
+    align-self: flex-end;
+    margin-bottom: 3px;
+  }
+
+  /* ─── Section Styles ─── */
+  .section {
+    page-break-before: always;
+    padding-top: 10px;
+  }
+
+  .section:first-of-type {
+    page-break-before: auto;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--navy);
+  }
+
+  .section-num {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--gold);
+    font-family: 'Playfair Display', serif;
+    line-height: 1;
+    min-width: 36px;
+  }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .section-count {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: var(--gray-100);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  .section-desc {
+    font-size: 11px;
+    color: var(--gray-500);
+    margin: 10px 0 16px;
+    line-height: 1.5;
+  }
+
+  /* ─── Subsection ─── */
+  .subsection {
+    margin-bottom: 16px;
+  }
+
+  .subsection-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    background: var(--gray-50);
+    border-left: 3px solid var(--gold);
+    margin-bottom: 8px;
+  }
+
+  /* ─── Table Styles ─── */
+  .test-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 10px;
+  }
+
+  .test-table thead th {
+    text-align: left;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--gray-500);
+    padding: 6px 8px;
+    border-bottom: 2px solid var(--gray-200);
+    background: var(--gray-50);
+  }
+
+  .test-table thead th:first-child {
+    width: 36px;
+    text-align: center;
+  }
+
+  .test-table thead th:nth-child(2) {
+    width: 38%;
+  }
+
+  .test-table thead th:last-child {
+    width: 44px;
+    text-align: center;
+  }
+
+  .test-table tbody tr {
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .test-table tbody tr:nth-child(even) {
+    background: rgba(248,250,252,0.5);
+  }
+
+  .test-table tbody tr:hover {
+    background: var(--gold-light);
+  }
+
+  .test-table td {
+    padding: 6px 8px;
+    vertical-align: top;
+    line-height: 1.4;
+  }
+
+  .test-table td:first-child {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--gray-400);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .test-table td:nth-child(2) {
+    font-weight: 500;
+    color: var(--gray-700);
+  }
+
+  .test-table td:nth-child(3) {
+    font-weight: 400;
+    color: var(--gray-500);
+    font-size: 9.5px;
+  }
+
+  .test-table td:last-child {
+    text-align: center;
+  }
+
+  .checkbox {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 1.5px solid var(--gray-300);
+    border-radius: 3px;
+    vertical-align: middle;
+  }
+
+  /* ─── Summary Stats ─── */
+  .stats-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+  }
+
+  .stat-card {
+    flex: 1;
+    padding: 14px;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    text-align: center;
+  }
+
+  .stat-card.gold {
+    background: linear-gradient(135deg, #faf6e8, #f5f0e0);
+    border-color: rgba(201,168,76,0.2);
+  }
+
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-card.gold .stat-value {
+    color: var(--gold-dark);
+  }
+
+  .stat-label {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--gray-400);
+    font-weight: 600;
+  }
+
+  /* ─── Notes Section ─── */
+  .notes-section {
+    margin-top: 30px;
+    page-break-inside: avoid;
+  }
+
+  .notes-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .notes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .note-card {
+    padding: 12px;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+  }
+
+  .note-card h4 {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .note-card p, .note-card ul {
+    font-size: 9.5px;
+    color: var(--gray-500);
+    line-height: 1.5;
+  }
+
+  .note-card ul {
+    padding-left: 14px;
+  }
+
+  .note-card li {
+    margin-bottom: 2px;
+  }
+
+  /* ─── Rate Limits Table ─── */
+  .limits-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5px;
+  }
+
+  .limits-table th {
+    text-align: left;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--gray-500);
+    padding: 6px 10px;
+    border-bottom: 2px solid var(--gray-200);
+    background: var(--gray-50);
+  }
+
+  .limits-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .limits-table td:first-child {
+    font-weight: 600;
+    color: var(--gray-700);
+  }
+
+  .limits-table td:nth-child(2) {
+    color: var(--navy);
+    font-weight: 600;
+  }
+
+  .limits-table td:last-child {
+    color: var(--gray-500);
+    font-size: 9px;
+  }
+
+  /* ─── Footer ─── */
+  .doc-footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--gray-200);
+    text-align: center;
+  }
+
+  .doc-footer p {
+    font-size: 8px;
+    color: var(--gray-400);
+    letter-spacing: 0.1em;
+  }
+
+  /* ─── Print Overrides ─── */
+  @media print {
+    body { background: white; }
+    .section { page-break-inside: avoid; }
+    .subsection { page-break-inside: avoid; }
+    .test-table { page-break-inside: auto; }
+    .test-table tr { page-break-inside: avoid; }
+    .stats-row { page-break-inside: avoid; }
+    .notes-grid { page-break-inside: avoid; }
+  }
+
+  /* ─── Screen Only ─── */
+  @media screen {
+    body {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px;
+      box-shadow: 0 0 60px rgba(0,0,0,0.1);
+    }
+    .cover {
+      height: auto;
+      min-height: 100vh;
+      border-radius: 0;
+      margin: -40px -40px 40px -40px;
+      padding: 60px 40px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- COVER PAGE                                                     -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-content">
+    <div class="cover-cross">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 2H14V8H20V12H14V22H10V12H4V8H10V2Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div class="cover-brand">Kingdom Alliance</div>
+    <div class="cover-tagline">Matrimonial Platform</div>
+    <div class="cover-divider"></div>
+    <h1 class="cover-title">User-Side Testing Checklist</h1>
+    <p class="cover-subtitle">Comprehensive quality assurance document for client-side testing of all user-facing features and workflows</p>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Version</div>
+        <div class="cover-meta-value">1.0</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Date</div>
+        <div class="cover-meta-value">September 2026</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Classification</div>
+        <div class="cover-meta-value">Confidential</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Test Cases</div>
+        <div class="cover-meta-value">120+</div>
+      </div>
+    </div>
+  </div>
+  <div class="cover-footer">
+    <p>The Kingdom Alliances &copy; 2026 &mdash; Built on Faith, Rooted in Love</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TABLE OF CONTENTS                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="toc">
+  <h2 class="toc-header">Table of Contents</h2>
+  <p class="toc-subtitle">Complete testing coverage across all user-facing features</p>
+  <ul class="toc-list">
+    <li class="toc-item">
+      <span class="toc-item-num">01</span>
+      <span class="toc-item-title">Registration</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">11 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">02</span>
+      <span class="toc-item-title">Onboarding (5-Step Wizard)</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">21 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">03</span>
+      <span class="toc-item-title">Post-Registration Status Pages</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">6 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">04</span>
+      <span class="toc-item-title">Login</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">8 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">05</span>
+      <span class="toc-item-title">Forgot Password</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">7 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">06</span>
+      <span class="toc-item-title">Dashboard</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">10 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">07</span>
+      <span class="toc-item-title">Matches Page</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">16 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">08</span>
+      <span class="toc-item-title">Interests Page</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">12 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">09</span>
+      <span class="toc-item-title">Messages / Chat</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">14 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">10</span>
+      <span class="toc-item-title">Profile Page</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">16 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">11</span>
+      <span class="toc-item-title">Edit Profile</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">9 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">12</span>
+      <span class="toc-item-title">Shortlists Page</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">4 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">13</span>
+      <span class="toc-item-title">Notifications</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">8 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">14</span>
+      <span class="toc-item-title">Online Presence</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">4 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">15</span>
+      <span class="toc-item-title">Account Management</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">10 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">16</span>
+      <span class="toc-item-title">Public Pages</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">6 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">17</span>
+      <span class="toc-item-title">Responsive Design &amp; Cross-Browser</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">6 cases</span>
+    </li>
+    <li class="toc-item">
+      <span class="toc-item-num">18</span>
+      <span class="toc-item-title">Edge Cases &amp; Error Handling</span>
+      <span class="toc-item-dots"></span>
+      <span class="toc-item-count">8 cases</span>
+    </li>
+  </ul>
+
+  <div class="stats-row" style="margin-top: 30px;">
+    <div class="stat-card gold">
+      <div class="stat-value">18</div>
+      <div class="stat-label">Test Sections</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">120+</div>
+      <div class="stat-label">Total Test Cases</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">6</div>
+      <div class="stat-label">Browsers</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">3</div>
+      <div class="stat-label">Device Types</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 01: REGISTRATION                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <h2 class="section-title">Registration</h2>
+    <span class="section-count">11 Test Cases</span>
+  </div>
+  <p class="section-desc">Verify all registration paths including email/password, Google OAuth, OTP verification, CAPTCHA, and validation rules.</p>
+
+  <table class="test-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Test Case</th>
+        <th>Expected Result</th>
+        <th>Pass</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1.1</td>
+        <td>Open /register page</td>
+        <td>Registration form loads with branding, scripture quote, trust indicators</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.2</td>
+        <td>Register with Email/Password</td>
+        <td>OTP sent to email, OTP modal appears with 6-digit input fields</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.3</td>
+        <td>Enter correct OTP code</td>
+        <td>Verification succeeds, user navigated to onboarding wizard</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.4</td>
+        <td>Enter incorrect OTP code</td>
+        <td>Error message displayed, user can retry with correct code</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.5</td>
+        <td>Click "Resend OTP" after 120s timer</td>
+        <td>New OTP sent to email, cooldown timer resets to 120 seconds</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.6</td>
+        <td>Register with Google OAuth</td>
+        <td>Google popup appears, account created, redirected to onboarding</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.7</td>
+        <td>Try registering with existing email</td>
+        <td>Error message: "Email already in use"</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.8</td>
+        <td>Submit without agreeing to Terms</td>
+        <td>Registration blocked, terms checkbox required</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.9</td>
+        <td>Observe password strength indicator</td>
+        <td>Shows Weak / Fair / Strong based on length, numbers, symbols</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.10</td>
+        <td>Try weak password (no number/symbol)</td>
+        <td>Registration blocked until strong password provided</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+      <tr>
+        <td>1.11</td>
+        <td>Complete Turnstile CAPTCHA</td>
+        <td>CAPTCHA verification required before registration proceeds</td>
+        <td><span class="checkbox"></span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 02: ONBOARDING                                         -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <h2 class="section-title">Onboarding (5-Step Wizard)</h2>
+    <span class="section-count">21 Test Cases</span>
+  </div>
+  <p class="section-desc">Test the complete 5-step onboarding wizard: Basic Info, Personal/Career/Lifestyle, Family Background, Partner Preferences, and Photos + Terms.</p>
+
+  <div class="subsection">
+    <div class="subsection-title">Step 1: Basic Info</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>2.1</td><td>Select "Profile for" (Self, Son, Daughter, etc.)</td><td>Selection saved and reflected in profile data</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.2</td><td>Select Profile Type (Bride / Groom)</td><td>Selection saved, affects match suggestions</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.3</td><td>Fill First Name and Last Name</td><td>Both required fields validated, middle name optional</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.4</td><td>Enter Date of Birth (under 18 years)</td><td>Error: user must be at least 18 years old</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.5</td><td>Enter mobile number</td><td>Validates 7-15 digits, numeric only</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.6</td><td>Select Denomination</td><td>Dropdown with 12+ options (Catholic, Protestant, Orthodox, etc.)</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.7</td><td>Fill Church Name, City, Area</td><td>Fields accept input, church synced on submission</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.8</td><td>Enter Pastor Number (not 10 digits)</td><td>Error: must be exactly 10 digits</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.9</td><td>Complete email OTP verification</td><td>OTP modal, code sent and verified before proceeding</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.10</td><td>Complete Turnstile CAPTCHA</td><td>Required on this step before proceeding</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">Step 2: Personal, Career &amp; Lifestyle</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>2.11</td><td>Fill marital status, height, weight, body type</td><td>All fields accept input and save correctly</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.12</td><td>Fill education, profession, income</td><td>Fields accept input, dropdowns function</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.13</td><td>Fill dietary, drinking, smoking habits</td><td>Dropdowns work, selections saved</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.14</td><td>Add hobbies</td><td>Text input accepts hobby entries</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.15</td><td>Write "About Me" bio</td><td>Textarea accepts input, character limit enforced</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">Steps 3-5: Family, Preferences &amp; Photos</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>2.16</td><td>Fill father's and mother's name &amp; occupation</td><td>Family background fields accept input</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.17</td><td>Set partner age/height range preferences</td><td>Range inputs function correctly</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.18</td><td>Select preferred denominations (multi-select)</td><td>Multi-select dropdown works</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.19</td><td>Upload profile photo (JPEG/PNG/WEBP, &lt;10MB)</td><td>Photo uploads successfully, moderation queue created</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.20</td><td>Upload invalid format (GIF, BMP) or &gt;10MB file</td><td>Error: invalid format or file too large</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.21</td><td>Upload up to 3 gallery photos</td><td>All 3 upload successfully</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.22</td><td>Try uploading 4th gallery photo</td><td>Error: maximum 3 gallery photos allowed</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.23</td><td>Submit onboarding without Terms agreement</td><td>Submission blocked, checkbox required</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.24</td><td>Submit complete onboarding form</td><td>Success screen, profile placed in pending approval status</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.25</td><td>Refresh page mid-onboarding</td><td>Draft data restored from localStorage auto-save</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>2.26</td><td>Close browser and return to onboarding</td><td>Draft data still available, wizard resumes</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 03: STATUS PAGES                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <h2 class="section-title">Post-Registration Status Pages</h2>
+    <span class="section-count">6 Test Cases</span>
+  </div>
+  <p class="section-desc">Verify that users are correctly redirected to status-specific pages based on their account state (pending, suspended, banned, rejected).</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>3.1</td><td>Login after onboarding (pending approval)</td><td>Redirected to Waiting Room page with review info</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>3.2</td><td>Verify Waiting Room page content</td><td>"Application Under Review" message, 24-48h timeline mentioned</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>3.3</td><td>Click "Sign Out" on Waiting Room</td><td>Signs out, redirects to login page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>3.4</td><td>Login as suspended user</td><td>Redirected to Suspended page with support contact</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>3.5</td><td>Login as banned user</td><td>Redirected to Banned ("Account Closed") page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>3.6</td><td>Login as rejected user</td><td>Redirected to Rejected ("Application Not Approved") page</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 04: LOGIN                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <h2 class="section-title">Login</h2>
+    <span class="section-count">8 Test Cases</span>
+  </div>
+  <p class="section-desc">Test all login paths including email/password, Google OAuth, MFA, session persistence, and admin access restrictions.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>4.1</td><td>Login with Email/Password (approved user)</td><td>Navigates to Dashboard or Profile based on account status</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>4.2</td><td>Login with Google OAuth</td><td>Google popup, successful authentication, correct redirect</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>4.3</td><td>Toggle "Keep me signed in" ON, close browser</td><td>Session persists after browser restart</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>4.4</td><td>Toggle "Keep me signed in" OFF, close browser</td><td>Session ends when browser closes</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>4.5</td><td>Enter wrong password</td><td>Error message displayed, login fails</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>4.6</td><td>Complete Turnstile CAPTCHA</td><td>Required before login attempt is processed</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>4.7</td><td>Try login as admin from user login page</td><td>Error: "Administrative accounts are restricted"</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>4.8</td><td>MFA prompt for users with TOTP enabled</td><td>6-digit TOTP code input screen appears</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 05: FORGOT PASSWORD                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">05</span>
+    <h2 class="section-title">Forgot Password</h2>
+    <span class="section-count">7 Test Cases</span>
+  </div>
+  <p class="section-desc">Verify the complete password reset flow including OTP request, verification, and new password setting.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>5.1</td><td>Click "Forgot password?" on login page</td><td>Forgot password modal opens with email input</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>5.2</td><td>Enter registered email and request OTP</td><td>OTP sent (or generic message to prevent user enumeration)</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>5.3</td><td>Enter correct OTP + valid new password</td><td>Password reset successful, success message shown</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>5.4</td><td>Enter incorrect OTP code</td><td>Error message, can retry</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>5.5</td><td>Try password shorter than 6 characters</td><td>Error: password must be at least 6 characters</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>5.6</td><td>Enter mismatched password confirmation</td><td>Error: passwords must match</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>5.7</td><td>Login with newly reset password</td><td>Successful login with new credentials</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 06: DASHBOARD                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">06</span>
+    <h2 class="section-title">Dashboard</h2>
+    <span class="section-count">10 Test Cases</span>
+  </div>
+  <p class="section-desc">Verify dashboard content for both pending and approved users, including stats, match suggestions, and profile views.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>6.1</td><td>View dashboard (pending approval status)</td><td>"Awaiting Verification" card shown with review info</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.2</td><td>View dashboard (approved status)</td><td>Stats grid: Profile Views, Interests Received, Active Chats</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.3</td><td>Click "Profile Views" tile</td><td>Modal opens showing list of recent profile visitors</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.4</td><td>Click "View Profile" on a visitor in the modal</td><td>Navigates to that visitor's full profile</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.5</td><td>Click "Interests Received" tile</td><td>Navigates to /interests page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.6</td><td>Click "Active Chats" tile</td><td>Navigates to /messages page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.7</td><td>View Daily Match Suggestions</td><td>Top 10 matched profiles with match %, photos, details</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.8</td><td>Click "View Profile" on a match card</td><td>Navigates to that match's full profile page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.9</td><td>Verify online indicator on match cards</td><td>Green pulsing dot shown for online users</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>6.10</td><td>Verify photo blur on non-connected matches</td><td>Photos blurred with CSS blur + avatar placeholder</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 07: MATCHES PAGE                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">07</span>
+    <h2 class="section-title">Matches Page</h2>
+    <span class="section-count">16 Test Cases</span>
+  </div>
+  <p class="section-desc">Test profile browsing, search (name and Profile ID), all filter options, bookmarking, interest sending, and rate limiting.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>7.1</td><td>Browse match profiles</td><td>Cards show photo, name, age, location, denomination, match %</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.2</td><td>Search by user name</td><td>Results filter in real-time as user types</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.3</td><td>Search by Profile ID (6+ characters)</td><td>Exact match found and displayed</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.4</td><td>Search by Profile ID (&lt;6 characters)</td><td>Search disabled until minimum 6 characters entered</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.5</td><td>Filter by Age Range (min/max)</td><td>Results filtered to specified age range</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.6</td><td>Filter by Denomination</td><td>Only profiles matching denomination shown</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.7</td><td>Filter by Education level</td><td>Results filtered by education criteria</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.8</td><td>Filter by Location (city/country)</td><td>Results filtered by location match</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.9</td><td>Filter by "Verified Only" toggle</td><td>Only email-verified profiles displayed</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.10</td><td>Filter by "Recently Active" toggle</td><td>Only users active within last 24 hours shown</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.11</td><td>Combine multiple filters simultaneously</td><td>All active filters apply together correctly</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.12</td><td>Clear all active filters</td><td>All profiles shown again, filters reset</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.13</td><td>Click Bookmark button on a profile card</td><td>Profile added to shortlist, bookmark icon toggles</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.14</td><td>Click "Send Interest" on a profile card</td><td>Interest sent, button changes to "Interest Sent" state</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.15</td><td>Click "Message" on a connected match</td><td>Navigates to chat conversation with that user</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>7.16</td><td>Send 5+ interests within 24 hours</td><td>Rate limit alert shown, cannot send more interests</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 08: INTERESTS PAGE                                     -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">08</span>
+    <h2 class="section-title">Interests Page</h2>
+    <span class="section-count">12 Test Cases</span>
+  </div>
+  <p class="section-desc">Test all four tabs: Received, Sent, Declined, and Accepted. Verify accept/decline/withdraw/delete workflows.</p>
+
+  <div class="subsection">
+    <div class="subsection-title">Received Tab</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>8.1</td><td>View received interests</td><td>Cards show sender's photo (blurred), name, age, location</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.2</td><td>Click "Accept" on a received interest</td><td>Interest accepted, moves to Accepted tab, email sent to sender</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.3</td><td>Click "Decline" on a received interest</td><td>Interest removed from Received tab</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.4</td><td>Verify sender cannot see who declined them</td><td>Declined interest hidden from sender's Sent tab</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">Sent, Declined &amp; Accepted Tabs</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>8.5</td><td>View sent interests</td><td>Cards show receiver's name, "Waiting for response..." status</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.6</td><td>Click "Withdraw" on a sent interest</td><td>Interest deleted via transaction, removed from Sent tab</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.7</td><td>View declined interests</td><td>Cards show the interests you previously declined</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.8</td><td>Click "Delete Permanently" on declined interest</td><td>Interest completely removed from Declined tab</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.9</td><td>View accepted connections</td><td>Cards show connected user's photo, name, "accepted" badge</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.10</td><td>Click "Send Message" on accepted connection</td><td>Navigates to chat with that connected user</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.11</td><td>Click "Withdraw &amp; Decline" on accepted connection</td><td>Confirmation modal shown before action</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>8.12</td><td>Confirm "Withdraw &amp; Decline" in modal</td><td>Connection removed, user moved to Declined tab</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 09: MESSAGES / CHAT                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">09</span>
+    <h2 class="section-title">Messages / Chat</h2>
+    <span class="section-count">14 Test Cases</span>
+  </div>
+  <p class="section-desc">Test real-time messaging, typing indicators, read receipts, notifications, and block/unblock from chat.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>9.1</td><td>View conversations list</td><td>Shows all accepted connections with photos, names, online status</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.2</td><td>Verify online indicator in chat list</td><td>Green pulsing dot for online users</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.3</td><td>Click a conversation to open chat</td><td>Chat opens with full message history</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.4</td><td>Send a text message</td><td>Message appears in chat, delivered to other user in real-time</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.5</td><td>Receive a message (other user sends)</td><td>Message appears instantly without page refresh</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.6</td><td>Verify typing indicator</td><td>Shows "{Name} is typing..." when other user types, 2s timeout</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.7</td><td>Verify read receipts</td><td>Unread messages marked as read when chat is opened</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.8</td><td>Verify unread message badge on nav</td><td>Red badge with unread count on Messages nav item</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.9</td><td>Click "View Profile" in chat overflow menu</td><td>Navigates to that user's profile page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.10</td><td>Click "Block User" in chat overflow menu</td><td>User blocked, chat input disabled, navigated back to messages list</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.11</td><td>Verify blocked user cannot send messages</td><td>No messages received from blocked user</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.12</td><td>Unblock a previously blocked user</td><td>Chat restored, messaging re-enabled</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.13</td><td>Receive notification toast for new message</td><td>Toast shown with sender name and message preview</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>9.14</td><td>Verify audio alert on new message</td><td>Sound plays when new message arrives</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 10: PROFILE PAGE                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">10</span>
+    <h2 class="section-title">Profile Page</h2>
+    <span class="section-count">16 Test Cases</span>
+  </div>
+  <p class="section-desc">Test viewing own profile and other profiles, photo privacy, view tracking, gallery, and photo moderation states.</p>
+
+  <div class="subsection">
+    <div class="subsection-title">Own Profile</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>10.1</td><td>View own profile</td><td>Shows all details, Profile ID, stats tiles (8 tiles)</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.2</td><td>Click Quick Stats tiles</td><td>Each tile navigates to relevant page (Views, Interests, etc.)</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.3</td><td>Click "Edit Profile" button</td><td>EditProfileModal opens with tabbed sections</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.4</td><td>Click profile photo</td><td>Lightbox gallery opens with photo carousel</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.5</td><td>Upload/change profile photo</td><td>Photo upload modal works, new photo sent to moderation</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.6</td><td>View gallery photos</td><td>All approved gallery photos displayed</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">Other User's Profile</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>10.7</td><td>View another user's profile</td><td>Shows their details, photo (blurred if not connected)</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.8</td><td>Verify profile view is tracked</td><td>Your view appears in their "Profile Views" list</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.9</td><td>Click "Shortlist" button</td><td>Profile added to your shortlist</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.10</td><td>Click "Send Interest" button</td><td>Interest sent to that user</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.11</td><td>Click "Block User" button</td><td>User blocked, cannot see your profile</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.12</td><td>Click "Send Message" (if connected)</td><td>Navigates to chat conversation</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">Photo Privacy</div>
+    <table class="test-table">
+      <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td>10.13</td><td>Verify photos blurred for non-connected users</td><td>CSS blur applied, DiceBear avatar shown as placeholder</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.14</td><td>Verify photos visible after accepting connection</td><td>Blur removed, real photo displayed</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.15</td><td>Verify pending photo shows overlay</td><td>"Pending Review" overlay displayed on photo</td><td><span class="checkbox"></span></td></tr>
+        <tr><td>10.16</td><td>Verify rejected photo shows reason</td><td>Rejection reason overlay displayed on photo</td><td><span class="checkbox"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 11: EDIT PROFILE                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">11</span>
+    <h2 class="section-title">Edit Profile</h2>
+    <span class="section-count">9 Test Cases</span>
+  </div>
+  <p class="section-desc">Test all editable sections in the EditProfileModal including bio, lifestyle, education, location, faith, and preferences.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>11.1</td><td>Edit "About Me" bio text</td><td>Max 1200 characters enforced, character counter shown</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.2</td><td>Try adding email address in bio</td><td>Blocked or warned (security measure to prevent data leaks)</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.3</td><td>Edit Basic Info (height, weight, body type, etc.)</td><td>Fields accept input, values save correctly</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.4</td><td>Edit Education &amp; Career fields</td><td>Fields accept input, dropdowns function</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.5</td><td>Edit Location fields (country, city)</td><td>Country/City dropdowns work, location updates</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.6</td><td>Edit Faith &amp; Church details</td><td>Church fields accept input, synced to churches collection</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.7</td><td>Edit Partner Preferences</td><td>All preference fields function correctly</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.8</td><td>Save all changes</td><td>Toast success notification, changes reflected in profile</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>11.9</td><td>Cancel without saving</td><td>Changes discarded, original values preserved</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 12: SHORTLISTS                                         -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">12</span>
+    <h2 class="section-title">Shortlists Page</h2>
+    <span class="section-count">4 Test Cases</span>
+  </div>
+  <p class="section-desc">Test the bookmarking/shortlisting feature including viewing, navigating, and removing shortlisted profiles.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>12.1</td><td>View shortlisted profiles</td><td>Cards show photo (blurred), name, age, location, match %</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>12.2</td><td>Click "View Profile" on a shortlisted card</td><td>Navigates to that user's full profile page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>12.3</td><td>Click bookmark icon to remove from shortlist</td><td>Profile removed from shortlist page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>12.4</td><td>View empty shortlists state (no bookmarks)</td><td>Appropriate empty state message displayed</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 13: NOTIFICATIONS                                      -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">13</span>
+    <h2 class="section-title">Notifications</h2>
+    <span class="section-count">8 Test Cases</span>
+  </div>
+  <p class="section-desc">Test in-app toast notifications, FCM push notifications, badge counts, and audio alerts.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>13.1</td><td>Receive interest notification</td><td>In-app toast: "New Connection Request!" with sender info</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>13.2</td><td>Receive connection accepted notification</td><td>In-app toast: "Connection Accepted!" with sender info</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>13.3</td><td>Receive message notification (while offline)</td><td>Toast with sender name and message preview</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>13.4</td><td>Receive message notification (viewing that chat)</td><td>Toast suppressed, no duplicate notification</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>13.5</td><td>FCM push notification (mobile/browser)</td><td>Push notification appears on device</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>13.6</td><td>Verify interest badge count on nav</td><td>Red badge shows unread interest notification count</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>13.7</td><td>Verify message badge count on nav</td><td>Red badge shows unread message count</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>13.8</td><td>Verify audio alert on new notification</td><td>Sound plays when notification arrives</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 14: ONLINE PRESENCE                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">14</span>
+    <h2 class="section-title">Online Presence</h2>
+    <span class="section-count">4 Test Cases</span>
+  </div>
+  <p class="section-desc">Verify real-time online/offline status indicators across match cards, profile pages, and chat interfaces.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>14.1</td><td>Online indicator on match cards</td><td>Green pulsing dot shown for online users</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>14.2</td><td>Online indicator on profile page</td><td>Green dot + "Online" text displayed</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>14.3</td><td>Online indicator in chat header</td><td>Shows "Active Now" with green dot</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>14.4</td><td>User goes offline (closes browser/app)</td><td>Green dot disappears, status updates to offline</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 15: ACCOUNT MANAGEMENT                                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">15</span>
+    <h2 class="section-title">Account Management</h2>
+    <span class="section-count">10 Test Cases</span>
+  </div>
+  <p class="section-desc">Test session timeout, logout, account deletion with grace period, blocking/unblocking users, and the blocked users list.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>15.1</td><td>Idle for 15 minutes (session timeout)</td><td>Auto-logout with alert message</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.2</td><td>Click Logout button</td><td>Signs out, redirects to login page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.3</td><td>Request account deletion from profile</td><td>OTP sent to email for verification</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.4</td><td>Confirm deletion with correct OTP</td><td>7-day grace period starts, deletion scheduled</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.5</td><td>Login during 7-day grace period</td><td>AccountDeletionPrompt shown with reactivation option</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.6</td><td>Click "Reactivate My Account"</td><td>Account restored, full platform access returned</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.7</td><td>Do not reactivate within 7 days</td><td>Account permanently deleted, data purged</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.8</td><td>Block a user from their profile page</td><td>User blocked, cannot see your profile or message you</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.9</td><td>View blocked users list (Privacy tab)</td><td>List shows all blocked users with photos and unblock button</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>15.10</td><td>Unblock a user from the blocked list</td><td>Connection restored, user can see your profile again</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 16: PUBLIC PAGES                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">16</span>
+    <h2 class="section-title">Public Pages</h2>
+    <span class="section-count">6 Test Cases</span>
+  </div>
+  <p class="section-desc">Verify all public-facing pages load correctly: Landing, FAQ, Terms, About, and Contact.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>16.1</td><td>Landing page loads (/)</td><td>Hero section, how-it-works, trust cards, testimonials, FAQ</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>16.2</td><td>FAQ page loads (/faq)</td><td>Expandable Q&A sections, search filter works</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>16.3</td><td>Terms page loads (/terms)</td><td>Terms and conditions content displayed</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>16.4</td><td>About page loads (/about)</td><td>Platform information and mission displayed</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>16.5</td><td>Contact page loads (/contact)</td><td>Contact form/information displayed and functional</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>16.6</td><td>Navigate from landing to register/login</td><td>All navigation links work correctly</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 17: RESPONSIVE & CROSS-BROWSER                         -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">17</span>
+    <h2 class="section-title">Responsive Design &amp; Cross-Browser</h2>
+    <span class="section-count">6 Test Cases</span>
+  </div>
+  <p class="section-desc">Verify the platform works correctly across different screen sizes (mobile, tablet, desktop) and major browsers.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>17.1</td><td>Mobile view (iPhone / Android)</td><td>All pages responsive, hamburger menu works, no layout issues</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>17.2</td><td>Tablet view (iPad)</td><td>Layout adapts correctly, touch targets appropriate</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>17.3</td><td>Desktop view (Chrome)</td><td>Full layout with sidebar navigation, all features work</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>17.4</td><td>Firefox browser</td><td>All features work, no rendering issues</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>17.5</td><td>Safari browser</td><td>All features work, no rendering issues</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>17.6</td><td>Edge browser</td><td>All features work, no rendering issues</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 18: EDGE CASES                                         -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">18</span>
+    <h2 class="section-title">Edge Cases &amp; Error Handling</h2>
+    <span class="section-count">8 Test Cases</span>
+  </div>
+  <p class="section-desc">Test unexpected scenarios, network issues, form validation edge cases, and error recovery.</p>
+
+  <table class="test-table">
+    <thead><tr><th>#</th><th>Test Case</th><th>Expected Result</th><th>Pass</th></tr></thead>
+    <tbody>
+      <tr><td>18.1</td><td>Network disconnection during action</td><td>Graceful error handling, no crash or data loss</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>18.2</td><td>Refresh page mid-action</td><td>State preserved or recovered gracefully</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>18.3</td><td>Submit form with empty required fields</td><td>Validation errors shown for each empty required field</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>18.4</td><td>Upload corrupted image file</td><td>Error message shown, application does not crash</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>18.5</td><td>Open multiple browser tabs simultaneously</td><td>State syncs across tabs, no conflicts</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>18.6</td><td>Use browser back/forward navigation</td><td>Pages load correctly, state maintained</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>18.7</td><td>Deep link to protected route (unauthenticated)</td><td>Redirects to login page</td><td><span class="checkbox"></span></td></tr>
+      <tr><td>18.8</td><td>Try accessing admin routes as regular user</td><td>Redirected to admin login or access denied</td><td><span class="checkbox"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TESTING NOTES & RATE LIMITS                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">&mdash;</span>
+    <h2 class="section-title">Testing Notes &amp; Rate Limits</h2>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card gold">
+      <div class="stat-value">2</div>
+      <div class="stat-label">Min. Test Accounts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5</div>
+      <div class="stat-label">Interests / 24h</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">7</div>
+      <div class="stat-label">Day Deletion Grace</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">15</div>
+      <div class="stat-label">Min. Session Timeout</div>
+    </div>
+  </div>
+
+  <div class="notes-grid">
+    <div class="note-card">
+      <h4>Testing Setup</h4>
+      <ul>
+        <li>Create at least 2 test accounts (1 male/groom, 1 female/bride)</li>
+        <li>Test the full flow: Register &rarr; Onboarding &rarr; Pending &rarr; Approved &rarr; Match &rarr; Interest &rarr; Connect &rarr; Message</li>
+        <li>Use incognito/private browsing for clean session tests</li>
+        <li>Keep browser DevTools open to monitor network and console errors</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h4>Rate Limits</h4>
+      <ul>
+        <li><strong>Interest sending:</strong> Max 5 per user per 24 hours (enforced server-side)</li>
+        <li><strong>OTP verification:</strong> Attempt-limited, time-limited, hashed storage</li>
+        <li><strong>Gallery photos:</strong> Max 3 gallery + 1 profile = 4 total</li>
+        <li><strong>Photo file size:</strong> Max 10MB per image</li>
+        <li><strong>Photo formats:</strong> JPEG, PNG, WEBP only</li>
+        <li><strong>Password (registration):</strong> Min 8 chars, must include number + symbol</li>
+        <li><strong>Password (reset):</strong> Min 6 characters</li>
+        <li><strong>Bio length:</strong> Max 1200 characters</li>
+        <li><strong>Session timeout:</strong> 15 min (user) / 10 min (admin)</li>
+        <li><strong>Profile ID search:</strong> Min 6 characters</li>
+        <li><strong>Account deletion:</strong> 7-day grace period</li>
+        <li><strong>OTP resend:</strong> 120-second cooldown</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h4>Key Workflows to Test</h4>
+      <ul>
+        <li>Complete registration-to-connection flow end-to-end</li>
+        <li>Photo upload &rarr; moderation &rarr; approval/rejection cycle</li>
+        <li>Interest rate limit enforcement (send 5 in 24h)</li>
+        <li>Block/unblock user between two accounts</li>
+        <li>Account deletion and 7-day reactivation</li>
+        <li>Password reset flow with OTP</li>
+        <li>Multiple browser tabs state synchronization</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h4>Bug Reporting Format</h4>
+      <ul>
+        <li><strong>Test Case #:</strong> Reference the number from this checklist</li>
+        <li><strong>Steps to Reproduce:</strong> Exact steps taken</li>
+        <li><strong>Expected:</strong> What should have happened</li>
+        <li><strong>Actual:</strong> What actually happened</li>
+        <li><strong>Severity:</strong> Critical / Major / Minor / Cosmetic</li>
+        <li><strong>Screenshot:</strong> Attach if possible</li>
+        <li><strong>Browser/Device:</strong> Include browser version and device type</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <p>Kingdom Alliance &mdash; User-Side Testing Checklist v1.0 &mdash; September 2026 &mdash; Confidential</p>
+    <p style="margin-top: 4px;">Built on Faith, Rooted in Love</p>
+  </div>
+</div>
+
+</body>
+</html>
