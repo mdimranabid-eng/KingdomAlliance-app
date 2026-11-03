@@ -112,10 +112,11 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   }
 
   // 0. Pending Account Deletion — offer reactivation (7-day grace window)
-  if (profile.deletionStatus === 'pending_deletion') {
+  if (profile.deletionStatus === 'pending_deletion' || profile.deletionStatus === 'deleting') {
     return (
       <AccountDeletionPrompt
         scheduledDeletionAtMs={profile.scheduledDeletionAt?.toMillis?.()}
+        deletionInProgress={profile.deletionStatus === 'deleting'}
         onReactivated={() => { /* profile onSnapshot listener auto-refreshes */ }}
       />
     );

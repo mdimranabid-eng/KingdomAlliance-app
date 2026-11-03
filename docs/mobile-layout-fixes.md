@@ -1,0 +1,7 @@
+# Mobile section scrolling — 5 October 2026
+
+The homepage used fixed 100vh sections inside a mandatory snapping scroll container. At 440 × 780, How It Works, Benefits, Stories and Privacy had content extending outside their section bounds. The wheel interceptor also skipped the remaining content of tall sections and prevented normal footer scrolling.
+
+Sections now use automatic height with a small-viewport minimum and vertical padding. Phones and tablets scroll in the document without snapping. Desktop retains proximity snapping with expanding sections and no wheel interception. Section anchors account for the 64px fixed header. Header contrast follows the hero correctly during document scrolling. The mobile drawer scrolls when its links exceed the available screen height, and the Top control supports both document and desktop-container scrolling.
+
+Validation: TypeScript and production build passed. Local Chromium tested at 440 × 956, 440 × 780, 390 × 664, 956 × 440 and 1440 × 900. No section children outside their section bounds, horizontal overflow or JavaScript errors. Mobile menu Benefits links land below the header. Visual screenshot inspected at 440 × 956. Reports and screenshots: tmp/mobile-audit/. External requests were blocked; this verifies local layout, not real Safari browser bars, video loading or signed-in pages. Real iPhone Safari and production deployment remain unverified.

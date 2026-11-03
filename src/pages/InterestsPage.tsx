@@ -148,19 +148,7 @@ export default function InterestsPage() {
       // --- EXACT INSERTION ENDS HERE ---
 
       if (status === 'accepted') {
-        const request = interests.find(i => i.id === interestId);
-        if (request) {
-          const currentUser = authUser;
-          // Fetch the original sender's email to notify them of acceptance
-          const senderSnap = await getDoc(doc(db, 'users', request.fromId));
-          if (senderSnap.exists() && senderSnap.data()?.email) {
-              await sendEmail({
-                  to_email: senderSnap.data().email,
-                  type: 'connection_accepted',
-                  senderName: currentUser?.displayName || 'A member'
-              });
-          }
-        }
+        await sendEmail({ interestId, type: 'connection_accepted' });
       }
 
       setInterests(prev => 

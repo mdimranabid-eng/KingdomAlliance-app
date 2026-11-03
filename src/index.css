@@ -308,3 +308,30 @@
     flex-shrink: 0;
   }
 }
+/* Let mobile sections grow with their contents. Browser bars change the visible
+   height on iOS, so fixed 100vh panels and mandatory snapping can hide content. */
+.landing-page {
+  min-height: 100svh;
+  overflow-x: clip;
+}
+.landing-page .landing-section {
+  height: auto;
+  min-height: 100svh;
+  padding-top: 96px;
+  padding-bottom: max(64px, env(safe-area-inset-bottom));
+  scroll-margin-top: 64px;
+}
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .landing-page {
+    height: 100dvh;
+    overflow-y: auto;
+    scroll-snap-type: y proximity;
+  }
+  .landing-page .landing-section {
+    min-height: calc(100dvh - 64px);
+    scroll-margin-top: 0;
+  }
+  .landing-page .landing-section:first-child {
+    min-height: 100dvh;
+  }
+}

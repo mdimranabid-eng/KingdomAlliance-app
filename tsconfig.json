@@ -29,5 +29,10 @@
     "server",
     "test_email.ts",
     "Backup of old webpages"
+  ],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts"
   ]
 }

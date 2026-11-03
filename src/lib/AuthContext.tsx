@@ -72,15 +72,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!user) return;
 
       const idTokenResult = await user.getIdTokenResult();
-      let isAdmin = !!idTokenResult.claims.admin;
+      let isAdmin = idTokenResult.claims.admin === true && !!(idTokenResult.claims.firebase as any)?.sign_in_second_factor;
 
       if (isAdmin) {
         try {
           const adminDoc = await withTimeout(getDoc(doc(db, 'admins', uid)));
-          if (adminDoc.exists() && adminDoc.data()?.emailVerified !== true) {
+          if (!adminDoc.exists() || adminDoc.data()?.emailVerified !== true) {
             isAdmin = false;
           }
         } catch (e) {
+          isAdmin = false;
           console.warn("Could not fetch admin details:", e);
         }
       }

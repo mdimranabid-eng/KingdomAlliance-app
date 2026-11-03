@@ -10,7 +10,10 @@ const getTransporter = async () => {
   return nodemailer.createTransport({
     host,
     port,
-    secure: true,
+    secure: port === 465,
+    connectionTimeout: 30_000,
+    greetingTimeout: 30_000,
+    socketTimeout: 60_000,
     auth: {
       user,
       pass

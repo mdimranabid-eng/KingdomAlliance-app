@@ -11,7 +11,7 @@ export default function ScrollDown({ toTop = false, className = '' }: ScrollDown
     e.stopPropagation();
     if (toTop) {
       const snapContainer = document.querySelector('.snap-container');
-      if (snapContainer) {
+      if (snapContainer && getComputedStyle(snapContainer).overflowY === 'auto') {
         snapContainer.scrollTo({ top: 0, behavior: 'instant' });
       } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });

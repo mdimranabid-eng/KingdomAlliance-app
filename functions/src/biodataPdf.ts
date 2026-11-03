@@ -1,17 +1,6 @@
 import { jsPDF } from 'jspdf';
 
-/**
- * Biodata PDF Generator — Kingdom Alliance (High-End Redesign)
- * -------------------------------------------------------------
- * Page 1  : Hero cover  — photo, name, profile ID, golden hairline
- * Page 2  : Biodata     — organized bento sections, all fields
- * Page 3  : Declaration — digital-signature panel with PDF417 barcode
- * Pages 4+: Full Terms & Conditions (all 26 sections)
- * Every page carries a refined header + footer.
- *
- * Design language: editorial luxury — deepest navy, champagne gold,
- * warm ivory, refined serif headings / grotesk body, airy whitespace.
- */
+/** Professional member biodata, declaration, reference barcode and full terms. */
 
 // ── Brand palette ─────────────────────────────────────────────────────────────
 const NAVY = [10, 20, 40] as const;
@@ -24,10 +13,7 @@ const INK = [25, 30, 40] as const;
 // ── Geometry ──────────────────────────────────────────────────────────────────
 const M_LEFT = 16;
 const M_RIGHT = 16;
-const M_TOP = 28;
-const M_BOTTOM = 22;
 const PAGE_W = 210;
-const PAGE_H = 297;
 const CONTENT_W = PAGE_W - M_LEFT - M_RIGHT;
 
 type Row = [label: string, value: string];
@@ -36,7 +22,7 @@ interface Section { title: string; rows: Row[]; }
 function v(obj: any, key: string): string {
   const val = obj?.[key];
   if (val === undefined || val === null || String(val).trim() === '') return '—';
-  return String(val).trim();
+  return Array.isArray(val) ? val.join(', ') : String(val).trim();
 }
 
 function list(x: any): string | null {
@@ -62,7 +48,7 @@ function buildSections(u: Record<string, any>): Section[] {
     {
       title: 'BASIC INFORMATION',
       rows: [
-        ['Full Name', `${v(u, 'name')} ${v(u, 'lastName')}`.trim()],
+        ['Full Name', [u.name, u.middleName, u.lastName].filter(Boolean).join(' ') || 'Not provided'],
         ['Profile Created For', v(u, 'profileFor')],
         ['Profile Type', v(u, 'profileType')],
         ['Date of Birth', v(u, 'dob')],
@@ -301,390 +287,230 @@ const TERMS: { title: string; paragraphs: string[] }[] = [
 
 
 
-// ── Painters & layout helpers ─────────────────────────────────────────────────
-function paintHeader(doc: jsPDF, profileId: string): void {
-  // Thin gold hairline at the very top
-  doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.rect(0, 0, PAGE_W, 2.4, 'F');
-  // Wordmark
-  doc.setFont('times', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text('KINGDOM ALLIANCE', M_LEFT, 13);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(GREY[0], GREY[1], GREY[2]);
-  doc.text('Christian Matrimony · Rooted in Faith & Values', M_LEFT, 18);
-  // Profile ID chip (right)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text(`Profile ID · ${profileId}`, PAGE_W - M_RIGHT, 13, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(GREY[0], GREY[1], GREY[2]);
-  doc.text(`Generated ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, PAGE_W - M_RIGHT, 18, { align: 'right' });
-  doc.setDrawColor(GREY_LINE[0], GREY_LINE[1], GREY_LINE[2]);
-  doc.setLineWidth(0.3);
-  doc.line(M_LEFT, 21, PAGE_W - M_RIGHT, 21);
+// Professional print layout. All coordinates are in millimetres.
+const BODY_TOP = 42;
+const BODY_BOTTOM = 272;
+
+function text(doc: jsPDF, value: string, x: number, y: number, size = 9.5,
+  color: readonly [number, number, number] = INK, font = 'helvetica', style = 'normal') {
+  doc.setFont(font, style);
+  doc.setFontSize(size);
+  doc.setTextColor(...color);
+  doc.text(value, x, y);
 }
 
-function paintFooter(doc: jsPDF): void {
-  const page = doc.getCurrentPageInfo().pageNumber;
-  const total = doc.getNumberOfPages();
-  doc.setDrawColor(GREY_LINE[0], GREY_LINE[1], GREY_LINE[2]);
-  doc.setLineWidth(0.3);
-  doc.line(M_LEFT, PAGE_H - 16, PAGE_W - M_RIGHT, PAGE_H - 16);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(GREY[0], GREY[1], GREY[2]);
-  doc.text('Confidential · Kingdom Alliance Member Biodata', M_LEFT, PAGE_H - 11);
-  doc.text(`Page ${page} of ${total}`, PAGE_W - M_RIGHT, PAGE_H - 11, { align: 'right' });
+function line(doc: jsPDF, x: number, y: number, w = CONTENT_W) {
+  doc.setDrawColor(...GREY_LINE);
+  doc.setLineWidth(0.22);
+  doc.line(x, y, x + w, y);
 }
 
-function ensureSpace(doc: jsPDF, y: number, needed: number): number {
-  if (y + needed > PAGE_H - M_BOTTOM) {
-    doc.addPage();
-    return M_TOP;
-  }
-  return y;
+function wrapped(doc: jsPDF, value: string, width: number, size = 9.5, font = 'helvetica', style = 'normal'): string[] {
+  doc.setFont(font, style);
+  doc.setFontSize(size);
+  return doc.splitTextToSize(value.replace(/[–—]/g, '-'), width);
 }
 
-/** Rounded-rect card with a subtle ivory fill + hairline border. */
-function card(doc: jsPDF, x: number, y: number, w: number, h: number): void {
-  doc.setFillColor(IVORY[0], IVORY[1], IVORY[2]);
-  doc.setDrawColor(GREY_LINE[0], GREY_LINE[1], GREY_LINE[2]);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(x, y, w, h, 3, 3, 'FD');
+function heading(doc: jsPDF, title: string, subtitle: string) {
+  text(doc, title, M_LEFT, 32, 23, NAVY, 'times');
+  text(doc, subtitle, M_LEFT, 38, 8, GREY);
 }
 
-/** Small uppercase section label with a gold tick. */
-function sectionLabel(doc: jsPDF, x: number, y: number, title: string): void {
-  doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.rect(x, y - 2.4, 1.4, 4.2, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text(title, x + 4, y);
+function section(doc: jsPDF, title: string, y: number) {
+  doc.setFillColor(...GOLD);
+  doc.rect(M_LEFT, y - 3, 1, 4, 'F');
+  text(doc, title, M_LEFT + 4, y, 8, NAVY, 'helvetica', 'bold');
+  line(doc, M_LEFT, y + 3);
+  return y + 11;
 }
 
-/** A two-column key/value row inside a card. Returns the y after the row. */
-function kvRow(doc: jsPDF, x: number, y: number, w: number, label: string, value: string): number {
-  const labelW = 46;
-  const valW = w - labelW;
-  const valLines = doc.splitTextToSize(value, valW - 4) as string[];
-  const rowH = Math.max(5.2, valLines.length * 4.0);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.4);
-  doc.setTextColor(GREY[0], GREY[1], GREY[2]);
-  doc.text(label, x + 3, y + 3.4);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.2);
-  doc.setTextColor(INK[0], INK[1], INK[2]);
-  doc.text(valLines, x + labelW, y + 3.4);
-  // hairline divider
-  doc.setDrawColor(GREY_LINE[0], GREY_LINE[1], GREY_LINE[2]);
-  doc.setLineWidth(0.2);
-  doc.line(x + 2, y + rowH, x + w - 2, y + rowH);
-  return y + rowH;
+function addContinuation(doc: jsPDF, title: string) {
+  doc.addPage();
+  heading(doc, title, 'Member biodata / continued');
+  return BODY_TOP + 6;
 }
 
-// ── Main generator ────────────────────────────────────────────────────────────
-export async function generateBiodataPdf(userData: Record<string, any>): Promise<Buffer> {
-  const u = userData || {};
-  const fullName = `${u.name || ''} ${u.lastName || ''}`.trim() || 'Member';
-  const profileId = u.profileId || 'KA-UNKNOWN';
-  const mobile = u.mobileNumber || '';
-  const citizenship = u.citizenship || '';
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-  // ── PAGE 1: HERO COVER ─────────────────────────────────────────────────────
-  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.rect(0, 0, PAGE_W, 120, 'F');
-  doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.rect(0, 120, PAGE_W, 1.2, 'F');
-
-  doc.setFont('times', 'bold');
-  doc.setFontSize(20);
-  doc.setTextColor(255, 255, 255);
-  doc.text('KINGDOM ALLIANCE', M_LEFT, 30);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text('CHRISTIAN MATRIMONY · ROOTED IN FAITH & VALUES', M_LEFT, 37);
-
-  // Profile photo (or monogram fallback)
-  const photoUrl = u.photoUrl || u.photoURL || u.pendingPhotoUrl || '';
-  const photoData = photoUrl ? await fetchPhotoDataUrl(photoUrl) : null;
-  const photoSize = 46;
-  const photoX = PAGE_W - M_RIGHT - photoSize;
-  const photoY = 50;
-  if (photoData) {
-    try {
-      doc.setFillColor(255, 255, 255);
-      doc.circle(photoX + photoSize / 2, photoY + photoSize / 2, photoSize / 2 + 1.6, 'F');
-      doc.addImage(photoData, 'JPEG', photoX, photoY, photoSize, photoSize, undefined, 'FAST');
-    } catch {
-      drawMonogram(doc, photoX, photoY, photoSize, fullName);
+// Labelled fields use equal-width columns; long answers use the full width.
+function fields(doc: jsPDF, group: Section, start: number): number {
+  let y = start;
+  if (y + 30 > BODY_BOTTOM) y = addContinuation(doc, 'Profile details');
+  y = section(doc, group.title, y);
+  const rows = [...group.rows];
+  while (rows.length) {
+    const first = rows.shift()!;
+    const wide = first[1].length > 160;
+    const pair = wide ? [first] : [first, ...(rows[0] && rows[0][1].length <= 160 ? [rows.shift()!] : [])];
+    const w = wide ? CONTENT_W : (CONTENT_W - 10) / 2;
+    const values = pair.map(row => wrapped(doc, row[1] === '—' ? 'Not provided' : row[1], w, 9.5));
+    const height = Math.max(...values.map(value => value.length)) * 4.7 + 8;
+    if (y + height > BODY_BOTTOM) {
+      y = addContinuation(doc, 'Profile details');
+      y = section(doc, `${group.title} / CONTINUED`, y);
     }
-  } else {
-    drawMonogram(doc, photoX, photoY, photoSize, fullName);
+    if (height > BODY_BOTTOM - y) {
+      // Extremely long free text flows across pages without clipping.
+      text(doc, first[0].toUpperCase(), M_LEFT, y, 7, GREY);
+      y += 6;
+      for (const value of values[0]) {
+        if (y + 5 > BODY_BOTTOM) y = addContinuation(doc, `${first[0]} / continued`);
+        text(doc, value, M_LEFT, y);
+        y += 4.7;
+      }
+      y += 7;
+      continue;
+    }
+    pair.forEach((row, i) => {
+      const x = M_LEFT + i * (w + 10);
+      text(doc, row[0].toUpperCase(), x, y, 7, GREY);
+      values[i].forEach((value, j) => text(doc, value, x, y + 5.3 + j * 4.7));
+      line(doc, x, y + height - 3, w);
+    });
+    y += height + 1;
   }
+  return y + 8;
+}
 
-  doc.setFont('times', 'bold');
-  doc.setFontSize(34);
-  doc.setTextColor(255, 255, 255);
-  doc.text(fullName, M_LEFT, 78);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  const subtitle = [u.profileType, u.profileFor && u.profileFor !== 'Self' ? `Profile for ${u.profileFor}` : null, u.cityLiving ? `${u.cityLiving}, ${u.countryLiving}` : null]
-    .filter(Boolean).join('  ·  ');
-  doc.text(subtitle || 'Matrimonial Biodata', M_LEFT, 86);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255);
-  doc.text(`PROFILE ID · ${profileId}`, M_LEFT, 100);
+function formatDate(value: any): string {
+  const date = value?.toDate?.() || (value ? new Date(value) : new Date());
+  return Number.isNaN(date.getTime()) ? 'Not provided' : date.toLocaleDateString('en-GB',
+    { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Riyadh' });
+}
 
-  // Cover meta row (on ivory body)
-  let y = 138;
-  const metaItems: [string, string][] = [
-    ['Submitted', new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })],
-    ['Status', 'Pending Approval'],
-    ['Document', 'Confidential Biodata'],
-  ];
-  const metaW = CONTENT_W / metaItems.length;
-  metaItems.forEach((m, i) => {
-    const mx = M_LEFT + i * metaW;
+function headerFooter(doc: jsPDF, id: string, sample: boolean) {
+  const total = doc.getNumberOfPages();
+  for (let page = 1; page <= total; page++) {
+    doc.setPage(page);
+    // A small cross emblem and wordmark replace the heavy banner.
+    doc.setFillColor(...NAVY);
+    doc.rect(M_LEFT, 12, 2, 8, 'F');
+    doc.rect(M_LEFT - 2, 14, 6, 2, 'F');
+    text(doc, 'KINGDOM ALLIANCE', M_LEFT + 9, 16, 11, NAVY, 'times', 'bold');
+    text(doc, 'FAITH. FAMILY. A SHARED FUTURE.', M_LEFT + 9, 20, 6.5, GREY);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.setTextColor(GREY[0], GREY[1], GREY[2]);
-    doc.text(m[0].toUpperCase(), mx, y);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    doc.text(m[1], mx, y + 6);
-  });
-  doc.setDrawColor(GREY_LINE[0], GREY_LINE[1], GREY_LINE[2]);
-  doc.setLineWidth(0.3);
-  doc.line(M_LEFT, y + 12, PAGE_W - M_RIGHT, y + 12);
-
-  y += 24;
-  doc.setFont('times', 'italic');
-  doc.setFontSize(11);
-  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  const intro = 'A complete matrimonial profile, prayerfully prepared and digitally attested by the member below.';
-  const introLines = doc.splitTextToSize(intro, CONTENT_W) as string[];
-  doc.text(introLines, M_LEFT, y);
-  y += introLines.length * 5.5 + 6;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text('CONTENTS', M_LEFT, y);
-  y += 5;
-  const contents = ['01  Biodata Profile', '02  Declaration & Digital Signature', '03  Terms & Conditions'];
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
-  doc.setTextColor(INK[0], INK[1], INK[2]);
-  for (const c of contents) {
-    doc.text(c, M_LEFT, y);
-    y += 6;
+    doc.setTextColor(...GREY);
+    doc.text(sample ? 'SAMPLE / FICTIONAL PROFILE' : 'CONFIDENTIAL MEMBER RECORD', PAGE_W - M_RIGHT, 15, { align: 'right' });
+    doc.text(id, PAGE_W - M_RIGHT, 20, { align: 'right' });
+    line(doc, M_LEFT, 24);
+    line(doc, M_LEFT, 280);
+    text(doc, 'Kingdom Alliance  /  Member biodata', M_LEFT, 286, 7, GREY);
+    doc.text(`${String(page).padStart(2, '0')} / ${String(total).padStart(2, '0')}`, PAGE_W - M_RIGHT, 286, { align: 'right' });
   }
+}
 
-  // ── PAGE 2: BIODATA (bento sections) ───────────────────────────────────────
-  doc.addPage();
-  y = M_TOP;
-  doc.setFont('times', 'bold');
-  doc.setFontSize(18);
-  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text('01 · Biodata Profile', M_LEFT, y);
-  y += 3;
-  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.setLineWidth(0.6);
-  doc.line(M_LEFT, y, M_LEFT + 36, y);
-  y += 9;
-
+export async function generateBiodataPdf(userData: Record<string, any>): Promise<Buffer> {
+  const u = userData || {};
+  const fullName = [u.name, u.middleName, u.lastName].filter(Boolean).join(' ') || u.fullName || 'Member';
+  const profileId = u.profileId || 'KA-UNKNOWN';
+  const sample = u.documentSample === true;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  doc.setProperties({ title: `${fullName} - Kingdom Alliance Biodata`, author: 'Kingdom Alliance', subject: 'Member biodata, declaration and terms' });
   const sections = buildSections(u);
-  const colGap = 6;
-  const leftW = CONTENT_W * 0.56;
-  const rightW = CONTENT_W - leftW - colGap;
 
-  const sectionHeight = (s: Section, w: number): number => {
-    let h = 9;
-    for (const [, val] of s.rows) {
-      const lines = doc.splitTextToSize(val, w - 50) as string[];
-      h += Math.max(5.2, lines.length * 4.0);
-    }
-    return h + 3;
-  };
+  // Page 1: a concise identity block and useful personal information.
+  text(doc, 'MEMBER BIODATA', M_LEFT, 34, 8, GREY, 'helvetica', 'bold');
+  const nameLines = wrapped(doc, fullName, 125, 28, 'times');
+  nameLines.forEach((value, i) => text(doc, value, M_LEFT, 47 + i * 10, 28, NAVY, 'times'));
+  const identityBottom = 47 + nameLines.length * 10;
+  const location = [u.cityLiving, u.countryLiving].filter(Boolean).join(', ');
+  text(doc, location || 'Location not provided', M_LEFT, identityBottom + 1, 10, GREY);
+  text(doc, `Profile for ${u.profileFor || 'Self'}  /  ${u.profileType || 'Member'}`, M_LEFT, identityBottom + 8, 8.5, GREY);
 
-  let leftY = y;
-  let rightY = y;
-  sections.forEach((s, i) => {
-    if (i % 2 === 0) {
-      const w = leftW;
-      const h = sectionHeight(s, w);
-      leftY = ensureSpace(doc, leftY, h + 4);
-      card(doc, M_LEFT, leftY, w, h);
-      sectionLabel(doc, M_LEFT, leftY + 7, s.title);
-      let ry = leftY + 11;
-      for (const [label, val] of s.rows) {
-        ry = kvRow(doc, M_LEFT, ry, w, label, val);
-      }
-      leftY += h + 5;
-    } else {
-      const w = rightW;
-      const h = sectionHeight(s, w);
-      const x = M_LEFT + leftW + colGap;
-      rightY = ensureSpace(doc, rightY, h + 4);
-      card(doc, x, rightY, w, h);
-      sectionLabel(doc, x, rightY + 7, s.title);
-      let ry = rightY + 11;
-      for (const [label, val] of s.rows) {
-        ry = kvRow(doc, x, ry, w, label, val);
-      }
-      rightY += h + 5;
-    }
-  });
-  y = Math.max(leftY, rightY) + 4;
-
-  // ── PAGE 3: DECLARATION & DIGITAL SIGNATURE ──────────────────────────────────
+  const photo = u.photoUrl || u.photoURL || u.pendingPhotoUrl;
+  const image = photo ? await fetchPhotoDataUrl(photo) : null;
+  doc.setFillColor(...IVORY);
+  doc.rect(151, 32, 43, 46, 'F');
+  let hasPhoto = false;
+  if (image) {
+    try { doc.addImage(image, 152, 33, 41, 44); hasPhoto = true; } catch { /* initials fallback */ }
+  }
+  if (!hasPhoto) {
+    text(doc, fullName.split(' ').map((name: string) => name[0]).slice(0, 2).join(''), 163, 56, 23, NAVY, 'times');
+    text(doc, 'MEMBER PROFILE', 157, 69, 6.5, GREY);
+  }
+  let y = Math.max(90, identityBottom + 22);
+  doc.setFillColor(...IVORY);
+  doc.rect(M_LEFT, y - 7, CONTENT_W, 16, 'F');
+  const status = u.approvalStatus === 'approved' ? 'Approved' : u.approvalStatus === 'rejected' ? 'Requires review' : 'Submitted for review';
+  text(doc, `RECORD STATUS   ${sample ? 'Sample only' : status}`, M_LEFT + 5, y, 8, NAVY);
+  text(doc, `SUBMITTED   ${formatDate(u.submittedAt || u.createdAt)}`, 121, y, 8, NAVY);
+  y += 21;
+  y = fields(doc, sections[0], y);
+  y = fields(doc, sections[1], y);
+  // Career begins on a fresh page: predictable pagination, generous type.
   doc.addPage();
-  y = M_TOP;
-  doc.setFont('times', 'bold');
-  doc.setFontSize(18);
-  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text('02 · Declaration & Digital Signature', M_LEFT, y);
-  y += 3;
-  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.setLineWidth(0.6);
-  doc.line(M_LEFT, y, M_LEFT + 36, y);
-  y += 12;
+  heading(doc, 'Faith, family & career', 'The people, convictions and work that shape your life.');
+  y = fields(doc, sections[2], BODY_TOP + 8);
+  y = fields(doc, sections[3], y);
+  y = fields(doc, sections[4], y);
 
-  // Declaration card
-  const declText =
-    'I hereby declare that the information furnished above is true and correct to the best of my knowledge and belief. I have read and accept the Kingdom Alliance Terms & Conditions set out on the following pages, and I agree to use the platform in accordance with its faith-based and marriage-focused purpose.';
-  const declLines = doc.splitTextToSize(declText, CONTENT_W - 12) as string[];
-  const declH = declLines.length * 5.0 + 16;
-  card(doc, M_LEFT, y, CONTENT_W, declH);
-  doc.setFont('times', 'italic');
-  doc.setFontSize(11);
-  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text(declLines, M_LEFT + 6, y + 10);
-  y += declH + 10;
+  doc.addPage();
+  heading(doc, 'Lifestyle & preferences', 'Personal interests and hopes for a shared future.');
+  y = fields(doc, sections[5], BODY_TOP + 8);
+  y = fields(doc, sections[6], y);
 
-  // Signature panel (navy card with gold border)
-  const sigH = 64;
-  y = ensureSpace(doc, y, sigH + 6);
-  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.roundedRect(M_LEFT, y, CONTENT_W, sigH, 3, 3, 'F');
-  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(M_LEFT, y, CONTENT_W, sigH, 3, 3, 'S');
-
-  // Signature line + name
-  doc.setFont('times', 'italic');
-  doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
-  doc.text(fullName, M_LEFT + 8, y + 18);
-  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.setLineWidth(0.3);
-  doc.line(M_LEFT + 8, y + 22, M_LEFT + 90, y + 22);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.8);
-  doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.text('SIGNED BY MEMBER', M_LEFT + 8, y + 26);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(220, 220, 220);
-  doc.text(`Profile ID · ${profileId}`, M_LEFT + 8, y + 34);
-  doc.text(`Date · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, M_LEFT + 8, y + 40);
-
-  // PDF417 digitally-signed barcode (right side of the panel)
+  doc.addPage();
+  heading(doc, 'Member declaration', 'Submitted information and profile reference.');
+  y = section(doc, 'DECLARATION', BODY_TOP + 12);
+  const declaration = 'I hereby declare that the information furnished above is true and correct to the best of my knowledge and belief. I have read and accept the Kingdom Alliance Terms & Conditions set out on the following pages, and I agree to use the platform in accordance with its faith-based and marriage-focused purpose.';
+  const lines = wrapped(doc, declaration, CONTENT_W - 12, 11, 'times');
+  doc.setFillColor(...IVORY);
+  doc.rect(M_LEFT, y - 4, CONTENT_W, lines.length * 5.5 + 14, 'F');
+  lines.forEach((value, i) => text(doc, value, M_LEFT + 6, y + 4 + i * 5.5, 11, NAVY, 'times'));
+  y += lines.length * 5.5 + 27;
+  text(doc, fullName, M_LEFT, y, 19, NAVY, 'times', 'italic');
+  line(doc, M_LEFT, y + 5, 106);
+  text(doc, 'MEMBER NAME', M_LEFT, y + 12, 7, GREY);
+  text(doc, `Submission date: ${formatDate(u.submittedAt || u.createdAt)}`, M_LEFT, y + 23, 9, GREY);
+  y += 45;
+  y = section(doc, 'PROFILE REFERENCE', y);
   try {
     const bwipjs: any = await import('bwip-js');
-    const barcodePayload = `${fullName}|${mobile}|${citizenship}|${profileId}`;
     const png: Buffer = await (bwipjs.toBuffer ? bwipjs : bwipjs.default).toBuffer({
-      bcid: 'pdf417', text: barcodePayload, scale: 2, eclevel: 5,
-      columns: 8, rowmult: 3, padding: 6, barcolor: 'C9A84C',
+      bcid: 'pdf417', text: `${fullName}|${u.mobileNumber || ''}|${u.citizenship || ''}|${profileId}`,
+      scale: 3, eclevel: 5, columns: 8, rowmult: 3, padding: 8,
     });
-    const bDataUrl = `data:image/png;base64,${png.toString('base64')}`;
-    const bw = 70;
-    const bh = 22;
-    doc.addImage(bDataUrl, 'PNG', PAGE_W - M_RIGHT - bw - 6, y + 10, bw, bh);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-    doc.text('DIGITALLY SIGNED', PAGE_W - M_RIGHT - bw / 2 - 6, y + 38, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.8);
-    doc.setTextColor(180, 180, 180);
-    doc.text('Scan to verify · Name | Mobile | Citizenship | Profile ID', PAGE_W - M_RIGHT - bw / 2 - 6, y + 43, { align: 'center' });
-  } catch (e: any) {
-    console.error('[BiodataPDF] Barcode generation failed:', e.message);
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8);
-    doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
-    doc.text(`Digitally Signed · ${fullName} (${profileId})`, PAGE_W - M_RIGHT - 80, y + 24);
+    // Keep the barcode's native aspect ratio so scanners can read it.
+    const properties = doc.getImageProperties(`data:image/png;base64,${png.toString('base64')}`);
+    const w = 84;
+    const h = w * properties.height / properties.width;
+    doc.addImage(png, 'PNG', M_LEFT, y, w, h);
+    text(doc, profileId, 112, y + 8, 15, NAVY, 'times');
+    text(doc, 'Profile reference barcode', 112, y + 16, 8, GREY);
+    text(doc, 'Name / Mobile / Citizenship / Profile ID', 112, y + 23, 7, GREY);
+    y += Math.max(h, 30) + 10;
+  } catch (error: any) {
+    console.error('[BiodataPDF] Barcode generation failed:', error.message);
+    text(doc, `Profile reference: ${profileId}`, M_LEFT, y, 10, NAVY);
+    y += 15;
   }
-  y += sigH + 8;
+  text(doc, 'This record includes a member declaration and profile reference.', M_LEFT, y, 8, GREY);
+  text(doc, 'It does not contain a certificate-based digital signature.', M_LEFT, y + 5, 8, GREY);
+  if (sample) text(doc, 'Sample profile: all personal details are fictional.', M_LEFT, y + 16, 9, NAVY);
 
-  // ── PAGES 4+: FULL TERMS & CONDITIONS ───────────────────────────────────────
+  // Preserve every term verbatim; paginate by rendered lines, never clip text.
   doc.addPage();
-  y = M_TOP;
-  doc.setFont('times', 'bold');
-  doc.setFontSize(18);
-  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.text('03 · Terms & Conditions', M_LEFT, y);
-  y += 3;
-  doc.setDrawColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.setLineWidth(0.6);
-  doc.line(M_LEFT, y, M_LEFT + 36, y);
-  y += 10;
-
-  for (const section of TERMS) {
-    y = ensureSpace(doc, y, 16);
-    sectionLabel(doc, M_LEFT, y, section.title);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.6);
-    doc.setTextColor(INK[0], INK[1], INK[2]);
-    for (const para of section.paragraphs) {
-      const lines = doc.splitTextToSize(para, CONTENT_W) as string[];
-      const h = lines.length * 4.1;
-      if (y + h > PAGE_H - M_BOTTOM) {
-        doc.addPage();
-        y = M_TOP;
-      }
-      doc.text(lines, M_LEFT, y);
-      y += h + 1.6;
+  heading(doc, 'Terms & conditions', 'The full terms accompanying this member record.');
+  y = BODY_TOP + 9;
+  for (const term of TERMS) {
+    const titles = wrapped(doc, term.title, CONTENT_W - 4, 8.5, 'helvetica', 'bold');
+    if (y + titles.length * 4.6 + 21 > BODY_BOTTOM) {
+      doc.addPage(); heading(doc, 'Terms & conditions', 'Continued'); y = BODY_TOP + 9;
     }
-    y += 3.4;
+    titles.forEach((title, i) => text(doc, title, M_LEFT, y + i * 4.6, 8.5, NAVY, 'helvetica', 'bold'));
+    y += titles.length * 4.6 + 5;
+    for (const paragraph of term.paragraphs) {
+      for (const value of wrapped(doc, paragraph, CONTENT_W, 9)) {
+        if (y + 4.4 > BODY_BOTTOM) {
+          doc.addPage(); heading(doc, 'Terms & conditions', 'Continued'); y = BODY_TOP + 9;
+        }
+        text(doc, value, M_LEFT, y, 9);
+        y += 4.4;
+      }
+      y += 2.8;
+    }
+    y += 6;
   }
-
-  // ── Paint header/footer on all pages (skip the hero cover) ──────────────────
-  const total = doc.getNumberOfPages();
-  for (let i = 2; i <= total; i++) {
-    doc.setPage(i);
-    paintHeader(doc, profileId);
-    paintFooter(doc);
-  }
-
+  headerFooter(doc, profileId, sample);
   return Buffer.from(doc.output('arraybuffer'));
 }
-
-/** Draw a navy circle monogram with the user's initials (photo fallback). */
-function drawMonogram(doc: jsPDF, x: number, y: number, size: number, name: string): void {
-  doc.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  doc.circle(x + size / 2, y + size / 2, size / 2 + 1.6, 'F');
-  doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
-  doc.circle(x + size / 2, y + size / 2, size / 2, 'F');
-  const initials = (name.split(' ').map(w => w[0]).slice(0, 2).join('') || 'KA').toUpperCase();
-  doc.setFont('times', 'bold');
-  doc.setFontSize(18);
-  doc.setTextColor(255, 255, 255);
-  doc.text(initials, x + size / 2, y + size / 2 + 2, { align: 'center' });
-}
-

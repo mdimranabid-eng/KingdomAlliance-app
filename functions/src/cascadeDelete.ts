@@ -1,135 +1,84 @@
 import * as admin from 'firebase-admin';
+import { getDatabaseWithUrl } from 'firebase-admin/database';
 
-// ============================================================
-// Shared cascading user-deletion logic.
-// Used by:
-//   - Admin endpoint /api/admin/delete-user  (immediate)
-//   - Scheduled function processPendingDeletions (7-day grace expiry)
-// ============================================================
+export type DeleteLogger = (message: string) => void;
+export type CleanupDependencies = {
+  db: admin.firestore.Firestore;
+  auth: admin.auth.Auth;
+  bucket: { deleteFiles(options: { prefix: string }): Promise<unknown> };
+  realtime: admin.database.Database;
+  values?: typeof admin.firestore.FieldValue;
+};
 
-export type DeleteLogger = (msg: string) => void;
-
-// Firestore batches are limited to 500 ops — commit deletes in safe chunks.
-async function deleteDocsChunked(
-  db: admin.firestore.Firestore,
-  docs: admin.firestore.QueryDocumentSnapshot[],
-  label: string,
-  log: DeleteLogger
-): Promise<number> {
-  const CHUNK = 400;
-  for (let i = 0; i < docs.length; i += CHUNK) {
+async function deleteDocs(db: admin.firestore.Firestore, docs: admin.firestore.QueryDocumentSnapshot[]) {
+  const unique = [...new Map(docs.map(doc => [doc.ref.path, doc])).values()];
+  for (let i = 0; i < unique.length; i += 400) {
     const batch = db.batch();
-    docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+    unique.slice(i, i + 400).forEach(doc => batch.delete(doc.ref));
     await batch.commit();
   }
-  log(`   → ${docs.length} ${label} record(s) deleted.`);
-  return docs.length;
 }
 
-// Permanently deletes one user: Auth record, Firestore data and Firebase Storage images.
-// NEVER call this for a uid that did not request deletion / was not admin-approved.
-export async function cascadeDeleteUser(uid: string, log: DeleteLogger): Promise<void> {
-  const db = admin.firestore();
+// Each step is idempotent. Keep the profile/retry marker until every cleanup
+// succeeds. Derive chats independently of interests so retries still find them.
+export async function cascadeDeleteUser(uid: string, log: DeleteLogger, dependencies?: CleanupDependencies): Promise<void> {
+  const deps: CleanupDependencies = dependencies || { db: admin.firestore(), auth: admin.auth(), bucket: admin.storage().bucket(), realtime: getDatabaseWithUrl(admin.app().options.databaseURL || `https://${admin.app().options.projectId || process.env.GCLOUD_PROJECT}-default-rtdb.firebaseio.com`) };
+  const { db, auth, bucket, realtime } = deps;
+  const values = deps.values || admin.firestore.FieldValue;
+  const user = db.collection('users').doc(uid);
+  const profile = (await user.get()).data();
+  await user.set({ deletionStatus: 'deleting', deletionCleanupStartedAt: values.serverTimestamp(),
+    ...(!profile?.scheduledDeletionAt ? { scheduledDeletionAt: admin.firestore.Timestamp.now() } : {}),
+  }, { merge: true });
+  try { await auth.deleteUser(uid); }
+  catch (error: any) { if (error.code !== 'auth/user-not-found') throw error; }
+  log('Authentication account removed.');
 
-  // Stage A: Auth Account
-  try {
-    await admin.auth().deleteUser(uid);
-    log(`✅ Stage A: Auth account deleted for UID: ${uid}`);
-  } catch (err: any) {
-    if (err.code === 'auth/user-not-found') {
-      log(`⚠️  Stage A: Auth account not found (already deleted or never existed): ${uid}`);
-    } else {
-      log(`❌ Stage A: Auth deletion FAILED: ${err.message}`);
-      throw err;
+  for (const [collection, keys] of [
+    ['photoModeration', ['uid', 'userId']], ['uploadedImages', ['uid']],
+    ['interests', ['fromId', 'toId']], ['shortlists', ['userId', 'targetId']],
+    ['notifications', ['userId', 'fromId']], ['profileViews', ['viewerId', 'profileId']],
+  ] as [string, string[]][]) {
+    const snapshots = await Promise.all(keys.map(key => db.collection(collection).where(key, '==', uid).get()));
+    await deleteDocs(db, snapshots.flatMap(snapshot => snapshot.docs));
+    log(`${collection} records removed.`);
+  }
+
+  // listDocuments includes missing parent docs whose message subcollections
+  // still exist, unlike a query over only existing chat documents.
+  const chats = await db.collection('chats').listDocuments();
+  for (const chat of chats) {
+    if (!chat.id.startsWith(`${uid}_`) && !chat.id.endsWith(`_${uid}`)) continue;
+    await db.recursiveDelete(chat);
+  }
+  // Remove any legacy message paths keyed independently of chat IDs.
+  for (const key of ['senderId', 'receiverId']) {
+    await deleteDocs(db, (await db.collectionGroup('messages').where(key, '==', uid).get()).docs);
+  }
+  const churches = await db.collection('churches').where('members', 'array-contains', uid).get();
+  for (const church of churches.docs) await church.ref.update({ members: values.arrayRemove(uid) });
+
+  if (profile?.email) {
+    for (const collection of ['temp_otps', 'email_log', 'contact_messages']) {
+      await deleteDocs(db, (await db.collection(collection).where('email', '==', profile.email).get()).docs);
     }
   }
 
-  // Stage B: /users document
-  try {
-    await db.collection('users').doc(uid).delete();
-    log(`✅ Stage B: Firestore /users/${uid} document deleted.`);
-  } catch (err: any) {
-    log(`❌ Stage B: Firestore /users/${uid} deletion FAILED: ${err.message}`);
+  // Internal mail state contains no profile attachments; remove member keys.
+  const deliveries = await db.collection('email_deliveries').listDocuments();
+  for (const ref of deliveries) {
+    if (ref.id === `onboarding_${uid}` || ref.id.endsWith(`_${uid}`) || ref.id.includes(`_${uid}_`)) await ref.delete();
   }
+  for (const type of ['connection_request', 'connection_accepted']) await db.collection('email_delivery_limits').doc(`${type}_${uid}`).delete();
 
-  // Stage C: /photoModeration collection
-  try {
-    const moderationSnap = await db.collection('photoModeration').where('userId', '==', uid).get();
-    const count = await deleteDocsChunked(db, moderationSnap.docs, '/photoModeration', log);
-    log(`✅ Stage C: ${count} /photoModeration record(s) deleted.`);
-  } catch (err: any) {
-    log(`❌ Stage C: /photoModeration deletion FAILED: ${err.message}`);
-  }
+  await bucket.deleteFiles({ prefix: `users/${uid}/` });
+  await realtime.ref(`status/${uid}`).remove();
+  const typing = await realtime.ref('typingStatus').get();
+  const updates: Record<string, null> = {};
+  typing.forEach(child => { if (child.hasChild(uid)) updates[`${child.key}/${uid}`] = null; });
+  if (Object.keys(updates).length) await realtime.ref('typingStatus').update(updates);
 
-  // Stage C2: /uploadedImages hash records (duplicate-prevention cache)
-  try {
-    const imgSnap = await db.collection('uploadedImages').where('uid', '==', uid).get();
-    const count = await deleteDocsChunked(db, imgSnap.docs, '/uploadedImages', log);
-    log(`✅ Stage C2: ${count} /uploadedImages record(s) deleted.`);
-  } catch (err: any) {
-    log(`❌ Stage C2: /uploadedImages deletion FAILED: ${err.message}`);
-  }
-
-  // Stage D/E/F: interests, shortlists, chats+messages
-  try {
-    const [fromSnap, toSnap] = await Promise.all([
-      db.collection('interests').where('fromId', '==', uid).get(),
-      db.collection('interests').where('toId', '==', uid).get(),
-    ]);
-
-    // De-duplicate: an interest could theoretically match on both sides
-    const interestDocs = Array.from(
-      new Map([...fromSnap.docs, ...toSnap.docs].map((d) => [d.id, d])).values()
-    );
-    const totalInterests = await deleteDocsChunked(db, interestDocs, '/interests', log);
-    log(`✅ Stage D: ${totalInterests} /interests record(s) deleted.`);
-
-    const [slUserSnap, slTargetSnap] = await Promise.all([
-      db.collection('shortlists').where('userId', '==', uid).get(),
-      db.collection('shortlists').where('targetId', '==', uid).get(),
-    ]);
-    const shortlistDocs = Array.from(
-      new Map([...slUserSnap.docs, ...slTargetSnap.docs].map((d) => [d.id, d])).values()
-    );
-    const totalShortlists = await deleteDocsChunked(db, shortlistDocs, '/shortlists', log);
-    log(`✅ Stage E: ${totalShortlists} /shortlists record(s) deleted.`);
-
-    const allInterestDocs = [...fromSnap.docs, ...toSnap.docs];
-    const chatIds = new Set<string>();
-    allInterestDocs.forEach((d) => {
-      const data = d.data();
-      if (data.fromId && data.toId) {
-        chatIds.add([data.fromId, data.toId].sort().join('_'));
-      }
-    });
-
-    let deletedChats = 0;
-    let deletedMessages = 0;
-    for (const chatId of chatIds) {
-      const messagesSnap = await db.collection(`chats/${chatId}/messages`).get();
-      const count = await deleteDocsChunked(db, messagesSnap.docs, `chats/${chatId}/messages`, log);
-      deletedMessages += count;
-      await db.collection('chats').doc(chatId).delete();
-      deletedChats++;
-    }
-    log(`✅ Stage F: ${deletedChats} chat(s) and ${deletedMessages} message(s) deleted.`);
-  } catch (err: any) {
-    log(`❌ Stage D-F: interests/shortlists/chats deletion FAILED: ${err.message}`);
-  }
-
-  // Stage G: Firebase Storage images (new upload path + legacy fallback files)
-  try {
-    const bucket = admin.storage().bucket();
-    await bucket.deleteFiles({ prefix: `users/${uid}/` });
-    log(`✅ Stage G: Firebase Storage assets under "users/${uid}/" deleted.`);
-  } catch (err: any) {
-    // 404 simply means nothing was stored in the bucket for this user
-    if (err?.code === 404) {
-      log(`ℹ️  Stage G: no Firebase Storage assets found for ${uid}.`);
-    } else {
-      log(`❌ Stage G: Firebase Storage deletion FAILED: ${err.message}`);
-    }
-  }
-
-  log(`🏁 Cascading deletion COMPLETE for UID: ${uid}`);
+  // Last operation: only now remove the durable retry marker.
+  await user.delete();
+  log('Profile and associated Firebase data permanently removed.');
 }

@@ -37,12 +37,14 @@ export default function AdminSettings() {
   const [showAddAdminModal, setShowAddAdminModal] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
-  const [createdAdmin, setCreatedAdmin] = useState<{ email: string; tempPassword: string } | null>(null);
+  const [createdAdmin, setCreatedAdmin] = useState<{ email: string; tempPassword: string; emailSent: boolean } | null>(null);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const SYSTEM_ADMIN_EMAILS = ['themaster@thekingdomalliances.com', 'md.imranabid@gmail.com'];
   const [deletingAdmin, setDeletingAdmin] = useState<{ uid: string; email: string } | null>(null);
+  const [deletionOtp, setDeletionOtp] = useState('');
+  const [sendingDeletionOtp, setSendingDeletionOtp] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deletionError, setDeletionError] = useState<string | null>(null);
 
@@ -50,7 +52,7 @@ export default function AdminSettings() {
   const [resetting, setResetting] = useState(false);
   const [resetCopied, setResetCopied] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  const [resetResult, setResetResult] = useState<{ email: string; tempPassword: string } | null>(null);
+  const [resetResult, setResetResult] = useState<{ email: string; tempPassword: string; emailSent: boolean } | null>(null);
 
   const [users, setUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -149,7 +151,7 @@ export default function AdminSettings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create admin');
-      setCreatedAdmin({ email: data.email, tempPassword: data.tempPassword });
+      setCreatedAdmin({ email: data.email, tempPassword: data.tempPassword, emailSent: data.emailSent === true });
       setNewAdminEmail('');
       setAdmins(prev => [{ uid: data.uid, email: data.email, createdAt: new Date(), emailVerified: false }, ...prev]);
     } catch (err: any) {
@@ -167,9 +169,27 @@ export default function AdminSettings() {
     }
   };
 
+  const sendAdminDeletionCode = async (uid: string) => {
+    setSendingDeletionOtp(true);
+    setDeletionError(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/admin/send-deletion-otp`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ uid })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to send verification code.');
+    } catch (error: any) {
+      setDeletionError(error.message);
+    } finally {
+      setSendingDeletionOtp(false);
+    }
+  };
   const openDeletionModal = (uid: string, email: string) => {
     setDeletingAdmin({ uid, email });
-    setDeletionError(null);
+    setDeletionOtp('');
+    void sendAdminDeletionCode(uid);
   };
 
   const handleDeleteAdmin = async () => {
@@ -187,7 +207,7 @@ export default function AdminSettings() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ uid: deletingAdmin.uid }),
+        body: JSON.stringify({ uid: deletingAdmin.uid, otp: deletionOtp }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delete admin');
@@ -227,7 +247,7 @@ export default function AdminSettings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to reset password');
-      setResetResult({ email: data.email, tempPassword: data.tempPassword });
+      setResetResult({ email: data.email, tempPassword: data.tempPassword, emailSent: data.emailSent === true });
     } catch (err: any) {
       setResetError(err.message);
     } finally {
@@ -652,7 +672,7 @@ export default function AdminSettings() {
                       </div>
                     </div>
                     <p className="text-xs text-center" style={{ color: '#94a3b8' }}>
-                      Credentials have been sent via email. The admin must verify their email and set up 2FA on first login.
+                      {createdAdmin.emailSent ? 'Credentials have been sent via email.' : 'Email delivery failed. Copy and securely share the temporary password.'} The admin must verify their email and set up 2FA on first login.
                     </p>
                     <button
                       onClick={() => { setShowAddAdminModal(false); setCreatedAdmin(null); }}
@@ -741,6 +761,15 @@ export default function AdminSettings() {
                     This will permanently delete the admin account for <strong>{deletingAdmin.email}</strong>.
                   </p>
                 </div>
+                <label className="block text-sm font-medium">
+                  Verification code sent to your administrator email
+                  <input aria-label="Admin deletion verification code" inputMode="numeric" maxLength={6}
+                    value={deletionOtp} onChange={e => setDeletionOtp(e.target.value.replace(/\D/g, ''))}
+                    className="mt-2 w-full border rounded-xl p-3" />
+                </label>
+                <button disabled={sendingDeletionOtp || deletingAccount} onClick={() => sendAdminDeletionCode(deletingAdmin.uid)} className="text-sm underline">
+                  {sendingDeletionOtp ? 'Sending code…' : 'Resend verification code'}
+                </button>
                 {deletionError && (
                   <div className="p-3 bg-red-50 text-red-700 rounded-xl text-sm font-medium border border-red-200">{deletionError}</div>
                 )}
@@ -754,7 +783,7 @@ export default function AdminSettings() {
                   </button>
                   <button
                     onClick={handleDeleteAdmin}
-                    disabled={deletingAccount}
+                    disabled={deletingAccount || sendingDeletionOtp || deletionOtp.length !== 6}
                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-600 text-white rounded-xl font-semibold text-sm shadow-md hover:bg-red-700 transition-all disabled:opacity-50"
                   >
                     {deletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -816,7 +845,7 @@ export default function AdminSettings() {
                       </div>
                     </div>
                     <p className="text-xs text-center" style={{ color: '#94a3b8' }}>
-                      A new password has been sent via email. The admin can log in with it directly — no change required.
+                      {resetResult.emailSent ? 'A new password has been sent via email.' : 'Email delivery failed. Copy and securely share the temporary password.'} Two-factor verification remains required.
                     </p>
                     <button
                       onClick={() => { setResetTarget(null); setResetResult(null); setResetCopied(false); }}

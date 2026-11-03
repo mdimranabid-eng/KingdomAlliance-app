@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
@@ -10,6 +10,14 @@ service cloud.firestore {
     // --- Helpers ---
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isUsableAccount() {
+      return isSignedIn() && (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('deletionStatus', '') == '' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isSuspended', false) == false &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBanned', false) == false &&
+         !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', '') in ['suspended', 'blocked', 'banned'])));
     }
 
     function isOwner(userId) {
@@ -29,13 +37,31 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && request.auth.token.admin == true &&
+        request.auth.token.firebase.get('sign_in_second_factor', '') != '' &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.emailVerified == true;
+    }
+
+    function safeInitialAccount(data) {
+      return data.get('role', 'user') == 'user' &&
+             data.get('isAdmin', false) == false &&
+             data.get('isApproved', false) == false &&
+             data.get('isBanned', false) == false &&
+             data.get('isSuspended', false) == false &&
+             data.get('photoApproved', false) == false &&
+             data.get('approvalStatus', 'incomplete') in ['incomplete', 'pending'] &&
+             data.get('status', 'incomplete') in ['incomplete', 'pending', 'not_approved'] &&
+             data.get('photoStatus', 'idle') in ['idle', 'pending'] &&
+             data.get('photoUrl', '') == '' &&
+             !data.keys().hasAny(['onboardingEmailSent', 'onboardingEmailSentAt',
+               'deletionStatus', 'scheduledDeletionAt', 'deletionRequestedAt', 'deletionReminderSent', 'deletionLeaseUntil', 'deletionCleanupStartedAt', 'approvedBy', 'approvedAt']);
     }
 
     function isApproved() {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true;
+      return isUsableAccount() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('deletionStatus', '') == '';
     }
 
     // --- Entity Validations ---
@@ -105,42 +131,45 @@ service cloud.firestore {
 
     // Collection Group for unread counts
     match /{path=**}/messages/{messageId} {
-      allow read: if isSignedIn() && (resource.data.receiverId == request.auth.uid || resource.data.senderId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (resource.data.receiverId == request.auth.uid || isAdmin()) && 
+      allow read: if isUsableAccount() && (resource.data.receiverId == request.auth.uid || resource.data.senderId == request.auth.uid || isAdmin());
+      allow update: if isUsableAccount() && (resource.data.receiverId == request.auth.uid || isAdmin()) &&
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
     }
 
     match /users/{userId} {
       allow get: if isValidId(userId) && isSignedIn() && (
-        isOwner(userId) || 
-        isAdmin() || 
+        isOwner(userId) ||
+        isAdmin() ||
         (isApproved() && existing().isApproved == true &&
          // Profiles pending deletion are hidden from everyone except owner/admin
-         existing().get('deletionStatus', '') != 'pending_deletion')
+         existing().get('deletionStatus', '') == '')
       );
-      
+
       // List access: admins can list everything; regular members can only list
       // APPROVED profiles (prevents scraping of pending/unapproved data)
       allow list: if isAdmin() ||
         (isApproved() && resource.data.isApproved == true &&
-         resource.data.get('deletionStatus', '') != 'pending_deletion');
+         resource.data.get('deletionStatus', '') == '');
 
-      allow create: if isValidId(userId) && isOwner(userId) && incoming().uid == userId && incoming().email is string && incoming().createdAt == request.time;
+      allow create: if isValidId(userId) && isOwner(userId) && incoming().uid == userId && incoming().email == request.auth.token.email && incoming().createdAt == request.time && safeInitialAccount(incoming());
 
-      allow update: if isValidId(userId) && isSignedIn() && isValidUser(incoming()) && (
+      allow update: if isValidId(userId) && isSignedIn() && (
         // Owner Update
         // Photo moderation: owners upload new photos (photoStatus must become
         // 'pending') but can never flip photoApproved themselves - admin only.
-        (isOwner(userId) && 
-         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isSuspended', 'isBanned', 'isApproved', 'status', 'approvalStatus', 'photoApproved']) &&
-         // Locked fields — owners cannot change these after initial onboarding
-         !incoming().diff(existing()).affectedKeys().hasAny([
+        (isOwner(userId) && isValidUser(incoming()) && isUsableAccount() && existing().get('deletionStatus', '') == '' &&
+         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isAdmin', 'isSuspended', 'isBanned', 'isApproved', 'status', 'photoApproved', 'onboardingEmailSent', 'onboardingEmailSentAt', 'deletionStatus', 'scheduledDeletionAt', 'deletionRequestedAt', 'deletionReminderSent', 'deletionLeaseUntil', 'deletionCleanupStartedAt', 'approvedBy', 'approvedAt']) &&
+         // Completing a draft may populate fields; completed profiles lock them.
+         (existing().get('onboardingComplete', false) == false || !incoming().diff(existing()).affectedKeys().hasAny([
            'denomination', 'churchName', 'diocese', 'baptized',
            'fathersName', 'fathersOccupation', 'mothersName', 'mothersOccupation',
            'numberOfSiblings', 'pastorNumber',
            'gender', 'dob', 'age', 'citizenship', 'maritalStatus',
            'profileFor', 'profileType', 'motherTongue', 'education'
-         ]) &&
+         ])) &&
+         (!incoming().diff(existing()).affectedKeys().hasAny(['approvalStatus']) ||
+           (existing().get('onboardingComplete', false) == false && incoming().onboardingComplete == true && incoming().approvalStatus == 'pending')) &&
+         (!existing().get('onboardingComplete', false) || incoming().onboardingComplete == true) &&
          incoming().uid == existing().uid &&
          incoming().email == existing().email &&
          incoming().createdAt == existing().createdAt &&
@@ -151,7 +180,7 @@ service cloud.firestore {
           incoming().diff(existing()).affectedKeys().hasAny(['gallery']))
         ) ||
         // Admin Update
-        (isAdmin() && 
+        (isAdmin() &&
          incoming().diff(existing()).affectedKeys().hasOnly(['isApproved', 'photoApproved', 'photoStatus', 'photoRejectionReason', 'photoUrl', 'pendingPhotoUrl', 'gallery', 'status', 'approvalStatus', 'updatedAt', 'approvedAt', 'approvedBy', 'rejectedAt', 'rejectedBy', 'rejectedReason', 'notifications', 'isSuspended', 'isBanned']) &&
          incoming().updatedAt == request.time
         )
@@ -159,21 +188,22 @@ service cloud.firestore {
     }
 
     match /interests/{interestId} {
-      allow get: if isValidId(interestId) && isSignedIn() && (
+      allow get: if isValidId(interestId) && isUsableAccount() && (
         isOwner(resource.data.fromId) || isOwner(resource.data.toId) || isAdmin()
       );
-      
-      allow list: if isSignedIn() && (
-        resource.data.fromId == request.auth.uid || 
-        resource.data.toId == request.auth.uid || 
+
+      allow list: if isUsableAccount() && (
+        resource.data.fromId == request.auth.uid ||
+        resource.data.toId == request.auth.uid ||
         isAdmin()
       );
-      
-      allow create: if isValidId(interestId) && isSignedIn() && isValidInterest(incoming()) && 
+
+      allow create: if isValidId(interestId) && isUsableAccount() && isValidInterest(incoming()) &&
                     isApproved() &&
                     exists(/databases/$(database)/documents/users/$(incoming().toId));
 
-      allow update: if isValidId(interestId) && isSignedIn() && (
+      allow update: if isValidId(interestId) && isUsableAccount() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'declinedBy']) && (
         (request.resource.data.status == 'accepted' && resource.data.toId == request.auth.uid && resource.data.status == 'pending') ||
         (request.resource.data.status == 'declined' && resource.data.toId == request.auth.uid && resource.data.status == 'pending') ||
         (request.resource.data.status == 'declined' && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid) && resource.data.status == 'accepted') ||
@@ -181,22 +211,22 @@ service cloud.firestore {
         isAdmin()
       );
 
-      allow delete: if isValidId(interestId) && isSignedIn() && (
+      allow delete: if isValidId(interestId) && isUsableAccount() && (
         (resource.data.fromId == request.auth.uid && resource.data.status == 'pending') ||
         isAdmin()
       );
     }
 
     match /shortlists/{shortlistId} {
-      allow get: if isValidId(shortlistId) && isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isValidId(shortlistId) && isSignedIn() && isValidShortlist(incoming()) && isApproved();
-      allow delete: if isValidId(shortlistId) && isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow get: if isValidId(shortlistId) && isUsableAccount() && (isOwner(resource.data.userId) || isAdmin());
+      allow list: if isUsableAccount() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(shortlistId) && isUsableAccount() && isValidShortlist(incoming()) && isApproved();
+      allow delete: if isValidId(shortlistId) && isUsableAccount() && (isOwner(existing().userId) || isAdmin());
     }
 
     match /profileViews/{viewId} {
-      allow read, get, list: if isSignedIn() && (resource.data.profileId == request.auth.uid || resource.data.viewerId == request.auth.uid || isAdmin());
-      allow create, update: if isValidId(viewId) && isSignedIn() && incoming().viewerId == request.auth.uid;
+      allow read, get, list: if isUsableAccount() && (resource.data.profileId == request.auth.uid || resource.data.viewerId == request.auth.uid || isAdmin());
+      allow create, update: if isValidId(viewId) && isUsableAccount() && incoming().viewerId == request.auth.uid;
     }
 
 
@@ -205,32 +235,32 @@ service cloud.firestore {
         return request.auth.uid in chatId.split('_');
       }
 
-      allow read, get, list: if isValidId(chatId) && isSignedIn() && (isParticipant() || isAdmin());
-      allow delete: if isValidId(chatId) && isSignedIn() && (isParticipant() || isAdmin());
-      
+      allow read, get, list: if isValidId(chatId) && isUsableAccount() && (isParticipant() || isAdmin());
+      allow delete: if isValidId(chatId) && isUsableAccount() && (isParticipant() || isAdmin());
+
       match /messages/{messageId} {
-        allow get: if isValidId(messageId) && isSignedIn() && (isParticipant() || isAdmin());
-        allow list: if isSignedIn() && (isParticipant() || isAdmin());
-        allow delete: if isValidId(messageId) && isSignedIn() && (isParticipant() || isAdmin());
-        
-        allow create: if isValidId(messageId) && isSignedIn() && isParticipant() && 
-                      isValidMessage(incoming()) &&
+        allow get: if isValidId(messageId) && isUsableAccount() && (isParticipant() || isAdmin());
+        allow list: if isUsableAccount() && (isParticipant() || isAdmin());
+        allow delete: if isValidId(messageId) && isUsableAccount() && (isParticipant() || isAdmin());
+
+        allow create: if isValidId(messageId) && isUsableAccount() && isParticipant() &&
+                      isValidMessage(incoming()) && isApproved() &&
                       incoming().chatId == chatId &&
                       get(/databases/$(database)/documents/interests/$(chatId)).data.status == 'accepted';
       }
     }
 
     match /photoModeration/{docId} {
-      allow read: if isSignedIn() && (isAdmin() || resource.data.get('uid', resource.data.get('userId', '')) == request.auth.uid);
-      allow create: if isSignedIn() && incoming().uid == request.auth.uid;
+      allow read: if isUsableAccount() && (isAdmin() || resource.data.get('uid', resource.data.get('userId', '')) == request.auth.uid);
+      allow create: if isUsableAccount() && incoming().uid == request.auth.uid;
       allow update: if isAdmin();
-      allow delete: if isSignedIn() && (isAdmin() || existing().get('uid', existing().get('userId', '')) == request.auth.uid);
+      allow delete: if isUsableAccount() && (isAdmin() || existing().get('uid', existing().get('userId', '')) == request.auth.uid);
     }
 
     match /admins/{adminId} {
       allow get: if isValidId(adminId) && isSignedIn() && (isOwner(adminId) || isAdmin());
       allow list: if isSignedIn() && isAdmin();
-      allow write: if isSignedIn() && request.auth.uid == adminId && request.auth.token.admin == true;
+      allow write: if false; // Admin records and email verification are server managed.
     }
 
     match /settings/{docId} {
@@ -239,7 +269,7 @@ service cloud.firestore {
     }
 
     match /uploadedImages/{hashId} {
-      allow read, create: if isSignedIn();
+      allow read, create: if isUsableAccount();
     }
 
     // OTPs are fully server-managed now (Cloud Functions in functions/src/otp.ts):
@@ -250,6 +280,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /email_deliveries/{deliveryId} {
+      allow read, write: if false;
+    }
+
     // Email abuse-prevention log (written by Cloud Functions only)
     match /email_log/{logId} {
       allow read, write: if false;
@@ -257,8 +291,7 @@ service cloud.firestore {
 
     match /churches/{churchId} {
       allow read: if isAdmin();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     match /contact_messages/{messageId} {
@@ -267,11 +300,11 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read, get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && incoming().fromId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) && 
+      allow read, get, list: if isUsableAccount() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isUsableAccount() && incoming().fromId == request.auth.uid;
+      allow update: if isUsableAccount() && (resource.data.userId == request.auth.uid || isAdmin()) &&
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isUsableAccount() && (resource.data.userId == request.auth.uid || isAdmin());
     }
   }
 }

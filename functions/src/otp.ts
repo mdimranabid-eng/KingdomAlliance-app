@@ -104,9 +104,9 @@ async function issueOtp(emailRaw: string, purpose: string, captchaToken?: string
   if (!VALID_PURPOSES.includes(purpose)) {
     throw new HttpsError('invalid-argument', 'Invalid OTP purpose.');
   }
-  // admin_login is exempt from captcha: admins are already protected by
-  // password + mandatory TOTP MFA, and the admin login page has no widget.
-  if (purpose !== 'admin_login' && !(await verifyCaptcha(captchaToken))) {
+  // Administrator login has MFA. Deletion codes are restricted to the
+  // authenticated account owner before reaching this function.
+  if (purpose !== 'admin_login' && purpose !== 'delete_account' && !(await verifyCaptcha(captchaToken))) {
     throw new HttpsError('permission-denied', 'Captcha verification failed. Please try again.');
   }
 
@@ -150,6 +150,7 @@ async function issueOtp(emailRaw: string, purpose: string, captchaToken?: string
   } catch (err: any) {
     if (err instanceof HttpsError) throw err;
     console.error(`[OTP] Email dispatch failed for ${email}:`, err.message);
+    if (purpose === 'delete_account' || purpose === 'admin_login') throw new HttpsError('unavailable', 'Unable to send the verification email. Please try again later.');
   }
 
   // Log rate limit after email (non-blocking — index may still be building)
@@ -164,50 +165,35 @@ async function issueOtp(emailRaw: string, purpose: string, captchaToken?: string
 }
 
 // ─── Consume (verify) an OTP — shared with /api/reset-password ────────────────
-export async function consumeOtpInternal(
-  emailRaw: string,
-  code: string,
-  purpose: string
+export async function consumeOtpInTransaction(
+  tx: admin.firestore.Transaction, database: admin.firestore.Firestore,
+  emailRaw: string, code: string, purpose: string
 ): Promise<{ ok: boolean; message?: string }> {
   const email = emailRaw.trim().toLowerCase();
-  const snap = await db()
-    .collection('temp_otps')
-    .where('email', '==', email)
-    .get();
-
-  if (snap.empty) {
-    return { ok: false, message: 'Invalid or incorrect OTP.' };
-  }
-
-  // Pick the newest doc for this purpose
-  const docs = snap.docs
-    .filter(d => d.data().purpose === purpose)
+  const snap = await tx.get(database.collection('temp_otps').where('email', '==', email));
+  const docs = snap.docs.filter(d => d.data().purpose === purpose)
     .sort((a, b) => (b.data().createdAt?.toMillis?.() ?? 0) - (a.data().createdAt?.toMillis?.() ?? 0));
-
-  if (docs.length === 0) {
-    return { ok: false, message: 'Invalid or incorrect OTP.' };
-  }
-
-  const otpDoc = docs[0];
-  const otpData = otpDoc.data();
-
-  if ((otpData.expiresAt?.toMillis?.() ?? 0) < Date.now()) {
-    await otpDoc.ref.delete();
+  if (!docs.length) return { ok: false, message: 'Invalid or incorrect OTP.' };
+  const otp = docs[0];
+  const data = otp.data();
+  if ((data.expiresAt?.toMillis?.() ?? 0) <= Date.now()) {
+    tx.delete(otp.ref);
     return { ok: false, message: 'OTP has expired. Please request a new one.' };
   }
-
-  if ((otpData.attempts ?? 0) >= MAX_ATTEMPTS) {
-    await otpDoc.ref.delete();
+  if ((data.attempts ?? 0) >= MAX_ATTEMPTS) {
+    tx.delete(otp.ref);
     return { ok: false, message: 'Too many incorrect attempts. Please request a new OTP.' };
   }
-
-  if (otpData.otpHash !== hashOtp(email, code)) {
-    await otpDoc.ref.update({ attempts: admin.firestore.FieldValue.increment(1) });
+  if (data.otpHash !== hashOtp(email, code)) {
+    tx.update(otp.ref, { attempts: (data.attempts ?? 0) + 1 });
     return { ok: false, message: 'Invalid or incorrect OTP.' };
   }
-
-  await otpDoc.ref.delete();
+  tx.delete(otp.ref);
   return { ok: true };
+}
+
+export async function consumeOtpInternal(email: string, code: string, purpose: string): Promise<{ ok: boolean; message?: string }> {
+  return db().runTransaction(tx => consumeOtpInTransaction(tx, db(), email, code, purpose));
 }
 
 // ─── Callable: request an OTP ────────────────────────────────────────────────
@@ -215,6 +201,20 @@ export const requestOtp = onCall(
   { cors: true, secrets: ['SMTP_USER', 'SMTP_PASS', 'SMTP_HOST', 'SMTP_PORT', 'TURNSTILE_SECRET_KEY', 'OTP_HASH_SALT'] },
   async (req) => {
     const { email, purpose, captchaToken } = req.data || {};
+    if (purpose === 'admin_login') {
+      if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+      const account = await admin.auth().getUser(req.auth.uid);
+      if (!account.customClaims?.admin || account.email?.toLowerCase() !== String(email).trim().toLowerCase()) {
+        throw new HttpsError('permission-denied', 'Request verification for your own administrator email.');
+      }
+    }
+    if (purpose === 'delete_account') {
+      if (!req.auth) throw new HttpsError('unauthenticated', 'Please sign in to request deletion.');
+      const account = await admin.auth().getUser(req.auth.uid);
+      if (account.customClaims?.admin || !account.email || account.email.toLowerCase() !== String(email).trim().toLowerCase()) {
+        throw new HttpsError('permission-denied', 'You can only request a deletion code for your own member account.');
+      }
+    }
     await issueOtp(String(email || ''), String(purpose || ''), captchaToken);
     return { success: true };
   }
@@ -223,6 +223,7 @@ export const requestOtp = onCall(
 // ─── Callable: verify an OTP ─────────────────────────────────────────────────
 export const verifyOtp = onCall({ cors: true, secrets: ['OTP_HASH_SALT'] }, async (req) => {
   const { email, code, purpose } = req.data || {};
+  if (purpose === 'delete_account' || purpose === 'admin_login') throw new HttpsError('failed-precondition', 'Confirm deletion through the account deletion endpoint.');
   if (!email || !code) {
     throw new HttpsError('invalid-argument', 'Email and code are required.');
   }

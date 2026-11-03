@@ -6,7 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 import { sendEmail } from '../lib/email';
 import { useSettings } from '../lib/SettingsContext';
 import { uploadUserPhotos, deleteStoredPhoto } from '../lib/storage';
-import { requestOtp, verifyOtp } from '../services/otpService';
+import { requestOtp } from '../services/otpService';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import {
@@ -230,11 +230,12 @@ const [showEditModal, setShowEditModal] = useState(false);
     if (!currentUser || deletingAccount) return;
     setAccountDeleteOtpLoading(true);
     setAccountDeleteOtpError(null);
-    setShowDeleteConfirmation(false);
+    setAccountDeleteOtpCode(['', '', '', '', '', '']);
     try {
       const userEmail = currentUser.email;
       if (!userEmail) throw new Error('No email found on your account.');
       await requestOtp(userEmail, 'delete_account');
+      setShowDeleteConfirmation(false);
       setShowAccountDeleteConfirm(true);
       // Auto-focus first OTP input
       setTimeout(() => accountDeleteOtpRefs.current[0]?.focus(), 100);
@@ -258,15 +259,15 @@ const [showEditModal, setShowEditModal] = useState(false);
     try {
       const userEmail = currentUser.email;
       if (!userEmail) throw new Error('No email found.');
-      await verifyOtp(userEmail, otpString, 'delete_account');
-      // OTP verified — proceed with deletion
+      // The server verifies and consumes the OTP atomically with scheduling.
       const token = await currentUser.getIdToken();
       const response = await fetch(`${BACKEND_URL}/api/delete-account`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ otp: otpString })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to schedule account deletion.');
@@ -518,15 +519,7 @@ const [showEditModal, setShowEditModal] = useState(false);
         createdAt: serverTimestamp()
       });
 
-      // Fetch target user email to dispatch notification
-      const targetUserSnap = await getDoc(doc(db, 'users', id));
-      if (targetUserSnap.exists() && targetUserSnap.data()?.email) {
-          await sendEmail({
-              to_email: targetUserSnap.data().email,
-              type: 'connection_request',
-              senderName: currentUser.displayName || 'A member'
-          });
-      }
+      await sendEmail({ interestId: connectionId, type: 'connection_request' });
 
       setConnectionState({ id: connectionId, fromId: currentUser.uid, toId: id, status: 'pending' });
       setInterestJustSent(true);
@@ -1351,7 +1344,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                     <p className="text-slate-600 text-sm leading-relaxed mb-5">
                       Permanently delete your Kingdom Alliance profile. Your account will be
                       disabled immediately and permanently removed after 7 days. Until then you
-                      can reactivate it any time by simply logging in.
+                      can sign in and choose Reactivate before the recovery deadline.
                     </p>
                     <button
                       onClick={() => setShowDeleteConfirmation(true)}
@@ -1781,7 +1774,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Are you sure?</h2>
                 <p className="text-sm text-slate-600">
-                  This action cannot be undone. Your profile will be disabled immediately and permanently deleted after a 7-day grace period.
+                  Your profile will be hidden immediately. You can reactivate it during the 7-day recovery period. Permanent deletion cannot be undone.
                 </p>
                 <div className="flex gap-3 pt-2">
                   <button
@@ -1799,6 +1792,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                     Yes, Delete
                   </button>
                 </div>
+                {accountDeleteOtpError && <p className="mt-3 text-sm text-red-700">{accountDeleteOtpError}</p>}
               </div>
             </motion.div>
           </div>

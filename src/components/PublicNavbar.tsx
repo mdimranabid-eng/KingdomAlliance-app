@@ -31,7 +31,7 @@ export default function PublicNavbar() {
       }
       const containerTop = snapContainer.getBoundingClientRect().top;
       const sectionBottom = firstSection.getBoundingClientRect().bottom;
-      const newValue = sectionBottom > containerTop + 80;
+      const newValue = sectionBottom > Math.max(0, containerTop) + 80;
       if (newValue !== lastValue) {
         lastValue = newValue;
         setOnDark(newValue);
@@ -122,6 +122,7 @@ export default function PublicNavbar() {
               onClick={toggleMenu}
               className={`md:hidden p-2 rounded-lg focus:outline-none transition-colors duration-300 ${textPrimary}`}
               aria-label="Toggle menu"
+              aria-expanded={isOpen}
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -145,7 +146,7 @@ export default function PublicNavbar() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-[280px] bg-white z-45 md:hidden flex flex-col justify-between border-l border-[#e2ddd2] p-6 pt-24 shadow-2xl"
+              className="fixed right-0 top-0 bottom-0 w-[280px] bg-white z-45 md:hidden flex flex-col gap-8 overflow-y-auto overscroll-contain border-l border-[#e2ddd2] p-6 pt-24 shadow-2xl"
             >
               <div className="flex flex-col gap-6">
                 {[

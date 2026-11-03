@@ -621,15 +621,7 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
       });
 
       // Fetch target user email to dispatch notification
-      const targetUserId = user.id;
-      const targetUserSnap = await getDoc(doc(db, 'users', targetUserId));
-      if (targetUserSnap.exists() && targetUserSnap.data()?.email) {
-          await sendEmail({
-              to_email: targetUserSnap.data().email,
-              type: 'connection_request',
-              senderName: currentUser.displayName || 'A member'
-          });
-      }
+      await sendEmail({ interestId: connectionId, type: 'connection_request' });
 
       setInterestSent(true);
       toast.success(`Interest successfully sent to ${user.name}!`);

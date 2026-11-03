@@ -672,42 +672,18 @@ export default function RegisterPage() {
         ...profileData, onboardingComplete: true, approvalStatus: 'pending', updatedAt: new Date()
       }, { merge: true });
 
-      // Sync church info to separate churches collection
-      const trimmedChurchName = (formData.churchName || '').trim();
-      const trimmedChurchCity = (formData.churchCity || '').trim();
-      const trimmedChurchArea = (formData.churchArea || '').trim();
-      const trimmedPastorName = (formData.pastorName || '').trim();
-      const trimmedPastorNumber = (formData.pastorNumber || '').trim();
-      if (trimmedChurchName) {
-        try {
-          const churchKey = [trimmedChurchName, trimmedChurchCity, trimmedChurchArea, trimmedPastorName, trimmedPastorNumber]
-            .map(s => s.toLowerCase().trim()).join('||');
-          const churchDocId = churchKey.replace(/[^a-z0-9||]/g, '_').substring(0, 120);
-          const churchRef = doc(db, 'churches', churchDocId);
-          const churchSnap = await getDocs(query(collection(db, 'churches'), where('__name__', '==', churchDocId)));
-          if (churchSnap.empty) {
-            await setDoc(churchRef, {
-              churchName: trimmedChurchName, churchCity: trimmedChurchCity, churchArea: trimmedChurchArea,
-              pastorName: trimmedPastorName, pastorNumber: trimmedPastorNumber,
-              members: [activeUser.uid], createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-            });
-          } else {
-            await setDoc(churchRef, { members: arrayUnion(activeUser.uid), updatedAt: serverTimestamp() }, { merge: true });
-          }
-        } catch (churchErr) {
-          console.warn('Church sync failed (non-blocking):', churchErr);
-        }
-      }
+      // The backend synchronizes the church directory from this profile.
 
       sessionStorage.removeItem('saved_credentials');
       localStorage.removeItem('onboarding_draft');
 
       try {
         const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-        await fetch(`${backendUrl}/api/send-onboarding-email`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const emailResponse = await fetch(`${backendUrl}/api/send-onboarding-email`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await activeUser.getIdToken()}` },
           body: JSON.stringify({ uid: activeUser.uid })
         });
+        if (!emailResponse.ok && emailResponse.status !== 409) throw new Error('Onboarding email request failed.');
       } catch (emailErr) {
         console.warn('Onboarding email sending failed (non-blocking):', emailErr);
       }

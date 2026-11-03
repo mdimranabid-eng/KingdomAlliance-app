@@ -1,5 +1,7 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { 
+  arrayUnion,
   collection, 
   query, 
   where, 
@@ -124,9 +126,6 @@ export default function AdminApprovals() {
   }, []);
 
   const handleApprove = async (userId: string) => {
-    // Optimistic frontend state update for instant reactivity
-    setUsers(prev => prev.filter(u => u.id !== userId));
-    setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - 1) }));
 
     setProcessingId(userId);
     try {
@@ -137,7 +136,7 @@ export default function AdminApprovals() {
         approvedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         approvedBy: currentAdminId,
-        'notifications': [
+        'notifications': arrayUnion(
           {
             id: crypto.randomUUID(),
             title: 'Profile Approved',
@@ -146,14 +145,16 @@ export default function AdminApprovals() {
             createdAt: new Date().toISOString(),
             read: false
           }
-        ]
+        )
       });
 
       const userToApprove = users.find(u => u.id === userId) || selectedUser;
 
+      setUsers(prev => prev.filter(u => u.id !== userId));
       setConfirmModal({ isOpen: false, userId: null, name: '' });
     } catch (error) {
       console.error("Error approving user:", error);
+      toast.error("Approval failed. Please retry.");
     } finally {
       setProcessingId(null);
     }
@@ -163,9 +164,6 @@ export default function AdminApprovals() {
     if (!rejectionModal.userId || !rejectionModal.reason.trim()) return;
     
     const targetUserId = rejectionModal.userId;
-    // Optimistic frontend state update for instant reactivity
-    setUsers(prev => prev.filter(u => u.id !== targetUserId));
-    setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - 1) }));
 
     setProcessingId(targetUserId);
     try {
@@ -177,7 +175,7 @@ export default function AdminApprovals() {
         updatedAt: serverTimestamp(),
         rejectedBy: currentAdminId,
         rejectedReason: rejectionModal.reason,
-        'notifications': [
+        'notifications': arrayUnion(
           {
             id: crypto.randomUUID(),
             title: 'Profile Update',
@@ -186,12 +184,14 @@ export default function AdminApprovals() {
             createdAt: new Date().toISOString(),
             read: false
           }
-        ]
+        )
       });
 
+      setUsers(prev => prev.filter(u => u.id !== targetUserId));
       setRejectionModal({ isOpen: false, userId: null, reason: '' });
     } catch (error) {
       console.error("Error rejecting user:", error);
+      toast.error("Rejection failed. Please retry.");
     } finally {
       setProcessingId(null);
     }

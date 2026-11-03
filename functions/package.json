@@ -6,7 +6,10 @@
   "scripts": {
     "build": "tsc",
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "backfill:onboarding": "npm run build && node lib/scripts/backfillOnboardingEmails.js",
+    "test:security": "npm run build && node --test test/security.test.cjs",
+    "test:deletion": "npm run build && node --test test/deletion.test.cjs"
   },
   "keywords": [],
   "author": "",

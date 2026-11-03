@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
-import { collection, query, getDocs, updateDoc, doc, serverTimestamp, getDoc, deleteDoc, where, orderBy, limit } from 'firebase/firestore';
+import { arrayUnion, collection, query, getDocs, updateDoc, doc, serverTimestamp, getDoc, where, orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, User, Trash2, CheckCircle, XCircle, Ban, Loader2, Clock, Eye, UserCheck, Check, MapPin, ArrowLeft } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType, calculateAge } from '../../lib/utils';
@@ -145,8 +145,6 @@ export default function RejectedProfilesPage() {
     setApprovingUser(true);
     const targetUserId = selectedUser.id;
     
-    // Optimistically update frontend state
-    setUsers(prev => prev.filter(u => u.id !== targetUserId));
     
     try {
       const currentAdminId = auth.currentUser?.uid || 'system';
@@ -158,7 +156,7 @@ export default function RejectedProfilesPage() {
         approvedBy: currentAdminId,
         approvedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        'notifications': [
+        'notifications': arrayUnion(
           {
             id: crypto.randomUUID(),
             title: 'Profile Approved',
@@ -167,14 +165,15 @@ export default function RejectedProfilesPage() {
             createdAt: new Date().toISOString(),
             read: false
           }
-        ]
+        )
       });
 
+      setUsers(prev => prev.filter(u => u.id !== targetUserId));
       setSelectedUser(null);
       setShowApproveConfirm(false);
     } catch (err) {
       console.error("Error activating rejected user:", err);
-      handleFirestoreError(err, OperationType.UPDATE, `users/${targetUserId}`);
+      showToast('Approval failed. Please retry.', 'error');
       // Refresh list to restore state on fail
       fetchUsers();
     } finally {
@@ -185,105 +184,27 @@ export default function RejectedProfilesPage() {
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
     setDeletingUser(true);
-    const targetUserId = selectedUser.id;
-    const targetUserUid = selectedUser.uid || selectedUser.id;
-
-    // Optimistically update frontend state for instant disappearance
-    setUsers(prev => prev.filter(u => u.id !== targetUserId));
-    setSelectedUser(null);
-    setShowDeleteConfirm(false);
-
+    const uid = selectedUser.uid || selectedUser.id;
     try {
-      console.log(`[Admin Delete] Calling secure Admin SDK cascading delete API for: ${targetUserUid}`);
-      const idToken = await auth.currentUser?.getIdToken();
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sign in again before deleting this account.');
       const response = await fetch(`${BACKEND_URL}/api/admin/delete-user`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ uid: targetUserUid })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ uid })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Server deletion endpoint returned failure status.');
-      }
-
-      const resJson = await response.json();
-      console.log('[Admin Delete] Secure Admin SDK purge successfully completed.', resJson.logs);
-      showToast("User account and all authentication credentials have been permanently deleted.", 'success');
-    } catch (apiErr: any) {
-      console.warn("[Admin Delete] Admin SDK API unreachable or failed. Invoking client-side database cascading fallback...", apiErr.message);
-      
-      // FALLBACK WORKFLOW: Perform client-side cascade deletions directly if the local Express API is not running
-      try {
-        // 1. Purge all Documents in /interests where fromId == targetUserUid or toId == targetUserUid
-        const interestsQueryFrom = query(collection(db, 'interests'), where('fromId', '==', targetUserUid));
-        const interestsQueryTo = query(collection(db, 'interests'), where('toId', '==', targetUserUid));
-        const [interestsFromSnap, interestsToSnap] = await Promise.all([
-          getDocs(interestsQueryFrom),
-          getDocs(interestsQueryTo)
-        ]);
-        const interestDeletions = [
-          ...interestsFromSnap.docs.map(d => deleteDoc(d.ref)),
-          ...interestsToSnap.docs.map(d => deleteDoc(d.ref))
-        ];
-        await Promise.all(interestDeletions);
-
-        // 4. Purge all Documents in /shortlists where userId == targetUserUid or targetId == targetUserUid
-        const shortlistsQueryUser = query(collection(db, 'shortlists'), where('userId', '==', targetUserUid));
-        const shortlistsQueryTarget = query(collection(db, 'shortlists'), where('targetId', '==', targetUserUid));
-        const [shortlistsUserSnap, shortlistsTargetSnap] = await Promise.all([
-          getDocs(shortlistsQueryUser),
-          getDocs(shortlistsQueryTarget)
-        ]);
-        const shortlistDeletions = [
-          ...shortlistsUserSnap.docs.map(d => deleteDoc(d.ref)),
-          ...shortlistsTargetSnap.docs.map(d => deleteDoc(d.ref))
-        ];
-        await Promise.all(shortlistDeletions);
-
-        // 5. Purge Chats and Subcollection Messages
-        const uniqueChatIds = new Set<string>();
-        const allRelatedInterests = [...interestsFromSnap.docs, ...interestsToSnap.docs];
-        allRelatedInterests.forEach(docSnap => {
-          const data = docSnap.data();
-          if (data.fromId && data.toId) {
-            const cid = [data.fromId, data.toId].sort().join('_');
-            uniqueChatIds.add(cid);
-          }
-        });
-
-        for (const cid of uniqueChatIds) {
-          const messagesCollectionRef = collection(db, `chats/${cid}/messages`);
-          const messagesSnap = await getDocs(messagesCollectionRef);
-          const messageDeletions = messagesSnap.docs.map(d => deleteDoc(d.ref));
-          await Promise.all(messageDeletions);
-          await deleteDoc(doc(db, 'chats', cid));
-        }
-
-        // 6. Delete photoModeration documents for this user
-        const moderationQuery = query(collection(db, 'photoModeration'), where('userId', '==', targetUserUid));
-        const moderationSnap = await getDocs(moderationQuery);
-        const moderationDeletions = moderationSnap.docs.map(d => deleteDoc(d.ref));
-        await Promise.all(moderationDeletions);
-
-        // 7. Delete main user document from /users
-        await deleteDoc(doc(db, 'users', targetUserId));
-        
-        showToast("User account and related database entries deleted via client fallback.", 'success');
-      } catch (fallbackErr) {
-        console.error("[Admin Delete Fallback] Complete deletion failure:", fallbackErr);
-        handleFirestoreError(fallbackErr, OperationType.DELETE, `users/${targetUserId}`);
-        // Restore user to page view if deletion completely fails
-        fetchUsers();
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Deletion failed. Please retry.');
+      setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+      setSelectedUser(null);
+      setShowDeleteConfirm(false);
+      showToast('User account permanently deleted.', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Unable to delete this account.', 'error');
     } finally {
       setDeletingUser(false);
     }
   };
-
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           u.email?.toLowerCase().includes(searchTerm.toLowerCase());

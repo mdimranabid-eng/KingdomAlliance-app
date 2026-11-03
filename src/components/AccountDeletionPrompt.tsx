@@ -6,6 +6,7 @@ import { KingdomCrossIcon } from './KingdomCrossIcon';
 
 interface AccountDeletionPromptProps {
   scheduledDeletionAtMs?: number;
+  deletionInProgress?: boolean;
   onReactivated: () => void;
 }
 
@@ -15,10 +16,11 @@ const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL
  * Full-screen prompt shown when a user with a pending account deletion logs in.
  * Gives them the chance to reactivate within the 7-day grace window.
  */
-export default function AccountDeletionPrompt({ scheduledDeletionAtMs, onReactivated }: AccountDeletionPromptProps) {
+export default function AccountDeletionPrompt({ scheduledDeletionAtMs, onReactivated, deletionInProgress }: AccountDeletionPromptProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canReactivate = !deletionInProgress && !!scheduledDeletionAtMs && scheduledDeletionAtMs > Date.now();
   const deletionDate = scheduledDeletionAtMs
     ? new Date(scheduledDeletionAtMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     : 'within 7 days';
@@ -74,9 +76,7 @@ export default function AccountDeletionPrompt({ scheduledDeletionAtMs, onReactiv
         </p>
 
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900 mb-8 leading-relaxed">
-          Changed your mind? You can reactivate your account now and everything
-          will be restored exactly as it was — your profile, photos and connections.
-          If you do nothing, all your data will be permanently deleted on the date above.
+          {canReactivate ? 'You can reactivate before the deadline to keep your profile, photos and connections. Otherwise permanent deletion starts after the recovery period.' : 'The recovery period has ended. Your account is awaiting or undergoing permanent deletion.'}
         </div>
 
         {error && (
@@ -88,11 +88,11 @@ export default function AccountDeletionPrompt({ scheduledDeletionAtMs, onReactiv
         <div className="space-y-3">
           <button
             onClick={handleReactivate}
-            disabled={loading}
+            disabled={loading || !canReactivate}
             className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 hover:opacity-95 transition-opacity disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <RotateCcw className="w-5 h-5" />}
-            Reactivate My Account
+            {canReactivate ? 'Reactivate My Account' : 'Recovery Period Has Ended'}
           </button>
           <button
             onClick={handleSignOut}

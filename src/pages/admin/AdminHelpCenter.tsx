@@ -9,7 +9,6 @@ import {
   UserCheck,
   Image,
   Users,
-  Megaphone,
   Church,
   Shield,
   BarChart3,
@@ -41,7 +40,7 @@ const HELP_DATA: FaqCategory[] = [
     items: [
       {
         q: 'What is the Admin Portal?',
-        a: `The Admin Portal is a secure dashboard for managing the Kingdom Alliance platform. It gives you full control over user approvals, photo moderation, user management, announcements, and platform analytics.\n\nAll admin actions are audited and tied to your admin account for accountability.`,
+        a: `The Admin Portal is a secure dashboard for managing the Kingdom Alliance platform. It gives you full control over user approvals, photo moderation, user management and platform analytics.\n\nAll admin actions are audited and tied to your admin account for accountability.`,
       },
       {
         q: 'How do I log in?',
@@ -134,26 +133,6 @@ const HELP_DATA: FaqCategory[] = [
       {
         q: 'What are the filter options?',
         a: `The User Management page offers these filters:\n\n• All — Every approved user\n• Active — Users active within the timeframe\n• Inactive — Users who haven't logged in for 40+ days\n• Suspended — Users with suspended status\n• Blocked — Users with blocked status\n• Active Today — Users active today\n• New This Week — Users who registered this week\n\nFilters can be combined with search. Filter states are saved in the URL, so you can bookmark or share filtered views.`,
-      },
-    ],
-  },
-  {
-    title: 'Announcements',
-    icon: Megaphone,
-    color: '#10b981',
-    bg: 'bg-emerald-500/10',
-    items: [
-      {
-        q: 'How to send an announcement?',
-        a: `1. Go to Announcements (/admin/announcements)\n2. Select your target audience:\n   • All Users\n   • Unverified Users\n   • Active Today\n3. Enter a subject line\n4. Write your message\n5. Click "Send Announcement Now"\n\nThe announcement is queued for delivery. A background process will handle sending to all targeted users.`,
-      },
-      {
-        q: 'Who receives announcements?',
-        a: `It depends on the target you select:\n\n• All Users — Every registered user on the platform\n• Unverified — Users who haven't completed email verification\n• Active Today — Users who were active today\n\nChoose your target carefully to avoid sending irrelevant messages to the wrong audience.`,
-      },
-      {
-        q: 'What happens after sending?',
-        a: `After clicking send:\n1. The announcement is saved to Firestore with status "queued"\n2. A background Cloud Function processes the queue\n3. Emails are dispatched to the targeted users\n4. You'll see a success confirmation\n\nTip: Avoid sending announcements too frequently. Follow the anti-spam best practices shown on the page.`,
       },
     ],
   },

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "hostinger": {
+      "type": "remote",
+      "url": "https://mcp.hostinger.com",
+      "enabled": true
+    }
+  }
+}

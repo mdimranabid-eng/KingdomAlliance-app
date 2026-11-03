@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs, setDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -177,31 +177,7 @@ export default function EditProfileModal({ isOpen, onClose, profile: initialProf
       updates.updatedAt = serverTimestamp();
       await updateDoc(doc(db, 'users', currentUser.uid), updates);
 
-      // Sync church info to churches collection
-      const churchName = (formData['churchName'] || initialProfile?.churchName || '').toString().trim();
-      const churchCity = (formData['churchCity'] || initialProfile?.churchCity || '').toString().trim();
-      const churchArea = (formData['churchArea'] || initialProfile?.churchArea || '').toString().trim();
-      const pastorName = (formData['pastorName'] || initialProfile?.pastorName || '').toString().trim();
-      const pastorNumber = (formData['pastorNumber'] || initialProfile?.pastorNumber || '').toString().trim();
-      if (churchName) {
-        try {
-          const churchKey = [churchName, churchCity, churchArea, pastorName, pastorNumber]
-            .map(s => s.toLowerCase().trim()).join('||');
-          const churchDocId = churchKey.replace(/[^a-z0-9||]/g, '_').substring(0, 120);
-          const churchRef = doc(db, 'churches', churchDocId);
-          const churchSnap = await getDocs(query(collection(db, 'churches'), where('__name__', '==', churchDocId)));
-          if (churchSnap.empty) {
-            await setDoc(churchRef, {
-              churchName, churchCity, churchArea, pastorName, pastorNumber,
-              members: [currentUser.uid], createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-            });
-          } else {
-            await setDoc(churchRef, { members: arrayUnion(currentUser.uid), updatedAt: serverTimestamp() }, { merge: true });
-          }
-        } catch (churchErr) {
-          console.warn('Church sync failed (non-blocking):', churchErr);
-        }
-      }
+      // Church directory updates are handled by the backend profile trigger.
       const merged = { ...initialProfile };
       Object.entries(formData).forEach(([key, val]) => {
         if (val) setNestedValue(merged, key, val);

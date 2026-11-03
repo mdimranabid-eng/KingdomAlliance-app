@@ -4,8 +4,10 @@ import * as admin from 'firebase-admin';
 import express from 'express';
 import cors from 'cors';
 import * as crypto from 'crypto';
-import { consumeOtpInternal, verifyCaptcha, checkEmailRateLimit, hashOtp } from './otp';
+import { consumeOtpInternal, hashOtp } from './otp';
 import { cascadeDeleteUser } from './cascadeDelete';
+import { createEmailHandlers } from './secureEmail';
+import { createDeletionHandlers } from './accountDeletion';
 
 // ============================================================
 // Consolidated API Cloud Function (Express App)
@@ -22,18 +24,15 @@ async function requireAdminAuth(req: express.Request, res: express.Response, nex
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace(/^Bearer\s+/, '');
 
-  const isEmulatorMode =
-    !!process.env.FIRESTORE_EMULATOR_HOST || !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
-
   if (!token) {
     return res.status(401).json({ error: 'Missing Authorization token.' });
   }
 
   try {
-    const decoded = await admin.auth().verifyIdToken(token);
+    const decoded = await admin.auth().verifyIdToken(token, true);
 
-    // In emulator mode, any valid token is accepted as admin.
-    if (!isEmulatorMode) {
+    // Require administrator claims in both production and emulators.
+    {
       const userRecord = await admin.auth().getUser(decoded.uid);
       const isAdmin = userRecord.customClaims?.admin === true;
       if (!isAdmin) {
@@ -41,6 +40,13 @@ async function requireAdminAuth(req: express.Request, res: express.Response, nex
       }
     }
 
+    if (decoded.admin !== true || !decoded.firebase?.sign_in_second_factor) {
+      return res.status(403).json({ error: 'Complete two-factor sign-in before using admin functions.' });
+    }
+    const adminDoc = await admin.firestore().collection('admins').doc(decoded.uid).get();
+    if (!adminDoc.exists || adminDoc.data()?.emailVerified !== true) {
+      return res.status(403).json({ error: 'Verify your administrator email first.' });
+    }
     (req as any).adminUid = decoded.uid;
     return next();
   } catch (err: any) {
@@ -89,88 +95,9 @@ router.get('/health', (req, res): any => {
 });
 
 // ─── Send Email ──────────────────────────────────────────────────────────────
-router.post('/send-email', async (req, res): Promise<any> => {
-  const { to_email, otp_code, type, reason, senderName, captchaToken, attachmentBase64, attachmentFilename, bccEmail } = req.body;
-
-  if (!to_email || !type) {
-    return res.status(400).json({
-      error: 'Missing required fields: to_email, type'
-    });
-  }
-
-  // reCAPTCHA verification (enforced when RECAPTCHA_SECRET_KEY is configured)
-  if (!(await verifyCaptcha(captchaToken))) {
-    return res.status(403).json({ error: 'Captcha verification failed.' });
-  }
-
-  // Per-email rate limit to prevent email abuse
-  try {
-    await checkEmailRateLimit(to_email, `email_${type}`);
-  } catch (err: any) {
-    return res.status(429).json({ error: err.message });
-  }
-
-  try {
-    await dispatchEmail(to_email, otp_code, type, reason, senderName, attachmentBase64, attachmentFilename, bccEmail);
-    return res.status(200).json({ success: true, message: 'Email sent successfully' });
-  } catch (error: any) {
-    console.error(`❌ [API] Email failed for ${to_email}:`, error.message);
-    return res.status(500).json({ error: 'Failed to send email' });
-  }
-});
-
-router.post('/send-onboarding-email', async (req, res): Promise<any> => {
-  const { uid } = req.body;
-  if (!uid) {
-    return res.status(400).json({ error: 'Missing uid' });
-  }
-
-  try {
-    const db = admin.firestore();
-    const userSnap = await db.collection('users').doc(uid).get();
-    if (!userSnap.exists) {
-      return res.status(404).json({ error: 'User not found.' });
-    }
-    const userData = userSnap.data() || {};
-
-    // Idempotency guard: the Firestore onDocumentCreated trigger
-    // (onOnboardingComplete) is the source of truth for this email. If the
-    // trigger (or a prior call to this route) already sent it, do nothing.
-    if (userData.onboardingEmailSent === true) {
-      return res.status(200).json({ success: true, message: 'Onboarding email already sent — no action taken.' });
-    }
-
-    const email = userData.email;
-    const name = userData.fullName || userData.name || 'Member';
-    const profileId = userData.profileId || `KA-${uid.slice(0, 6).toUpperCase()}`;
-
-    // Full biodata PDF: Page 1 = complete profile + declaration + PDF417
-    // digitally-signed barcode; Pages 2+ = full Terms & Conditions.
-    const { generateBiodataPdf } = await import('./biodataPdf');
-    const pdfBuffer = await generateBiodataPdf({ ...userData, profileId });
-    const pdfBase64 = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
-
-    // Send email with PDF attachment + BCC
-    await dispatchEmail(
-      email, null, 'onboarding_complete',
-      name, 'Kingdom Alliance',
-      pdfBase64,
-      `KA_Biodata_${profileId}.pdf`,
-      'themaster@thekingdomalliances.com'
-    );
-
-    // Mark as sent so the Firestore trigger and any duplicate calls skip.
-    await db.collection('users').doc(uid).set({
-      onboardingEmailSent: true,
-      onboardingEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    return res.status(200).json({ success: true, message: 'Onboarding email sent successfully.' });
-  } catch (err: any) {
-    console.error('[OnboardingEmail] Failed:', err.message);
-    return res.status(500).json({ error: err.message || 'Failed to send onboarding email.' });
-  }
-});
+const emailHandlers = createEmailHandlers({ db: admin.firestore(), auth: admin.auth() });
+router.post('/send-email', emailHandlers.notification);
+router.post('/send-onboarding-email', emailHandlers.onboarding);
 
 // ─── Reset Password ───────────────────────────────────────────────────────────
 router.post('/reset-password', async (req, res): Promise<any> => {
@@ -214,7 +141,7 @@ router.post('/reset-password', async (req, res): Promise<any> => {
 });
 
 // ─── Verify Admin Email ───────────────────────────────────────────────────────
-router.post('/verify-admin-email', async (req, res): Promise<any> => {
+const verifyAdminEmailHandler = async (req: express.Request, res: express.Response): Promise<any> => {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace(/^Bearer\s+/, '');
 
@@ -223,7 +150,7 @@ router.post('/verify-admin-email', async (req, res): Promise<any> => {
   }
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await admin.auth().verifyIdToken(token, true);
     const userRecord = await admin.auth().getUser(decodedToken.uid);
     const isAdmin = userRecord.customClaims?.admin === true;
 
@@ -231,6 +158,8 @@ router.post('/verify-admin-email', async (req, res): Promise<any> => {
       return res.status(403).json({ error: 'Forbidden: Requires administrator status' });
     }
 
+    const result = await consumeOtpInternal(userRecord.email || '', String(req.body?.otp || ''), 'admin_login');
+    if (!result.ok) return res.status(400).json({ error: result.message });
     const uid = decodedToken.uid;
     await admin.auth().updateUser(uid, {
       emailVerified: true
@@ -251,117 +180,12 @@ router.post('/verify-admin-email', async (req, res): Promise<any> => {
     console.error('❌ Error executing verify-admin-email:', error.message || error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
   }
-});
+};
+router.post('/verify-admin-email', verifyAdminEmailHandler);
 
-// ─── Middleware: Verify User Token (any authenticated member) ─────────────────
-async function requireUserAuth(req: express.Request, res: express.Response, next: express.NextFunction): Promise<any> {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/, '');
-
-  if (!token) {
-    return res.status(401).json({ error: 'Missing Authorization token.' });
-  }
-
-  try {
-    const decoded = await admin.auth().verifyIdToken(token);
-    (req as any).callerUid = decoded.uid;
-    return next();
-  } catch (err: any) {
-    console.error('[Auth Middleware] User token verification failed:', err.message);
-    return res.status(401).json({ error: 'Invalid or expired token.' });
-  }
-}
-
-// ─── User Self-Service: Request Account Deletion (7-day grace) ────────────────
-router.post('/delete-account', requireUserAuth, async (req, res): Promise<any> => {
-  const uid = (req as any).callerUid as string;
-  const db = admin.firestore();
-
-  try {
-    const userRef = db.collection('users').doc(uid);
-    const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-      return res.status(404).json({ error: 'Profile not found.' });
-    }
-    const userData = userSnap.data() || {};
-
-    // Already pending? Idempotent response.
-    if (userData.deletionStatus === 'pending_deletion') {
-      return res.status(200).json({ success: true, message: 'Deletion already scheduled.' });
-    }
-
-    const scheduledDeletionAt = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await userRef.update({
-      deletionStatus: 'pending_deletion',
-      deletionRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
-      scheduledDeletionAt,
-      deletionReminderSent: false,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    // Send confirmation email with the exact deletion date
-    const deletionDate = scheduledDeletionAt.toDate().toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'long', year: 'numeric'
-    });
-    if (userData.email) {
-      try {
-        await dispatchEmail(userData.email, '', 'account_deletion_scheduled', deletionDate);
-      } catch (err: any) {
-        console.error(`[DeleteAccount] Confirmation email failed for ${userData.email}:`, err.message);
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `Your account has been disabled and will be permanently deleted on ${deletionDate}. You can reactivate it any time before then by logging in.`,
-      scheduledDeletionAt: scheduledDeletionAt.toMillis()
-    });
-  } catch (err: any) {
-    console.error('[DeleteAccount] Failed:', err.message);
-    return res.status(500).json({ error: err.message || 'Failed to schedule account deletion.' });
-  }
-});
-
-// ─── User Self-Service: Reactivate Account (cancels pending deletion) ─────────
-router.post('/reactivate-account', requireUserAuth, async (req, res): Promise<any> => {
-  const uid = (req as any).callerUid as string;
-  const db = admin.firestore();
-
-  try {
-    const userRef = db.collection('users').doc(uid);
-    const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-      return res.status(404).json({ error: 'Profile not found.' });
-    }
-    const userData = userSnap.data() || {};
-
-    if (userData.deletionStatus !== 'pending_deletion') {
-      return res.status(200).json({ success: true, message: 'Account is active. No reactivation needed.' });
-    }
-
-    await userRef.update({
-      deletionStatus: admin.firestore.FieldValue.delete(),
-      deletionRequestedAt: admin.firestore.FieldValue.delete(),
-      scheduledDeletionAt: admin.firestore.FieldValue.delete(),
-      deletionReminderSent: admin.firestore.FieldValue.delete(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    if (userData.email) {
-      try {
-        await dispatchEmail(userData.email, '', 'account_reactivated');
-      } catch (err: any) {
-        console.error(`[ReactivateAccount] Email failed for ${userData.email}:`, err.message);
-      }
-    }
-
-    return res.status(200).json({ success: true, message: 'Your account has been reactivated. Welcome back!' });
-  } catch (err: any) {
-    console.error('[ReactivateAccount] Failed:', err.message);
-    return res.status(500).json({ error: err.message || 'Failed to reactivate account.' });
-  }
-});
+const deletionHandlers = createDeletionHandlers({ db: admin.firestore(), auth: admin.auth() });
+router.post('/delete-account', deletionHandlers.deleteAccount);
+router.post('/reactivate-account', deletionHandlers.reactivateAccount);
 
 // ─── Admin Delete User ────────────────────────────────────────────────────────
 router.post('/admin/delete-user', requireAdminAuth, async (req, res): Promise<any> => {
@@ -380,6 +204,14 @@ router.post('/admin/delete-user', requireAdminAuth, async (req, res): Promise<an
   log(`Starting cascading deletion for UID: ${uid}`);
 
   try {
+    const targetDoc = await admin.firestore().collection('admins').doc(uid).get();
+    let targetAuth;
+    try { targetAuth = await admin.auth().getUser(uid); }
+    catch (error: any) { if (error.code !== 'auth/user-not-found') throw error; }
+    if (uid === (req as any).adminUid || targetDoc.exists || targetAuth?.customClaims?.admin === true ||
+        SYSTEM_ADMIN_EMAILS.includes((targetAuth?.email || '').toLowerCase())) {
+      return res.status(403).json({ error: 'Administrator accounts must use verified administrator deletion.' });
+    }
     await cascadeDeleteUser(uid, log);
   } catch (err: any) {
     return res.status(500).json({ error: `Auth deletion failed: ${err.message}`, logs });
@@ -621,6 +453,7 @@ router.post('/admin/create-admin', requireAdminAuth, async (req, res): Promise<a
     });
     console.log(`✅ [CreateAdmin] Auth user created: ${userRecord.uid}`);
 
+    try {
     // 2. Set admin custom claim
     await admin.auth().setCustomUserClaims(userRecord.uid, { admin: true });
     console.log(`✅ [CreateAdmin] Custom claim set for: ${userRecord.uid}`);
@@ -636,15 +469,23 @@ router.post('/admin/create-admin', requireAdminAuth, async (req, res): Promise<a
     });
     console.log(`✅ [CreateAdmin] Firestore admin doc created for: ${userRecord.uid}`);
 
+    } catch (error) {
+      // Roll back an Auth account if its administrator setup did not complete.
+      await admin.auth().deleteUser(userRecord.uid);
+      await db.collection('admins').doc(userRecord.uid).delete();
+      throw error;
+    }
+
     // 4. Send invitation email with credentials
+    let emailSent = false;
     try {
-      await dispatchEmail(
+      emailSent = (await dispatchEmail(
         normalizedEmail,
         tempPassword,
         'admin_invitation',
         null,
         'Kingdom Alliance'
-      );
+      )) !== false;
       console.log(`✅ [CreateAdmin] Invitation email sent to: ${normalizedEmail}`);
     } catch (emailErr: any) {
       console.warn(`⚠️ [CreateAdmin] Invitation email failed (non-blocking):`, emailErr.message);
@@ -655,7 +496,8 @@ router.post('/admin/create-admin', requireAdminAuth, async (req, res): Promise<a
       uid: userRecord.uid,
       email: normalizedEmail,
       tempPassword,
-      message: 'Admin account created successfully. Credentials sent via email.',
+      emailSent,
+      message: emailSent ? 'Admin account created. Credentials emailed.' : 'Admin account created, but email delivery failed. Copy the temporary password.',
     });
   } catch (error: any) {
     console.error('❌ [CreateAdmin] Failed:', error.message || error);
@@ -706,34 +548,28 @@ router.post('/admin/send-deletion-otp', requireAdminAuth, async (req, res): Prom
       return res.status(403).json({ error: 'You cannot delete your own account.' });
     }
 
-    // Generate OTP
     const otpCode = String(crypto.randomInt(100000, 1000000));
-    const email = 'admin_deletion';
-    const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000);
-
-    await db.collection('temp_otps').add({
-      email,
-      purpose: 'admin_deletion',
-      otpHash: hashOtp(email, otpCode),
-      attempts: 0,
-      maxAttempts: 5,
-      expiresAt,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      meta: { targetUid: uid, targetEmail },
+    const key = `admin_deletion:${callerUid}:${uid}`;
+    const ref = db.collection('adminDeletionRequests').doc(`${callerUid}_${uid}`);
+    const reserved = await db.runTransaction(async tx => {
+      const previous = await tx.get(ref);
+      if ((previous.data()?.createdAt?.toMillis() || 0) > Date.now() - 120000) return false;
+      tx.set(ref, { otpHash: hashOtp(key, otpCode), attempts: 0,
+        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 600000),
+        createdAt: admin.firestore.Timestamp.now() });
+      return true;
     });
-
-    // Send OTP to both system emails AND the requesting admin
+    if (!reserved) return res.status(429).json({ error: 'Wait two minutes before requesting another code.' });
     const callerEmail = (await admin.auth().getUser(callerUid)).email || '';
-    const recipients = [...new Set([...SYSTEM_ADMIN_EMAILS, callerEmail].filter(Boolean))];
-    for (const recipient of recipients) {
-      try {
-        await dispatchEmail(recipient, otpCode, 'admin_deletion_otp', otpCode, 'Kingdom Alliance');
-      } catch (err: any) {
-        console.warn(`⚠️ [DeleteAdmin] Failed to send OTP to ${recipient}:`, err.message);
-      }
+    try {
+      const sent = await dispatchEmail(callerEmail, otpCode, 'admin_deletion_otp', otpCode, 'Kingdom Alliance');
+      if (sent === false) throw new Error('Verification email was not delivered.');
+    } catch (error) {
+      await ref.delete();
+      throw error;
     }
 
-    return res.status(200).json({ success: true, message: 'Verification code sent to system administrators.' });
+    return res.status(200).json({ success: true, message: 'Verification code sent to your administrator email.' });
   } catch (error: any) {
     console.error('❌ [SendDeletionOTP] Failed:', error.message || error);
     return res.status(500).json({ error: error.message || 'Failed to send verification code.' });
@@ -742,7 +578,8 @@ router.post('/admin/send-deletion-otp', requireAdminAuth, async (req, res): Prom
 
 // ─── Admin: Delete Admin Account ─────────────────────────────────────────────
 router.post('/admin/delete-admin', requireAdminAuth, async (req, res): Promise<any> => {
-  const { uid } = req.body;
+  const { uid, otp } = req.body;
+  if (typeof otp !== 'string' || !/^\d{6}$/.test(otp)) return res.status(400).json({ error: 'Enter the six-digit verification code.' });
   if (!uid || typeof uid !== 'string') {
     return res.status(400).json({ error: 'Missing uid.' });
   }
@@ -763,7 +600,21 @@ router.post('/admin/delete-admin', requireAdminAuth, async (req, res): Promise<a
       return res.status(403).json({ error: 'You cannot delete your own account.' });
     }
 
-    await admin.auth().deleteUser(uid);
+    const ref = db.collection('adminDeletionRequests').doc(`${callerUid}_${uid}`);
+    const verified = await db.runTransaction(async tx => {
+      const record = await tx.get(ref);
+      const data = record.data();
+      if (!data || data.expiresAt.toMillis() <= Date.now() || data.attempts >= 5) return false;
+      if (data.otpHash !== hashOtp(`admin_deletion:${callerUid}:${uid}`, otp)) {
+        tx.update(ref, { attempts: data.attempts + 1 });
+        return false;
+      }
+      tx.delete(ref);
+      return true;
+    });
+    if (!verified) return res.status(400).json({ error: 'Invalid or expired code. Request a new code if needed.' });
+    try { await admin.auth().deleteUser(uid); }
+    catch (error: any) { if (error.code !== 'auth/user-not-found') throw error; }
     console.log(`✅ [DeleteAdmin] Auth user deleted: ${uid}`);
 
     await db.collection('admins').doc(uid).delete();
@@ -802,9 +653,10 @@ router.post('/admin/reset-admin-password', requireAdminAuth, async (req, res): P
     await admin.auth().updateUser(uid, { password: newPassword });
     console.log(`✅ [ResetAdminPassword] Password updated for Auth user: ${uid}`);
 
-    // 2. Send email with the new password (non-blocking)
+    // 2. Report delivery separately from password reset.
+    let emailSent = false;
     try {
-      await dispatchEmail(targetEmail, newPassword, 'admin_password_reset', null, 'Kingdom Alliance');
+      emailSent = (await dispatchEmail(targetEmail, newPassword, 'admin_password_reset', null, 'Kingdom Alliance')) !== false;
       console.log(`✅ [ResetAdminPassword] Password email sent to: ${targetEmail}`);
     } catch (emailErr: any) {
       console.warn(`⚠️ [ResetAdminPassword] Password email failed (non-blocking):`, emailErr.message);
@@ -815,7 +667,8 @@ router.post('/admin/reset-admin-password', requireAdminAuth, async (req, res): P
       uid,
       email: targetEmail,
       tempPassword: newPassword,
-      message: 'Admin password reset successfully. New password sent via email.',
+      emailSent,
+      message: emailSent ? 'Password reset. New password emailed.' : 'Password reset, but email delivery failed. Copy the temporary password.',
     });
   } catch (error: any) {
     console.error('❌ [ResetAdminPassword] Failed:', error.message || error);
@@ -844,64 +697,14 @@ export const api = onRequest(
 
 // Standalone Backwards-compatible HTTPS functions
 export const sendEmailApi = onRequest(
-  {
-    cors: true,
-    secrets: ['SMTP_USER', 'SMTP_PASS', 'SMTP_HOST', 'SMTP_PORT']
-  },
-  async (req, res): Promise<any> => {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-    const { to_email, otp_code, type, reason, senderName, captchaToken } = req.body;
-    if (!to_email || !type) {
-      return res.status(400).json({ error: 'Missing required fields: to_email, type' });
-    }
-    // reCAPTCHA + rate limit (enforced when RECAPTCHA_SECRET_KEY is configured)
-    if (!(await verifyCaptcha(captchaToken))) {
-      return res.status(403).json({ error: 'Captcha verification failed.' });
-    }
-    try {
-      await checkEmailRateLimit(to_email, `email_${type}`);
-    } catch (err: any) {
-      return res.status(429).json({ error: err.message });
-    }
-    try {
-      await dispatchEmail(to_email, otp_code, type, reason, senderName);
-      return res.status(200).json({ success: true, message: 'Email sent successfully' });
-    } catch (error: any) {
-      console.error(`❌ [API] Email failed for ${to_email}:`, error.message);
-      return res.status(500).json({ error: 'Failed to send email' });
-    }
-  }
+  { cors: true, secrets: ['SMTP_USER', 'SMTP_PASS', 'SMTP_HOST', 'SMTP_PORT'] },
+  emailHandlers.notification
 );
 
 export const verifyAdminEmail = onRequest(
-  { cors: true },
-  async (req, res): Promise<any> => {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.replace(/^Bearer\s+/, '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing verification token' });
-    }
-    try {
-      const decodedToken = await admin.auth().verifyIdToken(token);
-      if (!decodedToken.admin) {
-        return res.status(403).json({ error: 'Forbidden: Requires administrator status' });
-      }
-      const uid = decodedToken.uid;
-      await admin.auth().updateUser(uid, { emailVerified: true });
-      const db = admin.firestore();
-      await db.collection('admins').doc(uid).update({ emailVerified: true });
-      return res.status(200).json({
-        success: true,
-        message: 'Administrator email successfully verified in Auth and Firestore.'
-      });
-    } catch (error: any) {
-      console.error('❌ Error executing verifyAdminEmail:', error.message || error);
-      return res.status(500).json({ error: error.message || 'Internal server error' });
-    }
-  }
+  { cors: true, secrets: ['OTP_HASH_SALT'] },
+  verifyAdminEmailHandler
 );
+
+// The local server mounts the exact same handlers as the hosted API.
+export const adminApiApp = app;

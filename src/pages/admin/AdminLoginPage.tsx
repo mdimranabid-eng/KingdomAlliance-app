@@ -8,7 +8,7 @@ import { KingdomCrossIcon } from '../../components/KingdomCrossIcon';
 import { signInWithEmailAndPassword, getMultiFactorResolver, TotpMultiFactorGenerator, signOut, multiFactor } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { formatAuthError } from '../../lib/utils';
-import { requestOtp, verifyOtp } from '../../services/otpService';
+import { requestOtp } from '../../services/otpService';
 import { QRCodeSVG } from 'qrcode.react';
 
 const proverbs = [
@@ -91,6 +91,10 @@ export default function AdminLoginPage() {
                 if (enrolledFactors.length === 0) {
                   setStep('ENROLL_MFA');
                   await initializeMfaEnrollment(user);
+                } else if (!(idTokenResult.claims.firebase as any)?.sign_in_second_factor) {
+                  await signOut(auth);
+                  setStep('LOGIN');
+                  setError('Sign in again and complete your authenticator verification.');
                 }
               }
             }
@@ -174,7 +178,6 @@ export default function AdminLoginPage() {
     setOtpError(null);
 
     try {
-      await verifyOtp(email, otpCode, 'admin_login');
 
       const currentUser = auth.currentUser;
       if (!currentUser) {
@@ -197,7 +200,8 @@ export default function AdminLoginPage() {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`
-        }
+        },
+        body: JSON.stringify({ otp: otpCode })
       });
 
       if (!verifyRes.ok) {
@@ -247,7 +251,10 @@ export default function AdminLoginPage() {
       }
       const assertion = TotpMultiFactorGenerator.assertionForEnrollment(totpSecret, verificationCode);
       await multiFactor(auth.currentUser!).enroll(assertion, "Admin Authenticator");
-      navigate('/admin');
+      await signOut(auth);
+      setStep('LOGIN');
+      setError('Authenticator setup complete. Sign in again to verify your two-factor session.');
+      setLoading(false);
     } catch (err: any) {
       console.error("MFA enrollment failed:", err);
       setMfaEnrollError(err.message || "Invalid verification code.");
@@ -277,6 +284,7 @@ export default function AdminLoginPage() {
         return;
       }
 
+      await refreshProfile();
       navigate('/admin');
     } catch (err: any) {
       console.error("MFA Error:", err);

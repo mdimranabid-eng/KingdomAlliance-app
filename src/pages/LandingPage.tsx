@@ -5,7 +5,7 @@ import { ArrowRight, ChevronRight, Play, Shield, Users, MessageCircle, Heart, Lo
 import { useSettings } from '../lib/SettingsContext';
 import PublicNavbar from '../components/PublicNavbar';
 import ScrollDown from '../components/ScrollDown';
-import landingVideo from '../assets/landing-video.mp4';
+const landingVideo = 'https://res.cloudinary.com/dvmx7w1a8/video/upload/v1791194393/Couple_exiting_church_together_1080p_20261002224417_xts83k.mp4';
 
 const proverbs = [
   { ref: 'Proverbs 18:22', text: '"He who finds a wife finds a good thing and obtains favor from the Lord."' },
@@ -96,45 +96,6 @@ export default function LandingPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Desktop wheel interceptor — one scroll = one section, snappy
-  useEffect(() => {
-    const container = document.querySelector('.snap-container') as HTMLElement;
-    if (!container) return;
-
-    let isScrolling = false;
-    const NAV_HEIGHT = 64;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.deltaY === 0 || isScrolling) return;
-      e.preventDefault();
-
-      const sections = Array.from(container.querySelectorAll('section'));
-      if (!sections.length) return;
-
-      const scrollTop = container.scrollTop;
-      let currentIndex = 0;
-      for (let i = 0; i < sections.length; i++) {
-        if (sections[i].offsetTop <= scrollTop + 10) {
-          currentIndex = i;
-        }
-      }
-
-      const direction = e.deltaY > 0 ? 1 : -1;
-      const nextIndex = Math.max(0, Math.min(sections.length - 1, currentIndex + direction));
-
-      if (nextIndex === currentIndex) return;
-
-      isScrolling = true;
-      const targetTop = Math.max(0, sections[nextIndex].offsetTop - NAV_HEIGHT);
-      container.scrollTo({ top: targetTop, behavior: 'instant' });
-
-      setTimeout(() => { isScrolling = false; }, 500);
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
-
   const colors: Record<string, { bg: string; text: string }> = {
     terracotta: { bg: 'bg-[#F5E6DE]', text: 'text-[#C4856A]' },
     coral: { bg: 'bg-[#F8ECE6]', text: 'text-[#D4967E]' },
@@ -143,12 +104,12 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="snap-container flex flex-col h-screen overflow-y-scroll snap-y snap-mandatory" style={{ fontFamily: "'Outfit', sans-serif", background: '#faf4ea', color: '#4a3521', scrollPaddingTop: '64px' }}>
+    <div className="snap-container landing-page flex flex-col" style={{ fontFamily: "'Outfit', sans-serif", background: '#faf4ea', color: '#4a3521', scrollPaddingTop: '64px' }}>
       <PublicNavbar />
 
       <main className="flex-1">
         {/* ===== HERO ===== */}
-        <section className="relative h-screen flex items-center justify-center overflow-hidden snap-start">
+        <section className="relative landing-section flex items-center justify-center overflow-hidden snap-start">
           {/* Video Background */}
           <div className="absolute inset-0 overflow-hidden bg-[#3a2e28]">
             <video
@@ -223,7 +184,7 @@ export default function LandingPage() {
           </div>
         </section>
         {/* ===== SCRIPTURE / PROVERBS ===== */}
-        <section className="h-screen flex items-center justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #f0e2cc 0%, #faf4ea 50%, #f6ecdd 100%)' }}>
+        <section className="landing-section flex items-center justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #f0e2cc 0%, #faf4ea 50%, #f6ecdd 100%)' }}>
           <div className="max-w-[700px] mx-auto flex items-center gap-6 sm:gap-12">
             <div className="shrink-0 relative w-[80px] sm:w-[100px] h-[80px] sm:h-[100px] hidden md:flex items-center justify-center">
               <div className="absolute inset-0 rounded-full border border-[#F5E6DE] opacity-30" />
@@ -255,7 +216,7 @@ export default function LandingPage() {
           </div>
         </section>
         {/* ===== HOW IT WORKS ===== */}
-        <section className="h-screen flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)' }}>
+        <section className="landing-section flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)' }}>
           <div className="text-center max-w-[560px] mx-auto mb-8 sm:mb-14">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F5E6DE] mb-4 sm:mb-5">
               <span className="text-[11px] sm:text-[13px] font-semibold tracking-widest uppercase text-[#C4856A]">How It Works</span>
@@ -302,7 +263,7 @@ export default function LandingPage() {
           </div>
         </section>
         {/* ===== BENEFITS ===== */}
-        <section id="benefits" className="h-screen flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #f6ecdd 0%, #faf4ea 50%, #f0e2cc 100%)' }}>
+        <section id="benefits" className="landing-section flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #f6ecdd 0%, #faf4ea 50%, #f0e2cc 100%)' }}>
           <div className="text-center max-w-[560px] mx-auto mb-8 sm:mb-14">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F5E6DE] mb-4 sm:mb-5">
               <span className="text-[11px] sm:text-[13px] font-semibold tracking-widest uppercase text-[#C4856A]">Why Kingdom Alliances</span>
@@ -362,7 +323,7 @@ export default function LandingPage() {
           </div>
         </section>
         {/* ===== TESTIMONIALS ===== */}
-        <section id="stories" className="h-screen flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)' }}>
+        <section id="stories" className="landing-section flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)' }}>
           <div className="text-center max-w-[560px] mx-auto mb-8 sm:mb-14">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F5E6DE] mb-4 sm:mb-5">
               <span className="text-[11px] sm:text-[13px] font-semibold tracking-widest uppercase text-[#C4856A]">Success Stories</span>
@@ -399,7 +360,7 @@ export default function LandingPage() {
           </div>
         </section>
         {/* ===== TRUST / PRIVACY ===== */}
-        <section className="h-screen flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #f6ecdd 0%, #faf4ea 50%, #f0e2cc 100%)' }}>
+        <section className="landing-section flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #f6ecdd 0%, #faf4ea 50%, #f0e2cc 100%)' }}>
           <div className="text-center max-w-[560px] mx-auto mb-8 sm:mb-14">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F5E6DE] mb-4 sm:mb-5">
               <span className="text-[11px] sm:text-[13px] font-semibold tracking-widest uppercase text-[#C4856A]">Privacy & Safety</span>
@@ -434,7 +395,7 @@ export default function LandingPage() {
           </div>
         </section>
         {/* ===== FAQ ===== */}
-        <section className="h-screen flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)' }}>
+        <section className="landing-section flex flex-col justify-center px-5 sm:px-6 snap-start" style={{ background: 'linear-gradient(135deg, #faf4ea 0%, #f6ecdd 50%, #f0e2cc 100%)' }}>
           <div className="text-center max-w-[560px] mx-auto mb-8 sm:mb-14">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F5E6DE] mb-4 sm:mb-5">
               <span className="text-[11px] sm:text-[13px] font-semibold tracking-widest uppercase text-[#C4856A]">Common Questions</span>
@@ -473,7 +434,7 @@ export default function LandingPage() {
         </section>
 
         {/* ===== CTA ===== */}
-        <section className="h-screen flex items-center justify-center px-5 sm:px-6 snap-start relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #F5E6DE 0%, #F8ECE6 40%, #F0E8DC 80%, #F2E6E2 100%)' }}>
+        <section className="landing-section flex items-center justify-center px-5 sm:px-6 snap-start relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #F5E6DE 0%, #F8ECE6 40%, #F0E8DC 80%, #F2E6E2 100%)' }}>
           <div className="absolute w-[300px] h-[300px] rounded-full blur-[80px] opacity-30 -top-[20%] -right-[5%]" style={{ background: '#F5E6DE' }} />
           <div className="absolute w-[250px] h-[250px] rounded-full blur-[80px] opacity-30 -bottom-[15%] left-[10%]" style={{ background: '#F2E6E2' }} />
 

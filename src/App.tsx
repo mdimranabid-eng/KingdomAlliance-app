@@ -40,7 +40,6 @@ import AdminLoginPage from './pages/admin/AdminLoginPage';
 import RejectedProfilesPage from './pages/admin/RejectedProfilesPage';
 import AdminChurchInfo from './pages/admin/AdminChurchInfo';
 import AdminSettings from './pages/admin/AdminSettings';
-import AdminAnnouncements from './pages/admin/AdminAnnouncements';
 import AdminHelpCenter from './pages/admin/AdminHelpCenter';
 
 import { multiFactor } from 'firebase/auth';
@@ -116,7 +115,7 @@ export default function App() {
             <Route path="/admin/rejected" element={<RejectedProfilesPage />} />
             <Route path="/admin/church-info" element={<AdminChurchInfo />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
-            <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+            <Route path="/admin/announcements" element={<Navigate to="/admin" replace />} />
             <Route path="/admin/help" element={<AdminHelpCenter />} />
           </Route>
         </Routes>
