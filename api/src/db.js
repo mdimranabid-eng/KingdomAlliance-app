@@ -27,6 +27,7 @@ function j(v) {
 }
 function pj(s, fallback) {
   if (s === null || s === undefined) return fallback;
+  if (typeof s === 'object') return s; // mysql2 may return JSON columns pre-parsed
   try {
     return JSON.parse(s);
   } catch {
@@ -237,16 +238,28 @@ const TABLES = {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  // Generic fallback for collections without dedicated tables
+  // Generic fallback for collections without dedicated tables.
+  // `coll` stores the FULL collection path (e.g. 'interests', 'chats/{id}/messages')
+  // so nested subcollections and collection-group queries work uniformly.
   coll_store: `CREATE TABLE IF NOT EXISTS coll_store (
-    coll VARCHAR(64) NOT NULL,
+    coll VARCHAR(191) NOT NULL,
     id VARCHAR(191) NOT NULL,
     owner_uid CHAR(36) NULL,
     data JSON NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (coll, id),
-    INDEX idx_coll_owner (coll, owner_uid)
+    INDEX idx_coll_owner (coll, owner_uid),
+    INDEX idx_coll_updated (coll, updated_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  // Presence replaces Firebase RTDB status/{uid} + .info/connected.
+  presence: `CREATE TABLE IF NOT EXISTS presence (
+    uid CHAR(36) PRIMARY KEY,
+    state VARCHAR(32) DEFAULT 'offline',
+    will JSON NULL,
+    last_seen DATETIME NOT NULL,
+    last_changed DATETIME DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
   settings: `CREATE TABLE IF NOT EXISTS settings (
@@ -277,6 +290,18 @@ const EXTRA_COLUMNS = {
   users: [
     ['fcm_tokens', "JSON NULL"],
     ['ministry_role', "VARCHAR(120) DEFAULT ''"],
+    ['totp_secret', "VARCHAR(64) DEFAULT ''"],
+    ['totp_enabled', "TINYINT(1) DEFAULT 0"],
+    ['auth_provider', "VARCHAR(32) DEFAULT 'email'"],
+    ['email_verified', "TINYINT(1) DEFAULT 0"],
+    ['is_approved', "TINYINT(1) DEFAULT 0"],
+    ['deletion_status', "VARCHAR(32) DEFAULT ''"],
+    ['scheduled_deletion_at', "DATETIME NULL"],
+    ['last_active_at', "DATETIME NULL"],
+    ['last_login_at', "DATETIME NULL"],
+  ],
+  admins: [
+    ['data', "JSON NULL"],
   ],
 };
 

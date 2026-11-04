@@ -165,7 +165,7 @@ export async function uploadUserPhotos(
  */
 export async function deleteStoredPhoto(url?: string | null, thumbUrl?: string | null): Promise<boolean> {
   const isStorageUrl = (u: string) =>
-    u.includes('firebasestorage.googleapis.com') || u.includes('appspot.com');
+    u.includes('firebasestorage.googleapis.com') || u.includes('appspot.com') || u.includes('/uploads/');
 
   let deleted = false;
   for (const candidate of [url, thumbUrl]) {

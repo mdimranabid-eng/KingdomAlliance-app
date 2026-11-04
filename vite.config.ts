@@ -16,6 +16,13 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        // Firebase compatibility shim → Node/MySQL backend (see src/lib/fbc/).
+        // firebase/app + firebase/messaging stay real (FCM web push remains on Firebase).
+        'firebase/firestore': path.resolve(__dirname, 'src/lib/fbc/firestore.ts'),
+        'firebase/auth': path.resolve(__dirname, 'src/lib/fbc/auth.ts'),
+        'firebase/storage': path.resolve(__dirname, 'src/lib/fbc/storage.ts'),
+        'firebase/database': path.resolve(__dirname, 'src/lib/fbc/database.ts'),
+        'firebase/functions': path.resolve(__dirname, 'src/lib/fbc/functions.ts'),
       },
     },
     build: {
