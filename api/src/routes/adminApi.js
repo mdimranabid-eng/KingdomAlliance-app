@@ -220,16 +220,32 @@ router.post('/admin/delete-user', adminRequired, async (req, res) => {
 });
 
 // ── Photo moderation: approve / reject ────────────────────────────────────────
+function normalizeUploadPath(u) {
+  if (!u || typeof u !== 'string') return '';
+  const trimmed = u.trim();
+  if (trimmed.includes('/uploads/')) {
+    return `/uploads/${trimmed.split('/uploads/')[1]}`;
+  }
+  return trimmed;
+}
+
+function samePhotoUrl(a, b) {
+  const na = normalizeUploadPath(a);
+  const nb = normalizeUploadPath(b);
+  return Boolean(na && nb && na === nb);
+}
+
 router.post('/admin/approve-photo', adminRequired, async (req, res) => {
   const { item } = req.body || {};
   if (!item || !validId(item.uid)) return res.status(400).json({ error: 'Missing required fields.' });
   try {
     const modId = item.isSynthesized || !item.id || String(item.id).startsWith('user-sync-') ? store.uuid() : item.id;
     const targetType = item.photoType || 'profilePhoto';
+    const normalizedItemUrl = normalizeUploadPath(item.pendingPhotoUrl || item.photoURL || item.photoUrl || '');
     await store.writeDoc('photoModeration', modId, {
       uid: item.uid,
       userName: item.userName || '',
-      photoURL: item.photoURL || '',
+      photoURL: normalizedItemUrl || item.photoURL || '',
       photoType: targetType,
       galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
       photoStatus: 'approved',
@@ -247,7 +263,8 @@ router.post('/admin/approve-photo', adminRequired, async (req, res) => {
       if (m.id === modId) continue;
       const mUid = m.data.uid || m.data.userId;
       const mType = m.data.photoType || 'profilePhoto';
-      if (mUid === item.uid && mType === targetType && (targetType === 'profilePhoto' || m.data.photoURL === item.photoURL)) {
+      const mUrl = m.data.photoURL || m.data.photoUrl || m.data.pendingPhotoUrl || '';
+      if (mUid === item.uid && mType === targetType && (targetType === 'profilePhoto' || samePhotoUrl(mUrl, normalizedItemUrl))) {
         await store.writeDoc('photoModeration', m.id, {
           photoStatus: 'approved',
           status: 'approved',
@@ -260,20 +277,21 @@ router.post('/admin/approve-photo', adminRequired, async (req, res) => {
     const userDoc = await store.getDoc('users', item.uid);
     if (userDoc && userDoc.data) {
       const userData = userDoc.data;
-      const targetPhoto = item.pendingPhotoUrl || item.photoURL;
+      const targetPhoto = normalizedItemUrl || item.pendingPhotoUrl || item.photoURL;
       const note = {
         id: crypto.randomUUID(),
-        title: item.photoType === 'profilePhoto' ? 'Photo Approved' : 'Gallery Photo Approved',
-        message: item.photoType === 'profilePhoto' ? 'Your profile photo has been approved.' : 'Your gallery photo has been approved.',
+        title: targetType === 'profilePhoto' ? 'Photo Approved' : 'Gallery Photo Approved',
+        message: targetType === 'profilePhoto' ? 'Your profile photo has been approved.' : 'Your gallery photo has been approved.',
         type: 'success',
         read: false,
         createdAt: new Date().toISOString(),
       };
-      if (item.photoType === 'profilePhoto' || !item.photoType) {
+      if (targetType === 'profilePhoto') {
+        const resolvedThumb = normalizeUploadPath(item.thumbUrl || item.pendingThumbUrl || userData.pendingPhotoThumbUrl || userData.thumbUrl || '') || targetPhoto;
         await store.writeDoc('users', item.uid, {
           photoUrl: targetPhoto,
           photoURL: targetPhoto,
-          thumbUrl: item.thumbUrl || item.pendingThumbUrl || userData.thumbUrl || '',
+          thumbUrl: resolvedThumb,
           pendingPhotoUrl: '',
           pendingPhotoThumbUrl: '',
           photoStatus: 'approved',
@@ -282,7 +300,31 @@ router.post('/admin/approve-photo', adminRequired, async (req, res) => {
         }, { merge: true });
       } else {
         const gallery = Array.isArray(userData.gallery) ? userData.gallery : [];
-        const updatedGallery = gallery.map((p) => (p.url === item.photoURL ? { ...p, status: 'approved' } : p));
+        let matched = false;
+        const updatedGallery = gallery.map((p, idx) => {
+          if (samePhotoUrl(p.url, targetPhoto) || (item.galleryPosition && idx === item.galleryPosition - 1 && p.status === 'pending')) {
+            matched = true;
+            return {
+              ...p,
+              url: normalizeUploadPath(p.url) || p.url,
+              thumbUrl: normalizeUploadPath(p.thumbUrl) || p.thumbUrl,
+              status: 'approved',
+            };
+          }
+          return p;
+        });
+        if (!matched && updatedGallery.filter((p) => p && p.status === 'pending').length === 1) {
+          for (let i = 0; i < updatedGallery.length; i++) {
+            if (updatedGallery[i] && updatedGallery[i].status === 'pending') {
+              updatedGallery[i] = {
+                ...updatedGallery[i],
+                url: normalizeUploadPath(updatedGallery[i].url) || updatedGallery[i].url,
+                thumbUrl: normalizeUploadPath(updatedGallery[i].thumbUrl) || updatedGallery[i].thumbUrl,
+                status: 'approved',
+              };
+            }
+          }
+        }
         await store.writeDoc('users', item.uid, {
           gallery: updatedGallery,
           updatedAt: { __st: 1 },
@@ -303,10 +345,11 @@ router.post('/admin/reject-photo', adminRequired, async (req, res) => {
   try {
     const modId = item.isSynthesized || !item.id || String(item.id).startsWith('user-sync-') ? store.uuid() : item.id;
     const targetType = item.photoType || 'profilePhoto';
+    const normalizedItemUrl = normalizeUploadPath(item.pendingPhotoUrl || item.photoURL || item.photoUrl || '');
     await store.writeDoc('photoModeration', modId, {
       uid: item.uid,
       userName: item.userName || '',
-      photoURL: item.photoURL || '',
+      photoURL: normalizedItemUrl || item.photoURL || '',
       photoType: targetType,
       galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
       photoStatus: 'rejected',
@@ -325,7 +368,8 @@ router.post('/admin/reject-photo', adminRequired, async (req, res) => {
       if (m.id === modId) continue;
       const mUid = m.data.uid || m.data.userId;
       const mType = m.data.photoType || 'profilePhoto';
-      if (mUid === item.uid && mType === targetType && (targetType === 'profilePhoto' || m.data.photoURL === item.photoURL)) {
+      const mUrl = m.data.photoURL || m.data.photoUrl || m.data.pendingPhotoUrl || '';
+      if (mUid === item.uid && mType === targetType && (targetType === 'profilePhoto' || samePhotoUrl(mUrl, normalizedItemUrl))) {
         await store.writeDoc('photoModeration', m.id, {
           photoStatus: 'rejected',
           status: 'rejected',
@@ -339,28 +383,43 @@ router.post('/admin/reject-photo', adminRequired, async (req, res) => {
     const userDoc = await store.getDoc('users', item.uid);
     if (userDoc && userDoc.data) {
       const userData = userDoc.data;
+      const targetPhoto = normalizedItemUrl || item.pendingPhotoUrl || item.photoURL;
       const note = {
         id: crypto.randomUUID(),
-        title: item.photoType === 'profilePhoto' ? 'Profile Photo Rejected' : 'Gallery Photo Rejected',
-        message: item.photoType === 'profilePhoto'
+        title: targetType === 'profilePhoto' ? 'Profile Photo Rejected' : 'Gallery Photo Rejected',
+        message: targetType === 'profilePhoto'
           ? `Your profile photo was not approved: ${reason}. Please upload a new one.`
           : `Your gallery photo was not approved: ${reason}.`,
         type: 'alert',
         read: false,
         createdAt: new Date().toISOString(),
       };
-      if (item.photoType === 'profilePhoto' || !item.photoType) {
+      if (targetType === 'profilePhoto') {
         await store.writeDoc('users', item.uid, {
           photoStatus: 'rejected',
           pendingPhotoUrl: '',
-          rejectedPhotoUrl: item.photoURL,
+          rejectedPhotoUrl: targetPhoto,
           rejectedPhotoReason: reason,
           updatedAt: { __st: 1 },
           notifications: { __au: [note] },
         }, { merge: true });
       } else {
         const gallery = Array.isArray(userData.gallery) ? userData.gallery : [];
-        const updatedGallery = gallery.map((p) => (p.url === item.photoURL ? { ...p, status: 'rejected', rejectionReason: reason } : p));
+        let matched = false;
+        const updatedGallery = gallery.map((p, idx) => {
+          if (samePhotoUrl(p.url, targetPhoto) || (item.galleryPosition && idx === item.galleryPosition - 1 && p.status === 'pending')) {
+            matched = true;
+            return { ...p, status: 'rejected', rejectionReason: reason };
+          }
+          return p;
+        });
+        if (!matched && updatedGallery.filter((p) => p && p.status === 'pending').length === 1) {
+          for (let i = 0; i < updatedGallery.length; i++) {
+            if (updatedGallery[i] && updatedGallery[i].status === 'pending') {
+              updatedGallery[i] = { ...updatedGallery[i], status: 'rejected', rejectionReason: reason };
+            }
+          }
+        }
         await store.writeDoc('users', item.uid, {
           gallery: updatedGallery,
           updatedAt: { __st: 1 },

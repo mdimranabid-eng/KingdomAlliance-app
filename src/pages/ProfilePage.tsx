@@ -49,6 +49,8 @@ import {
   ChevronRight,
   X,
   Maximize2,
+  ZoomIn,
+  ZoomOut,
   HeartHandshake,
   Quote,
   Share2,
@@ -153,22 +155,99 @@ const [showEditModal, setShowEditModal] = useState(false);
   };
   const reduceMotion = useReducedMotion();
   const [recommendedMatches, setRecommendedMatches] = useState<any[]>([]);
-  const [lightbox, setLightbox] = useState<{ open: boolean, index: number, images: string[] }>({ open: false, index: 0, images: [] });
+  const [lightbox, setLightbox] = useState<{ open: boolean; index: number; images: string[]; labels: string[] }>({
+    open: false,
+    index: 0,
+    images: [],
+    labels: []
+  });
+  const [lightboxZoomed, setLightboxZoomed] = useState(false);
   const [stats, setStats] = useState({ views: 0, interests: 0, shortlistedBy: 0, unread: 0, connections: 0 });
 
-  const getSecureImageUrl = (url: string, isWatermark: boolean = false) => {
-    if (!url) return '';
-    return url;
+  const getSecureImageUrl = (url: string, _isWatermark: boolean = false) => {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (trimmed.includes('/uploads/')) {
+      return `/uploads/${trimmed.split('/uploads/')[1]}`;
+    }
+    return trimmed;
   };
 
-  const openLightbox = (index: number, images: string[]) => {
-    const validImages = images.filter(Boolean);
+  const openLightbox = (targetUrlOrIndex: string | number, images: string[], labels?: string[]) => {
+    const entries: { url: string; label: string }[] = [];
+    images.forEach((img, idx) => {
+      const clean = getSecureImageUrl(img, true);
+      if (clean && !entries.some((e) => e.url === clean)) {
+        entries.push({ url: clean, label: labels?.[idx] || `Photo ${entries.length + 1}` });
+      }
+    });
+    if (entries.length === 0) return;
+
+    let resolvedIndex = 0;
+    if (typeof targetUrlOrIndex === 'string' && targetUrlOrIndex) {
+      const cleanTarget = getSecureImageUrl(targetUrlOrIndex, true);
+      const found = entries.findIndex((e) => e.url === cleanTarget);
+      if (found >= 0) resolvedIndex = found;
+    } else if (typeof targetUrlOrIndex === 'number') {
+      resolvedIndex = Math.max(0, Math.min(targetUrlOrIndex, entries.length - 1));
+    }
+
+    setLightboxZoomed(false);
     setLightbox({
       open: true,
-      index: Math.min(index, validImages.length - 1),
-      images: validImages.map(img => getSecureImageUrl(img, true))
+      index: resolvedIndex,
+      images: entries.map((e) => e.url),
+      labels: entries.map((e) => e.label)
     });
   };
+
+  useEffect(() => {
+    if (!lightbox.open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLightbox((prev) => ({ ...prev, open: false }));
+        setLightboxZoomed(false);
+      } else if (e.key === 'ArrowLeft' && lightbox.images.length > 1) {
+        setLightboxZoomed(false);
+        setLightbox((prev) => ({
+          ...prev,
+          index: (prev.index - 1 + prev.images.length) % prev.images.length
+        }));
+      } else if (e.key === 'ArrowRight' && lightbox.images.length > 1) {
+        setLightboxZoomed(false);
+        setLightbox((prev) => ({
+          ...prev,
+          index: (prev.index + 1) % prev.images.length
+        }));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [lightbox.open, lightbox.images.length]);
+
+  useEffect(() => {
+    if (!id) return;
+    const unsubProfile = onSnapshot(
+      doc(db, 'users', id),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const age = calculateAge(data.dob, data.age);
+          setProfile({ id: docSnap.id, ...data, age });
+          setLoading(false);
+        }
+      },
+      (err) => {
+        console.warn('Live profile listener warning:', err);
+      }
+    );
+    return () => unsubProfile();
+  }, [id]);
 
   useEffect(() => {
     async function fetchProfileData() {
@@ -974,9 +1053,12 @@ const [showEditModal, setShowEditModal] = useState(false);
                   <div
                     className="w-[86px] h-[86px] rounded-[20px] border-[3px] border-white shadow-2xl overflow-hidden cursor-pointer relative z-10 ring-1 ring-slate-100 sm:w-32 sm:h-32 sm:rounded-[24px] sm:border-[4px] md:w-44 md:h-44 md:rounded-[28px] md:border-[5px]"
                     onClick={() => {
-                      const mainPhoto = profile.photoUrl || profile.pendingPhotoUrl;
-                      const gallery = (profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile);
-                      openLightbox(0, [mainPhoto, ...gallery.map((p: any) => p.url)]);
+                      if (!canViewPhotos || isDeclinedPrivacy) return;
+                      const mainPhoto = profile.photoUrl || (isOwnProfile ? profile.pendingPhotoUrl : '');
+                      const gallery = (profile.gallery || []).filter((p: any) => (p.status === 'approved' || isOwnProfile || isAdmin) && p.status !== 'rejected');
+                      const allUrls = [...(mainPhoto ? [mainPhoto] : []), ...gallery.map((p: any) => p.url)];
+                      const allLabels = [...(mainPhoto ? ['Profile Photo'] : []), ...gallery.map((_: any, i: number) => `Gallery Photo ${i + 1}`)];
+                      openLightbox(mainPhoto || allUrls[0] || '', allUrls, allLabels);
                     }}
                   >
                     <PhotoProtector>
@@ -1497,65 +1579,94 @@ const [showEditModal, setShowEditModal] = useState(false);
                   >
 
                     <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
-                      {(profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile).map((photo: any, index: number) => (
-                        <div key={photo.id} className="relative group aspect-[4/5] rounded-[16px] overflow-hidden border border-[#f0ead9] shadow-[0_10px_24px_-18px_rgba(74,53,33,0.4)]">
-                          <PhotoProtector showWatermark>
-                            <img
-                              src={canViewPhotos ? getSecureImageUrl(photo.url) : `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}-gallery-${index}`}
-                              alt="Gallery"
-                              className={`w-full h-full object-cover cursor-pointer transition-transform duration-500 group-hover:scale-110 ${
-                                (!canViewPhotos || photo.status === 'rejected' || isDeclinedPrivacy) ? 'blur-md scale-95 pointer-events-none' : ''
-                              }`}
-                              onClick={() => {
-                                if (!canViewPhotos || photo.status === 'rejected' || isDeclinedPrivacy) return;
-                                const mainPhoto = profile.photoUrl || profile.pendingPhotoUrl;
-                                const gallery = (profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile);
-                                openLightbox(index + 1, [mainPhoto, ...gallery.map((p: any) => p.url)]);
-                              }}
-                            />
-                          </PhotoProtector>
-                          {!canViewPhotos && photo.status !== 'pending' && photo.status !== 'rejected' && !isDeclinedPrivacy && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px] z-20">
-                              <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-1.5 border border-white/30">
-                                <Lock className="w-4 h-4 text-white" />
+                      {(profile.gallery || []).filter((p: any) => p.status === 'approved' || isOwnProfile || isAdmin).map((photo: any, index: number) => {
+                        const canExpand = canViewPhotos && photo.status !== 'rejected' && !isDeclinedPrivacy;
+                        return (
+                          <div
+                            key={photo.id || index}
+                            onClick={() => {
+                              if (!canExpand) return;
+                              const mainPhoto = profile.photoUrl || (isOwnProfile ? profile.pendingPhotoUrl : '');
+                              const gallery = (profile.gallery || []).filter((p: any) => (p.status === 'approved' || isOwnProfile || isAdmin) && p.status !== 'rejected');
+                              const allUrls = [...(mainPhoto ? [mainPhoto] : []), ...gallery.map((p: any) => p.url)];
+                              const allLabels = [...(mainPhoto ? ['Profile Photo'] : []), ...gallery.map((_: any, i: number) => `Gallery Photo ${i + 1}`)];
+                              openLightbox(photo.url, allUrls, allLabels);
+                            }}
+                            role={canExpand ? 'button' : undefined}
+                            tabIndex={canExpand ? 0 : undefined}
+                            onKeyDown={(e) => {
+                              if (canExpand && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault();
+                                const mainPhoto = profile.photoUrl || (isOwnProfile ? profile.pendingPhotoUrl : '');
+                                const gallery = (profile.gallery || []).filter((p: any) => (p.status === 'approved' || isOwnProfile || isAdmin) && p.status !== 'rejected');
+                                const allUrls = [...(mainPhoto ? [mainPhoto] : []), ...gallery.map((p: any) => p.url)];
+                                const allLabels = [...(mainPhoto ? ['Profile Photo'] : []), ...gallery.map((_: any, i: number) => `Gallery Photo ${i + 1}`)];
+                                openLightbox(photo.url, allUrls, allLabels);
+                              }
+                            }}
+                            className={cn(
+                              'relative group aspect-[4/5] rounded-[16px] overflow-hidden border border-[#f0ead9] shadow-[0_10px_24px_-18px_rgba(74,53,33,0.4)] transition-all duration-300',
+                              canExpand && 'cursor-pointer hover:border-[#C9A84C] hover:shadow-[0_18px_36px_-16px_rgba(74,53,33,0.45)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]'
+                            )}
+                          >
+                            <PhotoProtector showWatermark>
+                              <img
+                                src={canViewPhotos ? getSecureImageUrl(photo.url) : `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}-gallery-${index}`}
+                                alt={`Gallery photo ${index + 1}`}
+                                className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+                                  (!canViewPhotos || photo.status === 'rejected' || isDeclinedPrivacy) ? 'blur-md scale-95 pointer-events-none' : ''
+                                }`}
+                              />
+                            </PhotoProtector>
+                            {canExpand && (
+                              <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-start bg-gradient-to-t from-black/60 via-black/5 to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[10.5px] font-bold text-[#4a3521] shadow-md backdrop-blur-md">
+                                  <Maximize2 className="w-3 h-3 text-[#b8860b]" /> Expand photo
+                                </span>
                               </div>
-                              <p className="text-white text-[9px] font-semibold text-center leading-tight px-3">
-                                Connect to<br />view photo
-                              </p>
-                            </div>
-                          )}
-                          {photo.status === 'pending' && (
-                            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 text-center">
-                              <div className="flex flex-col items-center gap-2">
-                                <Clock className="w-6 h-6 text-white animate-pulse" />
-                                <span className="text-white text-xs font-semibold">Moderating</span>
-                              </div>
-                            </div>
-                          )}
-                          {photo.status === 'rejected' && (
-                            <div className="absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-10">
-                              <div className="flex flex-col items-center gap-1.5 max-w-full">
-                                <XCircle className="w-7 h-7 text-red-500" />
-                                <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">Photo Rejected</span>
-                                <p className="text-white text-[11px] font-medium leading-tight px-1 break-words max-h-16 overflow-y-auto">
-                                  Reason: {photo.rejectionReason || "Does not meet guidelines"}
+                            )}
+                            {!canViewPhotos && photo.status !== 'pending' && photo.status !== 'rejected' && !isDeclinedPrivacy && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px] z-20">
+                                <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-1.5 border border-white/30">
+                                  <Lock className="w-4 h-4 text-white" />
+                                </div>
+                                <p className="text-white text-[9px] font-semibold text-center leading-tight px-3">
+                                  Connect to<br />view photo
                                 </p>
                               </div>
-                            </div>
-                          )}
-                          {isOwnProfile && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeletePhoto(photo.id);
-                              }}
-                              className="absolute top-3 right-3 p-2.5 bg-error hover:bg-error/90 text-white rounded-xl transition-all shadow-lg z-30"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                            )}
+                            {photo.status === 'pending' && (
+                              <div className="pointer-events-none absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-950/80 px-2.5 py-1 text-[10px] font-bold text-amber-100 shadow-md backdrop-blur-md">
+                                <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
+                                <span>Pending Review</span>
+                              </div>
+                            )}
+                            {photo.status === 'rejected' && (
+                              <div className="absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-10">
+                                <div className="flex flex-col items-center gap-1.5 max-w-full">
+                                  <XCircle className="w-7 h-7 text-red-500" />
+                                  <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">Photo Rejected</span>
+                                  <p className="text-white text-[11px] font-medium leading-tight px-1 break-words max-h-16 overflow-y-auto">
+                                    Reason: {photo.rejectionReason || "Does not meet guidelines"}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            {isOwnProfile && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeletePhoto(photo.id);
+                                }}
+                                title="Delete photo"
+                                className="absolute top-3 right-3 p-2.5 bg-error hover:bg-error/90 text-white rounded-xl transition-all shadow-lg z-30"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                       {(!profile.gallery || profile.gallery.length === 0) && (
                         <div className="col-span-full rounded-[14px] border border-dashed border-[#e5dcc9] bg-[#fdfaf4] py-10 text-center sm:rounded-[16px] sm:py-14">
                           <ImageIcon className="mx-auto w-10 h-10 text-[#d8cbb4]" />
@@ -1699,54 +1810,148 @@ const [showEditModal, setShowEditModal] = useState(false);
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col"
+            transition={{ duration: 0.22 }}
+            onClick={() => {
+              setLightbox({ ...lightbox, open: false });
+              setLightboxZoomed(false);
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Photo viewer"
+            className="fixed inset-0 z-[100] bg-[#0d0a07]/95 backdrop-blur-2xl flex flex-col select-none"
           >
-            <div className="flex justify-between items-center p-6">
-              <span className="text-white font-bold text-lg">{lightbox.index + 1} / {lightbox.images.length}</span>
-              <div className="flex gap-4">
-                <button onClick={() => { }} className="p-3 text-white hover:bg-white/10 rounded-full transition-colors"><Share2 className="w-6 h-6" /></button>
-                <button onClick={() => setLightbox({ ...lightbox, open: false })} className="p-3 text-white hover:bg-white/10 rounded-full transition-colors"><X className="w-8 h-8" /></button>
+            {/* Top Bar */}
+            <div
+              className="flex justify-between items-center px-4 sm:px-8 py-4 sm:py-5 border-b border-white/10 bg-black/30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[#dfc88a] font-bold text-xs tracking-wider">
+                  {lightbox.index + 1} / {lightbox.images.length}
+                </span>
+                <div className="flex flex-col">
+                  <span className="text-white font-semibold text-sm sm:text-base leading-tight">
+                    {fullName || defaultName}
+                  </span>
+                  <span className="text-white/60 text-xs">
+                    {lightbox.labels?.[lightbox.index] || `Photo ${lightbox.index + 1}`}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => setLightboxZoomed((z) => !z)}
+                  title={lightboxZoomed ? 'Zoom out' : 'Zoom in'}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-semibold transition-colors"
+                >
+                  {lightboxZoomed ? <ZoomOut className="w-4 h-4" /> : <ZoomIn className="w-4 h-4" />}
+                  <span className="hidden sm:inline">{lightboxZoomed ? 'Reset Zoom' : 'Zoom In'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLightbox({ ...lightbox, open: false });
+                    setLightboxZoomed(false);
+                  }}
+                  title="Close (Esc)"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/25 border border-white/20 text-white text-xs font-bold transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                  <span className="hidden sm:inline">Close</span>
+                </button>
               </div>
             </div>
 
-            <div className="flex-1 flex items-center justify-center relative px-4">
-              <button
-                onClick={() => setLightbox({ ...lightbox, index: (lightbox.index - 1 + lightbox.images.length) % lightbox.images.length })}
-                className="absolute left-4 p-4 text-white hover:bg-white/10 rounded-full transition-all z-20"
-              >
-                <ChevronLeft className="w-10 h-10" />
-              </button>
-
-              <motion.img
-                key={lightbox.index}
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                src={lightbox.images[lightbox.index]}
-                className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl"
-              />
-
-              <button
-                onClick={() => setLightbox({ ...lightbox, index: (lightbox.index + 1) % lightbox.images.length })}
-                className="absolute right-4 p-4 text-white hover:bg-white/10 rounded-full transition-all z-20"
-              >
-                <ChevronRight className="w-10 h-10" />
-              </button>
-            </div>
-
-            <div className="p-8 flex gap-3 overflow-x-auto justify-center no-scrollbar">
-              {lightbox.images.map((img, i) => (
+            {/* Main Image Stage */}
+            <div className="flex-1 flex items-center justify-center relative px-4 sm:px-16 py-6 overflow-auto">
+              {lightbox.images.length > 1 && (
                 <button
-                  key={i}
-                  onClick={() => setLightbox({ ...lightbox, index: i })}
-                  className={cn(
-                    "w-20 h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0",
-                    i === lightbox.index ? "border-primary scale-110 shadow-lg shadow-primary/30" : "border-transparent opacity-40 hover:opacity-100"
-                  )}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxZoomed(false);
+                    setLightbox({
+                      ...lightbox,
+                      index: (lightbox.index - 1 + lightbox.images.length) % lightbox.images.length
+                    });
+                  }}
+                  aria-label="Previous photo"
+                  className="absolute left-3 sm:left-6 p-3 sm:p-4 text-white bg-black/50 hover:bg-black/80 border border-white/15 rounded-full transition-all z-20 shadow-xl"
                 >
-                  <img src={img} className="w-full h-full object-cover" />
+                  <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
                 </button>
-              ))}
+              )}
+
+              <motion.div
+                key={lightbox.index}
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: lightboxZoomed ? 1.65 : 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxZoomed((z) => !z);
+                }}
+                className={cn(
+                  'relative rounded-2xl overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.85)] ring-1 ring-white/15 transition-cursor',
+                  lightboxZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
+                )}
+              >
+                <PhotoProtector showWatermark>
+                  <img
+                    src={lightbox.images[lightbox.index]}
+                    alt={lightbox.labels?.[lightbox.index] || 'Expanded photo'}
+                    className="max-w-[90vw] max-h-[76vh] w-auto h-auto object-contain block"
+                  />
+                </PhotoProtector>
+              </motion.div>
+
+              {lightbox.images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxZoomed(false);
+                    setLightbox({
+                      ...lightbox,
+                      index: (lightbox.index + 1) % lightbox.images.length
+                    });
+                  }}
+                  aria-label="Next photo"
+                  className="absolute right-3 sm:right-6 p-3 sm:p-4 text-white bg-black/50 hover:bg-black/80 border border-white/15 rounded-full transition-all z-20 shadow-xl"
+                >
+                  <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                </button>
+              )}
             </div>
+
+            {/* Bottom Thumbnail Filmstrip */}
+            {lightbox.images.length > 1 && (
+              <div
+                className="px-6 py-4 border-t border-white/10 bg-black/40 flex gap-3 overflow-x-auto justify-center no-scrollbar"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {lightbox.images.map((img, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setLightboxZoomed(false);
+                      setLightbox({ ...lightbox, index: i });
+                    }}
+                    className={cn(
+                      'w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0',
+                      i === lightbox.index
+                        ? 'border-[#C9A84C] scale-105 shadow-lg shadow-[#C9A84C]/30 opacity-100'
+                        : 'border-white/10 opacity-45 hover:opacity-90'
+                    )}
+                  >
+                    <img src={img} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

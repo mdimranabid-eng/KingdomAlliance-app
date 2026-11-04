@@ -72,7 +72,7 @@ const upload = multer({
   },
 });
 
-const publicUrl = (rel) => `${process.env.PUBLIC_BASE_URL || ''}/uploads/${String(rel).replace(/\\/g, '/')}`;
+const publicUrl = (rel) => `/uploads/${String(rel).replace(/\\/g, '/')}`;
 
 router.post('/storage/upload', authRequired, upload.single('file'), async (req, res) => {
   try {
@@ -278,6 +278,44 @@ async function reconcileUploads(pool) {
           photoStatus: d.photoUrl ? 'approved' : 'idle',
         }, { merge: true });
         console.log(`[uploads] cleared orphaned pendingPhotoUrl for user ${r.id}`);
+      }
+
+      // Reconcile gallery photos whose moderation record was already approved (or has no pending moderation record while file exists on disk)
+      if (Array.isArray(d.gallery) && d.gallery.length > 0) {
+        let galleryChanged = false;
+        const nextGallery = d.gallery.map((g) => {
+          if (!g || g.status === 'approved') return g;
+          const relG = urlToRelPath(g.url || '');
+          const isApprovedInMod = modRows.some((mr) => {
+            let md = {};
+            try { md = typeof mr.data === 'object' ? mr.data : JSON.parse(mr.data || '{}'); } catch {}
+            return (md.uid === r.id || md.userId === r.id) &&
+              (md.photoStatus === 'approved' || md.status === 'approved') &&
+              urlToRelPath(md.photoURL || md.photoUrl || '') === relG;
+          });
+          const hasPendingMod = modRows.some((mr) => {
+            let md = {};
+            try { md = typeof mr.data === 'object' ? mr.data : JSON.parse(mr.data || '{}'); } catch {}
+            return (md.uid === r.id || md.userId === r.id) &&
+              md.photoStatus === 'pending' &&
+              urlToRelPath(md.photoURL || md.photoUrl || '') === relG;
+          });
+          if (isApprovedInMod || (g.status === 'pending' && !hasPendingMod && relG && fileExistsInRoot(relG))) {
+            galleryChanged = true;
+            return {
+              ...g,
+              url: relG ? `/uploads/${relG}` : g.url,
+              thumbUrl: urlToRelPath(g.thumbUrl || '') ? `/uploads/${urlToRelPath(g.thumbUrl || '')}` : g.thumbUrl,
+              status: 'approved',
+            };
+          }
+          return g;
+        });
+        if (galleryChanged) {
+          const store = require('../store');
+          await store.writeDoc('users', r.id, { gallery: nextGallery }, { merge: true });
+          console.log(`[uploads] reconciled approved gallery photo status for user ${r.id}`);
+        }
       }
     }
   } catch (e) {
