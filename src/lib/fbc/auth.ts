@@ -6,7 +6,7 @@ import {
   signInWithPopup as realSignInWithPopup,
 } from '@firebase/auth';
 import {
-  request, setTokens, loadTokens, getAccessToken, getRefreshToken,
+  request, setTokens, loadTokens, getAccessToken, getRefreshToken, ensureFreshAccessToken,
   setPersistenceMode, onAuthEvent, emitAuthEvent,
 } from './api';
 
@@ -41,10 +41,11 @@ export class User {
   }
 
   async getIdToken(_force?: boolean): Promise<string> {
+    const token = await ensureFreshAccessToken(!!_force);
     if (_force) {
       try { await this.reload(); } catch { /* ignore */ }
     }
-    return getAccessToken() || '';
+    return token || getAccessToken() || '';
   }
 
   async getIdTokenResult(): Promise<any> {

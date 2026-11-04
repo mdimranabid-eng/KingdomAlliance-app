@@ -225,6 +225,11 @@ export default function AdminPhotos() {
       }
 
       console.log("Photo approved successfully via backend.");
+      setItems(prev => {
+        const next = prev.filter(i => i.id !== item.id && !(i.uid === item.uid && i.photoType === item.photoType));
+        setStats(s => ({ ...s, pending: next.length, approvedToday: s.approvedToday + 1 }));
+        return next;
+      });
     } catch (err) {
       console.error("Error approving photo:", err);
       alert(err instanceof Error ? err.message : "Error approving photo");
@@ -258,6 +263,11 @@ export default function AdminPhotos() {
       }
 
       console.log("Photo rejected successfully via backend.");
+      setItems(prev => {
+        const next = prev.filter(i => i.id !== item.id && !(i.uid === item.uid && i.photoType === item.photoType));
+        setStats(s => ({ ...s, pending: next.length, rejectedToday: s.rejectedToday + 1 }));
+        return next;
+      });
       
       // Close rejection dialog
       setRejectionStates(prev => ({

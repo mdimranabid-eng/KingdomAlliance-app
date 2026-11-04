@@ -250,6 +250,36 @@ async function reconcileUploads(pool) {
     if (purgedHashes > 0) {
       console.log(`[uploads] purged ${purgedHashes} stale uploadedImages hash cache entries`);
     }
+
+    // Clean up any orphaned photoModeration records or user pendingPhotoUrl references whose local /uploads/ file is missing on disk
+    const [modRows] = await pool.query("SELECT id, data FROM coll_store WHERE coll = 'photoModeration'");
+    for (const r of modRows) {
+      let d = {};
+      try { d = typeof r.data === 'object' ? r.data : JSON.parse(r.data || '{}'); } catch {}
+      const url = d.photoURL || d.photoUrl || d.pendingPhotoUrl || '';
+      const rel = urlToRelPath(url);
+      if (d.photoStatus === 'pending' && (!rel || !fileExistsInRoot(rel))) {
+        await pool.query("DELETE FROM coll_store WHERE coll = 'photoModeration' AND id = ?", [r.id]);
+        console.log(`[uploads] removed orphaned pending photoModeration record ${r.id} (missing file on disk)`);
+      }
+    }
+
+    const [userRows] = await pool.query("SELECT id, data FROM users WHERE role != 'admin'");
+    for (const r of userRows) {
+      let d = {};
+      try { d = typeof r.data === 'object' ? r.data : JSON.parse(r.data || '{}'); } catch {}
+      const pending = d.pendingPhotoUrl || '';
+      const relPending = urlToRelPath(pending);
+      if (d.photoStatus === 'pending' && (!relPending || !fileExistsInRoot(relPending))) {
+        const store = require('../store');
+        await store.writeDoc('users', r.id, {
+          pendingPhotoUrl: '',
+          pendingPhotoThumbUrl: '',
+          photoStatus: d.photoUrl ? 'approved' : 'idle',
+        }, { merge: true });
+        console.log(`[uploads] cleared orphaned pendingPhotoUrl for user ${r.id}`);
+      }
+    }
   } catch (e) {
     console.error('[uploads] reconcile error:', e.message);
   }

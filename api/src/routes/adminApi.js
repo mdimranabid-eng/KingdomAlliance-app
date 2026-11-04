@@ -224,12 +224,13 @@ router.post('/admin/approve-photo', adminRequired, async (req, res) => {
   const { item } = req.body || {};
   if (!item || !validId(item.uid)) return res.status(400).json({ error: 'Missing required fields.' });
   try {
-    const modId = item.isSynthesized || !item.id ? store.uuid() : item.id;
+    const modId = item.isSynthesized || !item.id || String(item.id).startsWith('user-sync-') ? store.uuid() : item.id;
+    const targetType = item.photoType || 'profilePhoto';
     await store.writeDoc('photoModeration', modId, {
       uid: item.uid,
       userName: item.userName || '',
       photoURL: item.photoURL || '',
-      photoType: item.photoType || 'profilePhoto',
+      photoType: targetType,
       galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
       photoStatus: 'approved',
       status: 'approved',
@@ -237,6 +238,24 @@ router.post('/admin/approve-photo', adminRequired, async (req, res) => {
       reviewedAt: { __st: 1 },
       reviewedBy: req.uid || 'system',
     }, { merge: true });
+
+    // Also mark any duplicate/matching pending photoModeration docs for this user & photoType as approved
+    const existingMods = await store.queryDocs('photoModeration', {
+      wheres: [{ field: 'photoStatus', op: '==', value: 'pending' }],
+    });
+    for (const m of existingMods) {
+      if (m.id === modId) continue;
+      const mUid = m.data.uid || m.data.userId;
+      const mType = m.data.photoType || 'profilePhoto';
+      if (mUid === item.uid && mType === targetType && (targetType === 'profilePhoto' || m.data.photoURL === item.photoURL)) {
+        await store.writeDoc('photoModeration', m.id, {
+          photoStatus: 'approved',
+          status: 'approved',
+          reviewedAt: { __st: 1 },
+          reviewedBy: req.uid || 'system',
+        }, { merge: true });
+      }
+    }
 
     const userDoc = await store.getDoc('users', item.uid);
     if (userDoc && userDoc.data) {
@@ -282,12 +301,13 @@ router.post('/admin/reject-photo', adminRequired, async (req, res) => {
   const { item, reason } = req.body || {};
   if (!item || !validId(item.uid) || !reason) return res.status(400).json({ error: 'Missing required fields.' });
   try {
-    const modId = item.isSynthesized || !item.id ? store.uuid() : item.id;
+    const modId = item.isSynthesized || !item.id || String(item.id).startsWith('user-sync-') ? store.uuid() : item.id;
+    const targetType = item.photoType || 'profilePhoto';
     await store.writeDoc('photoModeration', modId, {
       uid: item.uid,
       userName: item.userName || '',
       photoURL: item.photoURL || '',
-      photoType: item.photoType || 'profilePhoto',
+      photoType: targetType,
       galleryPosition: item.galleryPosition !== undefined ? item.galleryPosition : null,
       photoStatus: 'rejected',
       status: 'rejected',
@@ -296,6 +316,25 @@ router.post('/admin/reject-photo', adminRequired, async (req, res) => {
       reviewedBy: req.uid || 'system',
       rejectedReason: reason,
     }, { merge: true });
+
+    // Also mark any duplicate/matching pending photoModeration docs for this user & photoType as rejected
+    const existingMods = await store.queryDocs('photoModeration', {
+      wheres: [{ field: 'photoStatus', op: '==', value: 'pending' }],
+    });
+    for (const m of existingMods) {
+      if (m.id === modId) continue;
+      const mUid = m.data.uid || m.data.userId;
+      const mType = m.data.photoType || 'profilePhoto';
+      if (mUid === item.uid && mType === targetType && (targetType === 'profilePhoto' || m.data.photoURL === item.photoURL)) {
+        await store.writeDoc('photoModeration', m.id, {
+          photoStatus: 'rejected',
+          status: 'rejected',
+          reviewedAt: { __st: 1 },
+          reviewedBy: req.uid || 'system',
+          rejectedReason: reason,
+        }, { merge: true });
+      }
+    }
 
     const userDoc = await store.getDoc('users', item.uid);
     if (userDoc && userDoc.data) {

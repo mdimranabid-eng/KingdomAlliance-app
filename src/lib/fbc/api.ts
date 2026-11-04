@@ -64,6 +64,7 @@ export class ApiError extends Error {
 }
 
 async function tryRefresh(): Promise<boolean> {
+  if (!refreshToken) loadTokens();
   if (!refreshToken) return false;
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
@@ -78,6 +79,27 @@ async function tryRefresh(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function isTokenExpiringSoon(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload.exp) return false;
+    return payload.exp * 1000 < Date.now() + 60_000;
+  } catch {
+    return true;
+  }
+}
+
+export async function ensureFreshAccessToken(force = false): Promise<string> {
+  if (!accessToken) loadTokens();
+  if ((force || isTokenExpiringSoon(accessToken)) && refreshToken) {
+    await tryRefresh();
+  }
+  return accessToken || '';
 }
 
 export async function request<T = any>(method: string, path: string, body?: any, opts: { auth?: boolean; retry?: boolean } = {}): Promise<T> {

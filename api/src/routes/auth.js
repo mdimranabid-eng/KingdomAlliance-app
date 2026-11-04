@@ -6,7 +6,7 @@ const { pool } = require('../db');
 const store = require('../store');
 const totp = require('../totp');
 const {
-  signAccessToken, verifyAccessToken, sha256, authRequired,
+  signAccessToken, verifyAccessToken, verifyAccessTokenIgnoreExpiry, sha256, authRequired,
   createSession, consumeSession, revokeSession,
 } = require('../auth');
 const { issueOtp, consumeOtp, describeExistingAccount } = require('../otp');
@@ -213,12 +213,13 @@ router.post('/auth/refresh', async (req, res) => {
     if (!uid) return res.status(401).json({ error: { code: 'auth/user-token-expired', message: 'Session expired.' } });
     let secondFactor = '';
     try {
-      const payload = verifyAccessToken(String(accessToken || ''));
+      const payload = verifyAccessTokenIgnoreExpiry(String(accessToken || ''));
       secondFactor = payload.sign_in_second_factor || '';
-    } catch { /* expired access token is fine — keep last known factor */ }
+    } catch { /* ignore invalid token */ }
     const [rows] = await pool.query('SELECT id, email, password_hash, role, auth_provider, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [uid]);
     if (!rows.length) return res.status(401).json({ error: { code: 'auth/user-not-found', message: 'Account not found.' } });
-    res.json(await sendTokens(res, rows[0], rows[0].totp_enabled ? secondFactor : ''));
+    const effectiveSecondFactor = rows[0].totp_enabled ? (secondFactor || 'totp') : '';
+    res.json(await sendTokens(res, rows[0], effectiveSecondFactor));
   } catch (e) { console.error('[auth/refresh]', e); res.status(500).json({ error: { code: 'internal', message: 'Refresh failed.' } }); }
 });
 
