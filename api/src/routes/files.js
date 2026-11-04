@@ -1,11 +1,11 @@
-// File storage — replaces Firebase Storage. Files are persisted in BOTH
-// a shared disk directory AND the MySQL `uploaded_files` table so that
-// Hostinger hbuilds/versions/<uuid> redeployments never lose uploaded photos.
+// File storage — replaces Firebase Storage.
+// Binary image files live strictly on Hostinger's persistent domain disk
+// (.../domains/<domain>/uploads, outside ephemeral hbuilds/versions/<uuid>/ folders)
+// while MySQL stores only the URL string and metadata.
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const { pool, withReady } = require('../db');
 const { authRequired } = require('../auth');
 
 const router = express.Router();
@@ -31,6 +31,32 @@ const sanitizeRelPath = (raw) =>
     .replace(/^\/+/, '')
     .replace(/[^a-zA-Z0-9/_\-.]/g, '_');
 
+// Inspect binary magic bytes to verify genuine JPEG, PNG, or WebP content
+function detectImageMime(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 12) return null;
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
+    buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  // WebP: RIFF....WEBP
+  if (
+    buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buf.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+
 const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 10);
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -51,23 +77,28 @@ const publicUrl = (rel) => `${process.env.PUBLIC_BASE_URL || ''}/uploads/${Strin
 router.post('/storage/upload', authRequired, upload.single('file'), async (req, res) => {
   try {
     const rel = sanitizeRelPath(req.body?.path || '');
-    // Only allow writes under users/{own uid}/ or moderators' photoModeration paths
+    // Only allow writes under users/{own uid}/
     if (!rel.startsWith(`users/${req.uid}/`)) {
       return res.status(403).json({ error: { code: 'storage/unauthorized', message: 'You can only upload to your own folder.' } });
+    }
+    const ext = path.extname(rel).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return res.status(400).json({ error: { code: 'storage/invalid-argument', message: 'Invalid image file extension.' } });
     }
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ error: { code: 'storage/invalid-argument', message: 'No file uploaded.' } });
     }
-    const full = path.join(UPLOAD_ROOT, rel);
-    fs.mkdirSync(path.dirname(full), { recursive: true });
-    fs.writeFileSync(full, req.file.buffer);
+    const detectedMime = detectImageMime(req.file.buffer);
+    if (!detectedMime) {
+      return res.status(400).json({ error: { code: 'storage/invalid-argument', message: 'Uploaded file failed binary image signature verification.' } });
+    }
 
-    await withReady();
-    await pool.query(
-      `INSERT INTO uploaded_files (path, mime_type, content, size) VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE mime_type = VALUES(mime_type), content = VALUES(content), size = VALUES(size)`,
-      [rel, req.file.mimetype || 'image/jpeg', req.file.buffer, req.file.buffer.length]
-    );
+    const full = path.resolve(UPLOAD_ROOT, rel);
+    if (!full.startsWith(UPLOAD_ROOT + path.sep)) {
+      return res.status(403).json({ error: { code: 'storage/unauthorized', message: 'Invalid upload path.' } });
+    }
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, req.file.buffer, { mode: 0o640 });
 
     res.json({ url: publicUrl(rel), fullPath: rel, path: rel });
   } catch (e) {
@@ -80,7 +111,6 @@ router.post('/storage/delete', authRequired, async (req, res) => {
     const { paths } = req.body || {};
     const list = Array.isArray(paths) ? paths : typeof paths === 'string' ? [paths] : [];
     let deleted = 0;
-    await withReady();
     for (const p of list) {
       const raw = String(p || '');
       const isUrl = raw.startsWith('http') || raw.includes('/uploads/');
@@ -89,13 +119,11 @@ router.post('/storage/delete', authRequired, async (req, res) => {
       if (!relPath) continue;
       // owner or admin only
       if (!relPath.startsWith(`users/${req.uid}/`) && !req.isAdmin) continue;
-      const full = path.join(UPLOAD_ROOT, relPath);
-      if (full.startsWith(UPLOAD_ROOT) && fs.existsSync(full)) {
+      const full = path.resolve(UPLOAD_ROOT, relPath);
+      if (full.startsWith(UPLOAD_ROOT + path.sep) && fs.existsSync(full)) {
         fs.unlinkSync(full);
         deleted += 1;
       }
-      const [r] = await pool.query('DELETE FROM uploaded_files WHERE path = ?', [relPath]);
-      if (r.affectedRows > 0 && deleted === 0) deleted += 1;
     }
     res.json({ deleted });
   } catch (e) {
@@ -117,92 +145,31 @@ function guessMime(relPath) {
   return 'image/jpeg';
 }
 
-// Serve /uploads/* from disk cache, sibling hbuilds folders, or MySQL uploaded_files
-async function serveUpload(req, res) {
+// Serve /uploads/* from persistent disk with strict security headers
+function serveUpload(req, res) {
   try {
     const rel = sanitizeRelPath(req.params[0] || req.path.replace(/^\/uploads\/?/, ''));
     if (!rel) return res.status(404).end();
+    const ext = path.extname(rel).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) return res.status(404).end();
 
-    const diskPath = path.join(UPLOAD_ROOT, rel);
-    if (diskPath.startsWith(UPLOAD_ROOT) && fs.existsSync(diskPath) && fs.statSync(diskPath).isFile()) {
-      res.setHeader('Content-Type', guessMime(rel));
-      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
-      return res.sendFile(diskPath);
+    const diskPath = path.resolve(UPLOAD_ROOT, rel);
+    if (!diskPath.startsWith(UPLOAD_ROOT + path.sep)) return res.status(403).end();
+    if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
+      return res.status(404).end();
     }
 
-    await withReady();
-    const [rows] = await pool.query('SELECT mime_type, content FROM uploaded_files WHERE path = ? LIMIT 1', [rel]);
-    if (rows.length && rows[0].content) {
-      try {
-        fs.mkdirSync(path.dirname(diskPath), { recursive: true });
-        fs.writeFileSync(diskPath, rows[0].content);
-      } catch { /* ignore disk cache write failure */ }
-      res.setHeader('Content-Type', rows[0].mime_type || guessMime(rel));
-      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
-      return res.end(rows[0].content);
-    }
-
-    return res.status(404).end();
+    res.setHeader('Content-Type', guessMime(rel));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; sandbox");
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    return res.sendFile(diskPath);
   } catch (e) {
     console.error('[uploads]', e.message);
     return res.status(500).end();
   }
 }
 
-function walkFiles(dir, baseDir = dir, acc = []) {
-  if (!fs.existsSync(dir)) return acc;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) walkFiles(full, baseDir, acc);
-    else if (entry.isFile()) acc.push({ full, rel: path.relative(baseDir, full).replace(/\\/g, '/') });
-  }
-  return acc;
-}
-
-async function rescuePreviousBuildUploads() {
-  try {
-    await withReady();
-    const dirsToScan = new Set([
-      UPLOAD_ROOT,
-      path.resolve(process.cwd(), 'uploads'),
-    ]);
-    const cwd = process.cwd();
-    if (cwd.includes('/hbuilds/versions/')) {
-      const versionsRoot = path.join(cwd.split('/hbuilds/versions/')[0], 'hbuilds', 'versions');
-      if (fs.existsSync(versionsRoot)) {
-        for (const ver of fs.readdirSync(versionsRoot)) {
-          dirsToScan.add(path.join(versionsRoot, ver, 'nodejs', 'uploads'));
-        }
-      }
-    }
-
-    let rescued = 0;
-    for (const dir of dirsToScan) {
-      for (const f of walkFiles(dir)) {
-        const rel = sanitizeRelPath(f.rel);
-        if (!rel) continue;
-        const buf = fs.readFileSync(f.full);
-        if (!buf.length) continue;
-        const target = path.join(UPLOAD_ROOT, rel);
-        if (target !== f.full && !fs.existsSync(target)) {
-          fs.mkdirSync(path.dirname(target), { recursive: true });
-          fs.writeFileSync(target, buf);
-        }
-        await pool.query(
-          `INSERT IGNORE INTO uploaded_files (path, mime_type, content, size) VALUES (?, ?, ?, ?)`,
-          [rel, guessMime(rel), buf, buf.length]
-        );
-        rescued += 1;
-      }
-    }
-    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM uploaded_files');
-    console.log(`[uploads] root=${UPLOAD_ROOT}, scanned=${rescued}, db_files=${total}`);
-  } catch (e) {
-    console.warn('[uploads] rescue scan error:', e.message);
-  }
-}
-
 router.UPLOAD_ROOT = UPLOAD_ROOT;
 router.serveUpload = serveUpload;
-router.rescuePreviousBuildUploads = rescuePreviousBuildUploads;
 module.exports = router;
