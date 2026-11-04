@@ -90,15 +90,19 @@ export async function uploadUserPhotos(
     throw new Error('File size must be less than 10MB.');
   }
 
-  // 1. Duplicate prevention (reuses the existing uploadedImages hash map).
+  // 1. Duplicate prevention (reuses the existing uploadedImages hash map, verified via HEAD).
   let fileHash = '';
   try {
     fileHash = await getFileHash(file);
     const dupSnap = await getDoc(doc(db, 'uploadedImages', fileHash));
     if (dupSnap.exists()) {
-      const existing = dupSnap.data() as { url?: string; thumbUrl?: string };
-      if (existing.url && existing.thumbUrl) {
-        return { url: existing.url, thumbUrl: existing.thumbUrl, fullPath: '', thumbPath: '' };
+      const existing = dupSnap.data() as { url?: string; thumbUrl?: string; uid?: string };
+      if (existing.url && existing.thumbUrl && existing.uid === uid && existing.url.includes('/uploads/')) {
+        const checkUrl = `/uploads/${existing.url.split('/uploads/')[1]}`;
+        const headRes = await fetch(checkUrl, { method: 'HEAD' });
+        if (headRes.ok) {
+          return { url: checkUrl, thumbUrl: existing.thumbUrl.includes('/uploads/') ? `/uploads/${existing.thumbUrl.split('/uploads/')[1]}` : existing.thumbUrl, fullPath: '', thumbPath: '' };
+        }
       }
     }
   } catch (hashErr) {

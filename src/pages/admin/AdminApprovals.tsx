@@ -289,7 +289,7 @@ export default function AdminApprovals() {
                   <div className="flex items-center gap-4 w-full md:w-auto">
                     <div className="relative flex-shrink-0">
                       <img 
-                        src={user.photoUrl || user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} 
+                        src={user.pendingPhotoUrl || user.pendingPhotoThumbUrl || user.photoUrl || user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} 
                         alt="" 
                         className="w-14 h-14 rounded-full object-cover ring-2 ring-white shadow-sm"
                       />

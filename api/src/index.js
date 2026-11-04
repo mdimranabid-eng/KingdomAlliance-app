@@ -101,6 +101,7 @@ async function main() {
   const ok = await initDb();
   if (ok) {
     await bootstrapAdmin().catch((e) => console.error('[bootstrap]', e.message));
+    await filesRouter.reconcileUploads(pool).catch((e) => console.error('[uploads]', e.message));
     startCron();
   }
   const port = Number(process.env.PORT || 3001);
