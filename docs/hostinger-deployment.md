@@ -35,6 +35,14 @@
 - **Admin bootstrap**: first boot created `themaster@thekingdomalliances.com` — password is in
   `api/.env.production-hostinger`. Change it after first login; TOTP enrollment is required to
   receive admin claims (two-factor admin login, like the old Firebase MFA flow).
+- **Google sign-in**: enabled. Uses the Firebase project's auto-created web OAuth client
+  `583391827233-99lkvfsgcbmlssorgj0eatjm1mse61fc.apps.googleusercontent.com`
+  (found via the Identity Toolkit `createAuthUri` flow — see `scratch/find-client-id2.cjs`).
+  - Frontend: `VITE_GOOGLE_CLIENT_ID` in `.env.production` (local, gitignored) — must be present
+    at build time or Google sign-in shows "not configured".
+  - Server: `GOOGLE_CLIENT_ID` env var on Hostinger (audience validation in `/api/auth/google`).
+  - `thekingdomalliances.com` is already in Firebase authorized domains (auto-synced to the
+    OAuth client's authorized JavaScript origins).
 - **Known limitation — FCM push**: needs `server/serviceAccountKey.production.json` on the
   server; GitHub secret scanning blocks committing it. Until it is uploaded via hPanel File
   Manager into the app directory and `FIREBASE_SERVICE_ACCOUNT_PATH` is set, push
