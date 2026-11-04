@@ -89,8 +89,8 @@ async function main() {
   app.listen(port, () => console.log(`[api] Kingdom Alliance API listening on :${port}`));
 }
 
-// Passenger: export the app; standalone: listen.
-if (typeof process.env.PASSENGER_APP_ENV !== 'undefined' || require.main === module) {
-  main();
-}
+// Passenger requires this module as the startup file (require.main !== module),
+// so boot unconditionally; app.listen uses the Passenger-provided PORT when set.
+main();
+
 module.exports = app;
