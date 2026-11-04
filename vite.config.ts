@@ -16,8 +16,10 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
-        // Firebase compatibility shim → Node/MySQL backend (see src/lib/fbc/).
-        // firebase/app + firebase/messaging stay real (FCM web push remains on Firebase).
+        // Zero-Firebase compatibility layer → 100% Hostinger Node/MySQL backend (see src/lib/fbc/)
+        'firebase/app': path.resolve(__dirname, 'src/lib/fbc/app.ts'),
+        'firebase/app-check': path.resolve(__dirname, 'src/lib/fbc/app.ts'),
+        'firebase/messaging': path.resolve(__dirname, 'src/lib/fbc/messaging.ts'),
         'firebase/firestore': path.resolve(__dirname, 'src/lib/fbc/firestore.ts'),
         'firebase/auth': path.resolve(__dirname, 'src/lib/fbc/auth.ts'),
         'firebase/storage': path.resolve(__dirname, 'src/lib/fbc/storage.ts'),
@@ -31,9 +33,6 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
-              if (id.includes('firebase')) {
-                return 'firebase';
-              }
               if (id.includes('lucide-react')) {
                 return 'lucide-react';
               }

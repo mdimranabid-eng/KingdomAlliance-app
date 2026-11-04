@@ -40,6 +40,18 @@ export const NotificationListener: React.FC = () => {
           const data = change.doc.data();
           const type = data.type;
 
+          // Trigger native OS/browser notification if the tab is in background
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
+            try {
+              new Notification(data.title || 'Kingdom Alliance', {
+                body: data.message || 'You have a new update.',
+                icon: '/images/logo.png',
+              });
+            } catch {
+              // Ignore background notification failure
+            }
+          }
+
           if (type === 'interest') {
             toast.success(data.message || data.title || "New Connection Request!", {
               duration: 5000,

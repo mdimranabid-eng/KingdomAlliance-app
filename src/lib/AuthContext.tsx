@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getToken } from 'firebase/messaging';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
-import { auth, db, messaging, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { calculateAge } from './utils';
 
 interface AuthContextType {
@@ -42,27 +41,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ]);
   };
 
-  const registerFCMToken = async (uid: string) => {
-    if (typeof window === 'undefined' || !('Notification' in window) || !messaging) return;
+  const requestNotificationPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
     try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-        if (!vapidKey) {
-          console.warn("FCM VAPID key is missing in .env configurations.");
-          return;
-        }
-        const token = await getToken(messaging, { vapidKey });
-        if (token) {
-          const userRef = doc(db, 'users', uid);
-          await updateDoc(userRef, {
-            fcmTokens: arrayUnion(token)
-          });
-          console.log("FCM device token registered successfully");
-        }
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
       }
-    } catch (err) {
-      console.error("Error registering FCM token:", err);
+    } catch {
+      // Permission prompt ignored or blocked
     }
   };
 
@@ -126,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.warn("Error updating user active status on login:", err);
           }
         }
-        registerFCMToken(uid);
+        requestNotificationPermission();
       } else {
         setProfile(null);
       }
