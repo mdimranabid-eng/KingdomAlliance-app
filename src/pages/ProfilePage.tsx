@@ -116,6 +116,7 @@ const formatDateValue = (v: any): string | null => {
 export default function ProfilePage() {
   const { id } = useParams();
   const { user: currentUser, profile: currentProfile, isAdmin, signOut } = useAuth();
+  const isOwnProfile = currentUser?.uid === id;
   const { logout, isLoggingOut } = useLogout();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any | null>(null);
@@ -273,10 +274,13 @@ const [showEditModal, setShowEditModal] = useState(false);
           const age = calculateAge(data.dob, data.age);
           setProfile({ id: docSnap.id, ...data, age });
           setLoading(false);
+        } else {
+          setLoading(false);
         }
       },
       (err) => {
         console.warn('Live profile listener warning:', err);
+        setLoading(false);
       }
     );
     return () => unsubProfile();
@@ -969,8 +973,6 @@ const [showEditModal, setShowEditModal] = useState(false);
       setSendingInterest(false);
     }
   };
-
-  const isOwnProfile = currentUser?.uid === id;
 
   // --- Own-profile stats for the pill-bar (views, interests, shortlisted by, unread, connections) ---
   useEffect(() => {
