@@ -72,9 +72,11 @@ async function cascadeDeleteUser(uid, log = console.log) {
 
   // uploaded files
   try {
-    const uploadRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
-    const userDir = path.join(uploadRoot, 'users', uid);
-    if (userDir.startsWith(uploadRoot) && fs.existsSync(userDir)) fs.rmSync(userDir, { recursive: true, force: true });
+    const { UPLOAD_ROOT } = require('./routes/files');
+    const userDir = path.resolve(UPLOAD_ROOT, 'users', uid);
+    if (userDir.startsWith(UPLOAD_ROOT + path.sep) && fs.existsSync(userDir)) {
+      fs.rmSync(userDir, { recursive: true, force: true });
+    }
   } catch (e) { log(`Upload cleanup skipped: ${e.message}`); }
 
   // presence + typing

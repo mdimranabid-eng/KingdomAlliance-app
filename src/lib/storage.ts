@@ -123,10 +123,13 @@ export async function uploadUserPhotos(
   const { el: imgEl, w, h } = await loadImageElement(fullBlob);
   const thumbBlob = await centerCropToBlob(imgEl, w, h, 600, 800);
 
-  // 4. Upload both under users/{uid}/photos/
+  // 4. Upload both under users/{uid}/photos/ with an unguessable random token
   const stamp = Date.now();
-  const fullPath = `users/${uid}/photos/${stamp}_${kind}_full.jpg`;
-  const thumbPath = `users/${uid}/photos/${stamp}_${kind}_thumb.jpg`;
+  const randBytes = new Uint8Array(8);
+  crypto.getRandomValues(randBytes);
+  const randHex = Array.from(randBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  const fullPath = `users/${uid}/photos/${stamp}_${randHex}_${kind}_full.jpg`;
+  const thumbPath = `users/${uid}/photos/${stamp}_${randHex}_${kind}_thumb.jpg`;
 
   const [url, thumbUrl] = await Promise.all([
     (async () => {

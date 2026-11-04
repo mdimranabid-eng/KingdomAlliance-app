@@ -39,7 +39,6 @@ app.post('/api/cron/:job', async (req, res) => {
 });
 
 // ── Static: uploads + SPA ─────────────────────────────────────────────────────
-app.use('/uploads', express.static(filesRouter.UPLOAD_ROOT, { maxAge: '30d', immutable: true }));
 app.get('/uploads/*', filesRouter.serveUpload);
 
 const DIST = path.resolve(process.cwd(), process.env.DIST_DIR || '../dist');
@@ -98,22 +97,10 @@ async function bootstrapAdmin() {
   console.log(`[bootstrap] admin account ready for ${email}`);
 }
 
-async function logPendingPhotosSummary() {
-  try {
-    const pm = await store.queryDocs('photoModeration', { wheres: [{ field: 'photoStatus', op: '==', value: 'pending' }] });
-    const pu = await store.queryDocs('users', { wheres: [{ field: 'photoStatus', op: '==', value: 'pending' }] });
-    console.log(`[photos] pending_mod=${pm.length} (${pm.map((d) => `${d.id}:${d.data.photoURL || d.data.photoUrl || 'empty'}`).join(', ')}) | pending_users=${pu.length} (${pu.map((u) => `${u.id}:${u.data.pendingPhotoUrl || u.data.photoUrl || 'empty'}`).join(', ')})`);
-  } catch (e) {
-    console.warn('[photos] summary failed:', e.message);
-  }
-}
-
 async function main() {
   const ok = await initDb();
   if (ok) {
     await bootstrapAdmin().catch((e) => console.error('[bootstrap]', e.message));
-    await filesRouter.rescuePreviousBuildUploads();
-    await logPendingPhotosSummary();
     startCron();
   }
   const port = Number(process.env.PORT || 3001);
