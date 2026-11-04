@@ -103,15 +103,16 @@ export async function ensureFreshAccessToken(force = false): Promise<string> {
 }
 
 export async function request<T = any>(method: string, path: string, body?: any, opts: { auth?: boolean; retry?: boolean } = {}): Promise<T> {
+  const token = await ensureFreshAccessToken();
   const headers: Record<string, string> = {};
   if (body !== undefined && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
     body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401 && opts.retry !== false && accessToken) {
+  if (res.status === 401 && opts.retry !== false && refreshToken) {
     if (await tryRefresh()) return request<T>(method, path, body, { ...opts, retry: false });
   }
   let data: any = null;

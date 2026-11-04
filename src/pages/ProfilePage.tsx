@@ -304,7 +304,6 @@ const [showEditModal, setShowEditModal] = useState(false);
         navigate('/admin', { replace: true });
         return;
       }
-      setLoading(true);
       try {
         const docSnap = await getDoc(doc(db, 'users', id));
         if (docSnap.exists()) {
@@ -315,51 +314,59 @@ const [showEditModal, setShowEditModal] = useState(false);
           }
           const age = calculateAge(data.dob, data.age);
           setProfile({ id: docSnap.id, ...data, age });
+          setLoading(false);
 
-          // --- PROFILE VIEW TRACKING START ---
-          // Only track if viewer is a non-admin member not viewing own profile
+          // Only track profile view and connections when viewing ANOTHER member's profile
           if (currentUser?.uid && currentUser.uid !== id && !isAdmin) {
-            const viewDocId = `${currentUser.uid}_${id}`;
-            await setDoc(
-              doc(db, 'profileViews', viewDocId),
-              {
-                viewerId: currentUser.uid,
-                profileId: id,
-                viewedAt: serverTimestamp()
-              },
-              { merge: true }
-            );
-          }
-          // --- PROFILE VIEW TRACKING END ---
-
-          if (currentUser && !isAdmin) {
-            const interestsRef = collection(db, 'interests');
-            const q1 = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
-            const q2 = query(interestsRef, where('fromId', '==', id), where('toId', '==', currentUser.uid));
-            const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-            if (!snap1.empty) {
-              setConnectionState({ id: snap1.docs[0].id, ...snap1.docs[0].data() });
-            } else if (!snap2.empty) {
-              setConnectionState({ id: snap2.docs[0].id, ...snap2.docs[0].data() });
+            // Profile view tracking
+            try {
+              const viewDocId = `${currentUser.uid}_${id}`;
+              await setDoc(
+                doc(db, 'profileViews', viewDocId),
+                {
+                  viewerId: currentUser.uid,
+                  profileId: id,
+                  viewedAt: serverTimestamp()
+                },
+                { merge: true }
+              );
+            } catch (e) {
+              console.warn('Profile view tracking notice:', e);
             }
 
-            const shortlistRef = collection(db, 'shortlists');
-            const qShortlist = query(shortlistRef, where('userId', '==', currentUser.uid), where('targetId', '==', id));
-            const shortlistSnap = await getDocs(qShortlist);
-            if (!shortlistSnap.empty) {
-              setIsShortlisted(true);
-              setShortlistId(shortlistSnap.docs[0].id);
+            // Connection state & shortlists
+            try {
+              const interestsRef = collection(db, 'interests');
+              const q1 = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
+              const q2 = query(interestsRef, where('fromId', '==', id), where('toId', '==', currentUser.uid));
+              const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+              if (!snap1.empty) {
+                setConnectionState({ id: snap1.docs[0].id, ...snap1.docs[0].data() });
+              } else if (!snap2.empty) {
+                setConnectionState({ id: snap2.docs[0].id, ...snap2.docs[0].data() });
+              }
+
+              const shortlistRef = collection(db, 'shortlists');
+              const qShortlist = query(shortlistRef, where('userId', '==', currentUser.uid), where('targetId', '==', id));
+              const shortlistSnap = await getDocs(qShortlist);
+              if (!shortlistSnap.empty) {
+                setIsShortlisted(true);
+                setShortlistId(shortlistSnap.docs[0].id);
+              }
+            } catch (e) {
+              console.warn('Interests/shortlist check notice:', e);
             }
           }
+        } else {
+          setLoading(false);
         }
       } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${id}`);
-      } finally {
+        console.warn('Could not fetch user profile:', err);
         setLoading(false);
       }
     }
     fetchProfileData();
-  }, [id, currentUser]);
+  }, [id, currentUser, isAdmin, navigate]);
 
   // Listen for member's own submitted success story
   useEffect(() => {
@@ -1152,12 +1159,12 @@ const [showEditModal, setShowEditModal] = useState(false);
     isAdmin,
     connectionState?.status
   );
-  const rawFullName = [profile.name, profile.middleName, profile.lastName]
+  const rawFullName = [profile.name || profile.fullName, profile.middleName, profile.lastName]
     .filter(Boolean)
     .map(name => name.trim())
     .join(' ');
   const fullName = isDeclinedPrivacy ? 'Profile Unavailable' : rawFullName;
-  const defaultName = isDeclinedPrivacy ? 'Profile Unavailable' : (profile.name || 'Unnamed Member');
+  const defaultName = isDeclinedPrivacy ? 'Profile Unavailable' : (profile.name || profile.fullName || 'Unnamed Member');
 
   /* --- About tab: bio + curated record groups --- */
   const bio = (profile.aboutMe || '').trim();
