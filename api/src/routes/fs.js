@@ -28,7 +28,11 @@ async function callerContext(req) {
   return { auth, callerUserDoc };
 }
 
-const parsePath = (p) => String(p || '').split('/').filter(Boolean);
+const parsePath = (p) => (
+  Array.isArray(p)
+    ? p.flatMap((s) => String(s || '').split('/'))
+    : String(p || '').split('/')
+).filter(Boolean);
 
 function errRes(res, e) {
   const status = e.code === 'permission-denied' ? 403
@@ -117,8 +121,13 @@ async function applyWrite(ctx, opKind, collPath, id, data, opts = {}) {
   const future = opKind === 'create'
     ? store.mergeDoc(null, data, now, false)
     : store.mergeDoc(existing && existing.data, data, now, opKind === 'update' || opts.merge);
-  if (existing && existing.data.createdAt !== undefined && future.createdAt === undefined) {
-    future.createdAt = existing.data.createdAt;
+  if (existing && existing.data.createdAt !== undefined) {
+    if (future.createdAt === undefined || (collPath === 'users' && existing.data.onboardingComplete === false)) {
+      future.createdAt = existing.data.createdAt;
+      if (data && typeof data === 'object' && 'createdAt' in data) {
+        data = { ...data, createdAt: existing.data.createdAt };
+      }
+    }
   }
   const ruleOp = opKind === 'delete' ? 'delete' : existing ? 'update' : 'create';
   const result = await rules.check({

@@ -51,7 +51,8 @@ function publicUser(row, extra = {}) {
   return {
     uid: row.id,
     email: row.email,
-    emailVerified: !!row.email_verified,
+    emailVerified: !!row.email_verified || !!data.emailVerified,
+    authProvider: row.auth_provider || data.authProvider || 'email',
     displayName: data.fullName || data.name || '',
     photoURL: data.photoURL || data.photoUrl || '',
     role: row.role,
@@ -138,7 +139,7 @@ router.post('/auth/mfa/challenge', async (req, res) => {
       [sha256(String(ticket || ''))]
     );
     if (!rows.length) return res.status(401).json({ error: { code: 'auth/invalid-verification-code', message: 'Session expired. Sign in again.' } });
-    const [userRows] = await pool.query('SELECT id, email, password_hash, role, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [rows[0].user_id]);
+    const [userRows] = await pool.query('SELECT id, email, password_hash, role, auth_provider, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [rows[0].user_id]);
     const row = userRows[0];
     if (!row || !totp.verifyTotp(row.totp_secret, String(code || ''))) {
       return res.status(401).json({ error: { code: 'auth/invalid-verification-code', message: 'Invalid verification code.' } });
@@ -215,7 +216,7 @@ router.post('/auth/refresh', async (req, res) => {
       const payload = verifyAccessToken(String(accessToken || ''));
       secondFactor = payload.sign_in_second_factor || '';
     } catch { /* expired access token is fine — keep last known factor */ }
-    const [rows] = await pool.query('SELECT id, email, password_hash, role, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [uid]);
+    const [rows] = await pool.query('SELECT id, email, password_hash, role, auth_provider, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [uid]);
     if (!rows.length) return res.status(401).json({ error: { code: 'auth/user-not-found', message: 'Account not found.' } });
     res.json(await sendTokens(res, rows[0], rows[0].totp_enabled ? secondFactor : ''));
   } catch (e) { console.error('[auth/refresh]', e); res.status(500).json({ error: { code: 'internal', message: 'Refresh failed.' } }); }
@@ -225,7 +226,7 @@ router.post('/auth/refresh', async (req, res) => {
 // ── Me ────────────────────────────────────────────────────────────────────────
 router.get('/auth/me', authRequired, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, email, password_hash, role, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [req.uid]);
+    const [rows] = await pool.query('SELECT id, email, password_hash, role, auth_provider, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [req.uid]);
     if (!rows.length) return res.status(404).json({ error: { code: 'auth/user-not-found' } });
     const payload = verifyAccessToken(req.headers.authorization.slice(7));
     res.json(publicUser(rows[0], { admin: rows[0].role === 'admin', secondFactor: payload.sign_in_second_factor || '' }));

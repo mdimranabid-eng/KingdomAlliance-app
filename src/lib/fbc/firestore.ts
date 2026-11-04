@@ -38,6 +38,7 @@ const isSentinel = (v: any) => !!v && typeof v === 'object' && !Array.isArray(v)
 // Timestamp → {__ts}; rehydrate {__ts} → Timestamp (round trip)
 export function serialize(value: any): any {
   if (isTs(value)) return { __ts: value.toMillis() };
+  if (value instanceof Date) return { __ts: value.getTime() };
   if (isSentinel(value)) return value;
   if (Array.isArray(value)) return value.map(serialize);
   if (value && typeof value === 'object') {

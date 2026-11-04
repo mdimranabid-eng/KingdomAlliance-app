@@ -682,12 +682,11 @@ export default function RegisterPage() {
         emailVerified: emailVerifiedLocal, authProvider, role: 'user', isBanned: false, isSuspended: false,
         onboardingComplete: true, approvalStatus: 'pending',
         submittedAt: serverTimestamp(), updatedAt: serverTimestamp(),
-        ...((profile && profile.createdAt) ? {} : { createdAt: serverTimestamp() }),
         lastActive: serverTimestamp(), profileId: await generateUniqueProfileId()
       };
 
       await setDoc(doc(db, 'users', activeUser.uid), {
-        ...profileData, onboardingComplete: true, approvalStatus: 'pending', updatedAt: new Date()
+        ...profileData, onboardingComplete: true, approvalStatus: 'pending', updatedAt: serverTimestamp()
       }, { merge: true });
 
       // The backend synchronizes the church directory from this profile.

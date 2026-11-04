@@ -103,16 +103,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const daysDiff = lastLogin ? (Date.now() - lastLogin.getTime()) / (1000 * 60 * 60 * 24) : 999;
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-        if (!lastLogin || lastLogin < fiveMinutesAgo || data.status === 'inactive' || daysDiff > 40) {
+        if (!lastLogin || lastLogin < fiveMinutesAgo || daysDiff > 40) {
           try {
             const userRef = doc(db, 'users', uid);
-            const updates: any = {
-              lastLoginAt: serverTimestamp()
-            };
-            if (data.status === 'inactive' || !data.status || daysDiff > 40) {
-              updates.status = 'active';
-            }
-            await updateDoc(userRef, updates);
+            await updateDoc(userRef, {
+              lastLoginAt: serverTimestamp(),
+              lastActive: serverTimestamp()
+            });
           } catch (err) {
             console.warn("Error updating user active status on login:", err);
           }

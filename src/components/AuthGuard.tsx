@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { Navigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
 import { KingdomCrossIcon } from './KingdomCrossIcon';
@@ -50,8 +50,16 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
       }
       profileLoaded = true;
       checkLoading();
-    }, (error) => {
+    }, async (error) => {
       console.error("Error fetching profile:", error);
+      try {
+        const fallbackSnap = await getDoc(doc(db, 'users', user.uid));
+        if (fallbackSnap.exists()) {
+          setProfile(fallbackSnap.data());
+        }
+      } catch {
+        // ignore fallback error
+      }
       profileLoaded = true;
       checkLoading();
     });
@@ -61,8 +69,14 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
       setIsAdmin(docSnap.exists());
       adminLoaded = true;
       checkLoading();
-    }, (error) => {
+    }, async (error) => {
       console.error("Error fetching admin status:", error);
+      try {
+        const fallbackAdmin = await getDoc(doc(db, 'admins', user.uid));
+        setIsAdmin(fallbackAdmin.exists());
+      } catch {
+        // ignore fallback error
+      }
       adminLoaded = true;
       checkLoading();
     });
