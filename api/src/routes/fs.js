@@ -14,7 +14,7 @@ function authOf(req) {
   if (!token) return null;
   try {
     const p = verifyAccessToken(token);
-    return { uid: p.sub, email: p.email, admin: !!p.admin, role: p.role, secondFactor: p.sign_in_second_factor || '' };
+    return { uid: p.sub, email: p.email, admin: !!p.admin && !!p.sign_in_second_factor, role: p.role, secondFactor: p.sign_in_second_factor || '' };
   } catch { return null; }
 }
 
