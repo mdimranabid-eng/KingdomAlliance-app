@@ -77,7 +77,8 @@ import {
   Sparkles,
   Lock,
   PauseCircle,
-  PlayCircle
+  PlayCircle,
+  Settings
 } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge, shouldBlurPhoto } from '../lib/utils';
 import { useLogout } from '../hooks/useLogout';
@@ -1067,7 +1068,7 @@ const [showEditModal, setShowEditModal] = useState(false);
 
   const tabs = [
     { id: 'about', label: 'About Me', icon: User },
-    ...(isOwnProfile ? [{ id: 'privacy', label: 'Privacy / Blocked', icon: ShieldAlert }] : [])
+    ...(isOwnProfile ? [{ id: 'privacy', label: 'Privacy & Settings', icon: Settings }] : [])
   ];
 
   if (loading) return (
@@ -1468,23 +1469,36 @@ const [showEditModal, setShowEditModal] = useState(false);
 
             {/* Navigation Tabs */}
             <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-full border border-[#eee5d2] bg-white p-1 shadow-[0_10px_28px_-24px_rgba(74,53,33,0.35)] sm:gap-1.5 sm:p-1.5">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
-                  className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-bold transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]/60 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-[13px]',
-                    activeTab === tab.id
-                      ? 'text-white shadow-[0_10px_22px_-14px_rgba(143,99,55,0.75)]'
-                      : 'text-[#a89f8d] hover:bg-[#faf4ea] hover:text-[#4a3521]'
-                  )}
-                  style={activeTab === tab.id ? { background: 'linear-gradient(135deg, #b3804c 0%, #96683a 100%)' } : undefined}
-                >
-                  <tab.icon aria-hidden className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  {tab.label}
-                </button>
-              ))}
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                const isPrivacy = tab.id === 'privacy';
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'group flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-bold transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]/60 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-[13px]',
+                      isActive
+                        ? 'text-white shadow-[0_10px_22px_-14px_rgba(143,99,55,0.75)]'
+                        : isPrivacy
+                          ? 'text-[#8a7a65] border border-transparent hover:border-[#dfc88a] hover:bg-gradient-to-r hover:from-[#fff7ea] hover:via-[#feecd2] hover:to-[#ffe7c4] hover:text-[#8f5317] hover:shadow-[0_4px_18px_-4px_rgba(201,168,76,0.38)] hover:scale-[1.03] active:scale-[0.98]'
+                          : 'text-[#a89f8d] hover:bg-[#faf4ea] hover:text-[#4a3521]'
+                    )}
+                    style={isActive ? { background: 'linear-gradient(135deg, #b3804c 0%, #96683a 100%)' } : undefined}
+                  >
+                    <tab.icon
+                      aria-hidden
+                      className={cn(
+                        "w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300",
+                        isPrivacy && !isActive && "group-hover:rotate-45 group-hover:scale-110 text-[#b3804c]"
+                      )}
+                    />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Dynamic Tab Content */}
