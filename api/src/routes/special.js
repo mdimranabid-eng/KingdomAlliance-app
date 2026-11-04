@@ -4,7 +4,7 @@ const express = require('express');
 const { pool } = require('../db');
 const store = require('../store');
 const { authRequired, adminRequired } = require('../auth');
-const { consumeOtp } = require('../otp');
+const { consumeOtp, describeExistingAccount } = require('../otp');
 const { dispatchEmail } = require('../services/email');
 const { sendOnboardingEmail, deliverOnce } = require('../triggers');
 
@@ -17,22 +17,65 @@ router.get('/health', (req, res) => {
   res.json({ status: 'ok', server: 'Kingdom Alliance Node API', timestamp: new Date().toISOString() });
 });
 
+function isCompletedOrLockedRow(row) {
+  const data = row.data && typeof row.data === 'object' ? row.data : (() => { try { return JSON.parse(row.data || '{}'); } catch { return {}; } })();
+  return !!(
+    row.onboarding_complete ||
+    data.onboardingComplete ||
+    (row.approval_status && row.approval_status !== 'incomplete') ||
+    (data.approvalStatus && data.approvalStatus !== 'incomplete') ||
+    row.is_banned ||
+    row.is_suspended ||
+    data.isBanned ||
+    data.isSuspended ||
+    row.deletion_status ||
+    data.deletionStatus
+  );
+}
+
 // ── check-email (registration uniqueness) ─────────────────────────────────────
 router.post('/check-email', async (req, res) => {
-  const { email, mobileNumber } = req.body || {};
+  const { email, mobileNumber, excludeUid } = req.body || {};
   if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Missing email field.' });
   const cleanEmail = email.trim().toLowerCase();
+  const safeExcludeUid = typeof excludeUid === 'string' ? excludeUid.trim() : '';
   try {
-    const [emailRows] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [cleanEmail]);
-    let mobileTaken = false;
-    if (mobileNumber && typeof mobileNumber === 'string') {
-      const [mobileRows] = await pool.query(
-        "SELECT id FROM users WHERE JSON_UNQUOTE(JSON_EXTRACT(data, '$.mobileNumber')) = ? LIMIT 1",
-        [mobileNumber]
-      );
-      mobileTaken = mobileRows.length > 0;
+    const [emailRows] = await pool.query(
+      'SELECT id, email, auth_provider, onboarding_complete, approval_status, is_approved, is_banned, is_suspended, deletion_status, data FROM users WHERE email = ? LIMIT 1',
+      [cleanEmail]
+    );
+    let emailTaken = false;
+    let emailMessage = '';
+    if (emailRows.length > 0) {
+      const r = emailRows[0];
+      if (r.id !== safeExcludeUid || isCompletedOrLockedRow(r)) {
+        emailTaken = true;
+        emailMessage = describeExistingAccount(r);
+      }
     }
-    return res.status(200).json({ emailTaken: emailRows.length > 0, mobileTaken });
+
+    let mobileTaken = false;
+    let mobileMessage = '';
+    if (mobileNumber && typeof mobileNumber === 'string') {
+      const normalizedDigits = mobileNumber.replace(/[^0-9]/g, '');
+      if (normalizedDigits.length >= 7) {
+        const [mobileRows] = await pool.query(
+          `SELECT id, onboarding_complete, approval_status, is_approved, is_banned, is_suspended, deletion_status, data
+           FROM users
+           WHERE REGEXP_REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(data, '$.mobileNumber')), ''), '[^0-9]', '') = ?
+           LIMIT 1`,
+          [normalizedDigits]
+        );
+        if (mobileRows.length > 0) {
+          const mr = mobileRows[0];
+          if (mr.id !== safeExcludeUid || isCompletedOrLockedRow(mr)) {
+            mobileTaken = true;
+            mobileMessage = 'This mobile number is already registered with an existing account. You cannot sign up again.';
+          }
+        }
+      }
+    }
+    return res.status(200).json({ emailTaken, emailMessage, mobileTaken, mobileMessage });
   } catch (error) {
     console.error('❌ [CheckEmail] Failed:', error.message);
     return res.status(500).json({ error: 'Unable to verify uniqueness.' });
