@@ -1,0 +1,171 @@
+{
+  "checks": [
+    {
+      "label": "Unauthenticated denied /admin/delete-user",
+      "status": 401
+    },
+    {
+      "label": "Ordinary member denied /admin/delete-user",
+      "status": 403
+    },
+    {
+      "label": "Unauthenticated denied /admin/approve-photo",
+      "status": 401
+    },
+    {
+      "label": "Ordinary member denied /admin/approve-photo",
+      "status": 403
+    },
+    {
+      "label": "Unauthenticated denied /admin/reject-photo",
+      "status": 401
+    },
+    {
+      "label": "Ordinary member denied /admin/reject-photo",
+      "status": 403
+    },
+    {
+      "label": "Unauthenticated denied /admin/create-admin",
+      "status": 401
+    },
+    {
+      "label": "Ordinary member denied /admin/create-admin",
+      "status": 403
+    },
+    {
+      "label": "Unauthenticated denied /admin/delete-admin",
+      "status": 401
+    },
+    {
+      "label": "Ordinary member denied /admin/delete-admin",
+      "status": 403
+    },
+    {
+      "label": "Unauthenticated denied /admin/reset-admin-password",
+      "status": 401
+    },
+    {
+      "label": "Ordinary member denied /admin/reset-admin-password",
+      "status": 403
+    },
+    {
+      "label": "Unauthenticated denied /admin/send-deletion-otp",
+      "status": 401
+    },
+    {
+      "label": "Ordinary member denied /admin/send-deletion-otp",
+      "status": 403
+    },
+    {
+      "label": "Admin without MFA denied",
+      "status": 403
+    },
+    {
+      "label": "Verified MFA admin may list admins",
+      "status": 200
+    },
+    {
+      "label": "Admin email verification requires code",
+      "status": 400
+    },
+    {
+      "label": "Admin email requires valid server-consumed code",
+      "status": 200
+    },
+    {
+      "label": "Admin email code cannot be reused",
+      "status": 400
+    },
+    {
+      "label": "Create admin handler succeeds",
+      "status": 201
+    },
+    {
+      "label": "Reset reports email failure accurately",
+      "status": 200
+    },
+    {
+      "label": "Reset admin password handler succeeds",
+      "status": 200
+    },
+    {
+      "label": "Profile photo approval handler succeeds",
+      "status": 200
+    },
+    {
+      "label": "Gallery photo rejection handler succeeds",
+      "status": 200
+    },
+    {
+      "label": "Admin deletion requires OTP",
+      "status": 400
+    },
+    {
+      "label": "General user deletion rejects admin targets",
+      "status": 403
+    },
+    {
+      "label": "Deletion code delivered",
+      "status": 200
+    },
+    {
+      "label": "Incorrect deletion code rejected",
+      "status": 400
+    },
+    {
+      "label": "Verified deletion succeeds",
+      "status": 200
+    },
+    {
+      "label": "Deletion code cannot be replayed",
+      "status": 400
+    },
+    {
+      "label": "Announcement write denied for admin by rules",
+      "status": 403
+    },
+    {
+      "label": "Suspended approved member cannot read another profile directly",
+      "status": 403
+    },
+    {
+      "label": "Database denies administrator session without MFA",
+      "status": 403
+    },
+    {
+      "label": "Banned member cannot read other profiles",
+      "status": 403
+    },
+    {
+      "label": "Admin record verification cannot be edited directly",
+      "status": 403
+    },
+    {
+      "label": "Valid profile approval permitted",
+      "status": 200
+    },
+    {
+      "label": "Valid profile rejection permitted",
+      "status": 200
+    },
+    {
+      "label": "Valid profile suspension permitted",
+      "status": 200
+    },
+    {
+      "label": "Valid profile restoration permitted",
+      "status": 200
+    },
+    {
+      "label": "Suspension of incomplete age-zero draft permitted",
+      "status": 200
+    }
+  ],
+  "missingLocalRoutes": [],
+  "mockedAuthOperations": [
+    {
+      "operation": "auth.deleteUser",
+      "uid": "target"
+    }
+  ]
+}

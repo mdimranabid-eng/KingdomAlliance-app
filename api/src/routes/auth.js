@@ -149,18 +149,41 @@ router.post('/auth/mfa/challenge', async (req, res) => {
   } catch (e) { console.error('[auth/mfa/challenge]', e); res.status(500).json({ error: { code: 'internal', message: 'Challenge failed.' } }); }
 });
 
-// ── Google sign-in (GIS ID token) ─────────────────────────────────────────────
+// ── Google sign-in (GIS ID token or OAuth access token) ─────────────────────────
 router.post('/auth/google', async (req, res) => {
   try {
-    const { idToken, mode } = req.body || {};
-    if (!idToken) return res.status(400).json({ error: { code: 'auth/invalid-credential', message: 'Missing Google credential.' } });
-    const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-    const info = await r.json();
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (!info || !info.email || info.email_verified !== 'true' || (clientId && info.aud !== clientId)) {
-      return res.status(401).json({ error: { code: 'auth/invalid-credential', message: 'Google sign-in could not be verified.' } });
+    const { idToken, accessToken, credential, mode } = req.body || {};
+    const token = idToken || credential;
+    let email = '';
+    let fullName = '';
+    let picture = '';
+
+    if (token) {
+      const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
+      const info = await r.json();
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      if (!info || !info.email || info.email_verified !== 'true' || (clientId && info.aud !== clientId)) {
+        return res.status(401).json({ error: { code: 'auth/invalid-credential', message: 'Google sign-in could not be verified.' } });
+      }
+      email = info.email;
+      fullName = info.name || '';
+      picture = info.picture || '';
+    } else if (accessToken) {
+      const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const info = await r.json();
+      if (!info || !info.email || info.email_verified !== true) {
+        return res.status(401).json({ error: { code: 'auth/invalid-credential', message: 'Google sign-in could not be verified.' } });
+      }
+      email = info.email;
+      fullName = info.name || '';
+      picture = info.picture || '';
+    } else {
+      return res.status(400).json({ error: { code: 'auth/invalid-credential', message: 'Missing Google credential.' } });
     }
-    let row = await findUserRow(info.email);
+
+    let row = await findUserRow(email);
     if (row) {
       const data = row.data && typeof row.data === 'object' ? row.data : (() => { try { return JSON.parse(row.data || '{}'); } catch { return {}; } })();
       const isAlreadyRegistered =
@@ -195,11 +218,11 @@ router.post('/auth/google', async (req, res) => {
     } else {
       const uid = store.uuid();
       await store.writeDoc('users', uid, {
-        uid, email: info.email.toLowerCase(), fullName: info.name || '',
-        photoUrl: info.picture || '', ...INITIAL_PROFILE, authProvider: 'google',
+        uid, email: email.toLowerCase(), fullName,
+        photoUrl: picture, ...INITIAL_PROFILE, authProvider: 'google',
         emailVerified: true, createdAt: { __st: 1 }, lastActive: { __st: 1 },
       }, { merge: false, createOnly: true });
-      row = await findUserRow(info.email);
+      row = await findUserRow(email);
     }
     res.json(await sendTokens(res, row, ''));
   } catch (e) { console.error('[auth/google]', e); res.status(500).json({ error: { code: 'internal', message: 'Google sign-in failed.' } }); }

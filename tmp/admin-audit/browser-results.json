@@ -1,0 +1,54 @@
+{
+  "initial": {
+    "heading": "Kingdom Alliance",
+    "inputs": [
+      "text",
+      "password",
+      "email",
+      "password"
+    ],
+    "buttons": [
+      "Secure Login",
+      "Back to Kingdom Alliance"
+    ]
+  },
+  "routes": [
+    {
+      "route": "/admin",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/approvals",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/photos",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/users",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/rejected",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/church-info",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/settings",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/announcements",
+      "redirectedToLogin": true
+    },
+    {
+      "route": "/admin/help",
+      "redirectedToLogin": true
+    }
+  ],
+  "errors": []
+}

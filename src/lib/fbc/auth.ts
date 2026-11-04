@@ -1,10 +1,4 @@
 // Firebase Auth compatibility layer backed by /api/auth/*.
-import { getApp } from 'firebase/app';
-import {
-  getAuth as getRealFbAuth,
-  GoogleAuthProvider as RealGoogleAuthProvider,
-  signInWithPopup as realSignInWithPopup,
-} from '@firebase/auth';
 import {
   request, setTokens, loadTokens, getAccessToken, getRefreshToken, ensureFreshAccessToken,
   setPersistenceMode, onAuthEvent, emitAuthEvent,
@@ -194,33 +188,78 @@ export async function signOut(_auth?: any): Promise<void> {
   emitAuthEvent(null);
 }
 
-// ── Google sign-in ────────────────────────────────────────────────────────────
-// The OAuth web client only allows Firebase's own auth-handler as redirect URI,
-// so we reuse the REAL Firebase Auth SDK (already in the bundle for FCM) purely
-// for the popup dance: it returns a Google-issued ID token that we exchange for
-// our own session at /api/auth/google. Our backend stays the source of truth.
+// ── Google sign-in (Google Identity Services — 100% Zero-Firebase) ─────────────
 export class GoogleAuthProvider {
   static PROVIDER_ID = 'google.com';
   _customParams: any = {};
   setCustomParameters(p: any): void { this._customParams = { ...this._customParams, ...(p || {}) }; }
 }
 
+function loadGsiScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('Window not available'));
+  if ((window as any).google?.accounts?.oauth2) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById('google-jssdk');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services')));
+      // In case it already loaded before event listener attached
+      if ((window as any).google?.accounts?.oauth2) resolve();
+      return;
+    }
+    const s = document.createElement('script');
+    s.id = 'google-jssdk';
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+    document.head.appendChild(s);
+  });
+}
+
 export async function signInWithPopup(_auth: any, _provider: any): Promise<{ user: User }> {
   try {
-    const fbAuth = getRealFbAuth(getApp());
-    const provider = new RealGoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const credential = await realSignInWithPopup(fbAuth, provider);
-    const googleCred = RealGoogleAuthProvider.credentialFromResult(credential);
-    const idToken = googleCred && (googleCred.idToken || (googleCred as any).token);
-    if (!idToken) {
-      throw authErr('auth/invalid-credential', 'Google sign-in did not return a credential.');
+    await loadGsiScript();
+    const clientId =
+      (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
+      '583391827233-99lkvfsgcbmlssorgj0eatjm1mse61fc.apps.googleusercontent.com';
+
+    const google = (window as any).google;
+    if (!google?.accounts?.oauth2) {
+      throw authErr('auth/network-request-failed', 'Google Identity Services could not be initialized.');
     }
+
+    const tokenResponse = await new Promise<any>((resolve, reject) => {
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        callback: (resp: any) => {
+          if (resp.error) {
+            reject(authErr('auth/popup-closed-by-user', resp.error_description || resp.error));
+          } else {
+            resolve(resp);
+          }
+        },
+        error_callback: (err: any) => {
+          reject(authErr('auth/popup-closed-by-user', err?.message || 'Google sign-in was closed.'));
+        },
+      });
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
+    });
+
+    const accessToken = tokenResponse?.access_token;
+    if (!accessToken) {
+      throw authErr('auth/invalid-credential', 'Google sign-in did not return an access token.');
+    }
+
     const mode = _provider?._customParams?.mode || undefined;
-    const data = await request<any>('POST', '/auth/google', { idToken, mode });
+    const data = await request<any>('POST', '/auth/google', { accessToken, mode });
     return { user: setCurrentUser(data.user, { accessToken: data.accessToken, refreshToken: data.refreshToken }) };
   } catch (e: any) {
-    // surface firebase-style codes (auth/popup-closed-by-user, auth/popup-blocked, …)
     if (e?.code) throw e;
     throw authErr('auth/popup-closed-by-user', e?.message || 'Google sign-in was cancelled.');
   }
