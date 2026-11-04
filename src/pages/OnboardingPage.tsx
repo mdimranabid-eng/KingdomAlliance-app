@@ -681,6 +681,14 @@ export default function RegisterPage() {
         uid: activeUser.uid, email: formData.email || activeUser.email || '',
         emailVerified: emailVerifiedLocal, authProvider, role: 'user', isBanned: false, isSuspended: false,
         onboardingComplete: true, approvalStatus: 'pending',
+        agreedTerms: true,
+        agreedTermsAt: serverTimestamp(),
+        digitalSignature: {
+          signedByName: formData.fullName || formData.name || activeUser.displayName || 'Member',
+          signedByEmail: formData.email || activeUser.email || '',
+          signedAt: serverTimestamp(),
+          agreementVersion: 'v2.0'
+        },
         submittedAt: serverTimestamp(), updatedAt: serverTimestamp(),
         lastActive: serverTimestamp(), profileId: await generateUniqueProfileId()
       };

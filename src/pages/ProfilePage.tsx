@@ -48,6 +48,8 @@ import {
   Activity,
   ChevronRight,
   X,
+  FileText,
+  Download,
   Maximize2,
   ZoomIn,
   ZoomOut,
@@ -162,6 +164,7 @@ export default function ProfilePage() {
   const [testimonyStory, setTestimonyStory] = useState('');
   const [testimonySaving, setTestimonySaving] = useState(false);
   const [existingTestimony, setExistingTestimony] = useState<any | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const [showRateLimitAlert, setShowRateLimitAlert] = useState(false);
   const [rateLimitResetTime, setRateLimitResetTime] = useState<string | null>(null);
@@ -462,6 +465,34 @@ const [showEditModal, setShowEditModal] = useState(false);
       toast.error(err.message || 'Failed to submit testimony');
     } finally {
       setTestimonySaving(false);
+    }
+  };
+
+  const handleDownloadProfilePdf = async () => {
+    if (!currentUser) return;
+    setDownloadingPdf(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const response = await fetch(`${backendUrl}/api/my-profile-pdf`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Could not generate PDF record.');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Kingdom_Alliance_Profile_Covenant_${profile?.profileId || 'MEMBER'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Downloaded your signed profile and covenant PDF!');
+    } catch (err: any) {
+      console.error('PDF download error:', err);
+      toast.error(err.message || 'Failed to download PDF.');
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -1716,6 +1747,34 @@ const [showEditModal, setShowEditModal] = useState(false);
                         If God has united you with your future spouse through Kingdom Alliance, we would love to celebrate your story! Approved testimonies are featured on our homepage to inspire others.
                       </p>
                     )}
+                  </div>
+
+                  {/* Official Member Dossier & Signed Covenant PDF Download */}
+                  <div className="rounded-[1.5rem] p-6 sm:p-7 border border-[#e8dfcf] bg-white shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-[#0f172a] text-[#d4af37] flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h2 className="text-base sm:text-lg font-bold text-[#4a3521]">
+                            Official Member Dossier & Signed Covenant (PDF)
+                          </h2>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Complete profile data, matrimonial Terms & Conditions, and verified digital signature.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleDownloadProfilePdf}
+                        disabled={downloadingPdf}
+                        className="px-5 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 disabled:opacity-50"
+                      >
+                        {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin text-[#d4af37]" /> : <Download className="w-4 h-4 text-[#d4af37]" />}
+                        Download Signed PDF
+                      </button>
+                    </div>
                   </div>
 
                   <BlockedUsersList />

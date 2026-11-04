@@ -116,11 +116,12 @@ async function sendOnboardingEmail(uid, profileData) {
   const email = String(data.email || '').toLowerCase();
   const sent = await deliverOnce(`onboarding_${uid}`, async () => {
     const profileId = data.profileId || `KA-${uid.slice(0, 6).toUpperCase()}`;
-    const pdf = await generateBiodataPdf({ ...data, profileId });
+    const pdf = await generateBiodataPdf({ ...data, uid, profileId });
     const bcc = process.env.ONBOARDING_BCC_EMAILS || 'themaster@thekingdomalliances.com';
-    await dispatchEmail(email, data.fullName || data.name || 'Member', 'onboarding_complete',
+    const memberName = data.fullName || data.name || 'Member';
+    await dispatchEmail(email, memberName, 'onboarding_complete',
       null, 'Kingdom Alliance',
-      pdf.toString('base64'), `KA_Biodata_${profileId}.pdf`, bcc);
+      pdf.toString('base64'), `Kingdom_Alliance_Profile_Covenant_${profileId}.pdf`, bcc);
   });
   await writeDoc('users', uid, { onboardingEmailSent: true, onboardingEmailSentAt: tsWrap(Date.now()) }, { merge: true });
   return sent;

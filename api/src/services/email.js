@@ -55,9 +55,12 @@ function template(type, secret, reason, senderName) {
       return ['Your connection request was accepted on Kingdom Alliance', wrap('Connection Accepted',
         `<p>Hello,</p><p><strong>${senderName || 'A member'}</strong> accepted your connection request! You can now start messaging each other.</p>`)];
     case 'onboarding_complete':
-      return ['Welcome to Kingdom Alliance — your profile is complete', wrap('Profile Complete',
-        `<p>Hello ${secret || 'Member'},</p><p>Your Kingdom Alliance profile has been completed and submitted for review. Your biodata is attached to this email.</p>
-         <p>Our administration team will review your profile shortly. You will receive an email once the review is complete.</p>`)];
+      return ['Welcome to Kingdom Alliance — Profile & Signed Covenant Attached', wrap('Profile Completed & Covenant Confirmed',
+        `<p>Hello <strong>${secret || 'Member'}</strong>,</p>
+         <p>Welcome to Kingdom Alliance! Your official profile registration and Christian matrimony onboarding have been successfully completed.</p>
+         <p>Attached to this email is your confidential <strong>Member Profile Record & Signed Terms & Conditions Agreement</strong> (PDF), complete with your electronic signature certificate and verification timestamp.</p>
+         <p>Our administration team will review your profile shortly. You will receive an email once the verification is complete.</p>
+         <p style="font-size: 13px; color: #64748b; margin-top: 18px;">Please retain this attached document for your personal records.</p>`)];
     case 'account_deletion_scheduled':
       return ['Your Kingdom Alliance account deletion is scheduled', wrap('Account Deletion Scheduled',
         `<p>Hello,</p><p>We received your request to delete your Kingdom Alliance account. Your account and all associated data will be permanently deleted on <strong>${reason || 'the scheduled date'}</strong>.</p>
