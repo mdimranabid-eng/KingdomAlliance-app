@@ -51,7 +51,37 @@ async function extraChecks(result) {
     if (!target) throw Object.assign(new Error('Target user does not exist'), { code: 'invalid-argument' });
   }
   if (result && result.needInterest) {
-    const interest = await store.getDoc('interests', result.needInterest);
+    let interest = await store.getDoc('interests', result.needInterest);
+    if (!interest || interest.data.status !== 'accepted') {
+      const parts = String(result.needInterest).split('_');
+      if (parts.length === 2) {
+        const docs = await store.queryDocs('interests', {
+          wheres: [
+            {
+              composite: 'or',
+              filters: [
+                {
+                  composite: 'and',
+                  filters: [
+                    { field: 'fromId', op: '==', value: parts[0] },
+                    { field: 'toId', op: '==', value: parts[1] }
+                  ]
+                },
+                {
+                  composite: 'and',
+                  filters: [
+                    { field: 'fromId', op: '==', value: parts[1] },
+                    { field: 'toId', op: '==', value: parts[0] }
+                  ]
+                }
+              ]
+            }
+          ]
+        });
+        const matched = docs.find((d) => d.data && d.data.status === 'accepted');
+        if (matched) interest = matched;
+      }
+    }
     if (!interest || interest.data.status !== 'accepted') {
       throw Object.assign(new Error('Messages require an accepted connection'), { code: 'permission-denied' });
     }

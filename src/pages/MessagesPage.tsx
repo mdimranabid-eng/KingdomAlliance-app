@@ -221,6 +221,8 @@ export default function MessagesPage() {
       handleFirestoreError(err, OperationType.LIST, `chats/${chatId}/messages`);
     });
 
+    setConnectionState(null);
+
     // Real-Time Connection Listener & Memory Management
     const q = query(
       collection(db, 'interests'),
@@ -229,12 +231,22 @@ export default function MessagesPage() {
         and(where('fromId', '==', activeChatUserId), where('toId', '==', currentUser.uid))
       )
     );
+    const connectionId = [currentUser.uid, activeChatUserId].sort().join('_');
     const unsubConnection = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         const docSnap = snapshot.docs[0];
         setConnectionState({ id: docSnap.id, ...docSnap.data() });
       } else {
-        setConnectionState({ status: 'none' });
+        // Fallback check by deterministic connectionId before concluding inactive
+        getDoc(doc(db, 'interests', connectionId)).then((directSnap) => {
+          if (directSnap.exists()) {
+            setConnectionState({ id: directSnap.id, ...directSnap.data() });
+          } else {
+            setConnectionState({ status: 'none' });
+          }
+        }).catch(() => {
+          setConnectionState({ status: 'none' });
+        });
       }
     });
 
@@ -602,7 +614,11 @@ export default function MessagesPage() {
             </div>
             {/* Message Input */}
             <div className="p-6 bg-white border-t border-[#e2ddd2]">
-              {connectionState?.status === 'accepted' ? (
+              {connectionState === null ? (
+                <div className="p-4 text-center text-[#8a7a63] text-sm font-medium animate-pulse bg-[#f7f2e9] rounded-xl border border-[#e2ddd2]">
+                  Verifying connection...
+                </div>
+              ) : connectionState?.status === 'accepted' ? (
                 <form
                   onSubmit={handleSendMessage}
                   className="flex items-center gap-3 bg-[#f7f2e9] p-2 pr-2 h-14 rounded-2xl border border-[#e2ddd2] focus-within:ring-2 focus-within:ring-[#C9A84C] shadow-inner"

@@ -118,14 +118,21 @@ export const and = (...filters: any[]) => ({ __and: filters });
 
 export interface FsQuery { collPath: string; collectionGroup: boolean; wheres: WhereFilter[]; orderBys: OrderBy[]; limitTo?: number; }
 
+function normalizeFilter(c: any): any {
+  if (!c) return c;
+  if (c.__or) return { composite: 'or', filters: (c.__or || []).map(normalizeFilter) };
+  if (c.__and) return { composite: 'and', filters: (c.__and || []).map(normalizeFilter) };
+  if (c.composite) return { composite: c.composite, filters: (c.filters || []).map(normalizeFilter) };
+  return c;
+}
+
 export function query(collOrQuery: any, ...constraints: any[]): FsQuery {
   const base: FsQuery = collOrQuery?.kind === 'coll'
     ? { collPath: collOrQuery.collPath, collectionGroup: !!collOrQuery.collectionGroup, wheres: [], orderBys: [] }
     : { ...collOrQuery, wheres: [...(collOrQuery.wheres || [])], orderBys: [...(collOrQuery.orderBys || [])] };
   for (const c of constraints) {
     if (!c) continue;
-    if (c.__or) base.wheres.push({ composite: 'or', filters: c.__or } as any);
-    else if (c.__and) base.wheres.push({ composite: 'and', filters: c.__and } as any);
+    if (c.__or || c.__and || c.composite) base.wheres.push(normalizeFilter(c));
     else if (c.field && c.op) base.wheres.push(c);
     else if (c.field && c.dir) base.orderBys.push(c);
     else if (typeof c.__limit === 'number') base.limitTo = c.__limit;
