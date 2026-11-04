@@ -322,7 +322,7 @@ async function check(ctx) {
       if (isAdmin(ctx)) return {};
       return { filter: (d) => g(d, 'profileId') === ctx.auth?.uid || g(d, 'viewerId') === ctx.auth?.uid };
     }
-    if (ctx.op === 'create') {
+    if (ctx.op === 'create' || ctx.op === 'update') {
       if (!isValidId(id) || !isUsableAccount(ctx)) throw new PermissionDenied();
       if (g(ctx.incoming, 'viewerId') !== ctx.auth?.uid) throw new PermissionDenied();
       return {};

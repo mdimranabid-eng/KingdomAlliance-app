@@ -218,11 +218,20 @@ router.post('/auth/google', async (req, res) => {
     } else {
       const uid = store.uuid();
       await store.writeDoc('users', uid, {
-        uid, email: email.toLowerCase(), fullName,
-        photoUrl: picture, ...INITIAL_PROFILE, authProvider: 'google',
-        emailVerified: true, createdAt: { __st: 1 }, lastActive: { __st: 1 },
+        ...INITIAL_PROFILE,
+        uid,
+        email: email.toLowerCase(),
+        fullName,
+        photoUrl: picture,
+        authProvider: 'google',
+        emailVerified: true,
+        createdAt: { __st: 1 },
+        lastActive: { __st: 1 },
       }, { merge: false, createOnly: true });
       row = await findUserRow(email);
+    }
+    if (row && row.id) {
+      await pool.query('UPDATE users SET last_login_at = NOW(), last_active_at = NOW() WHERE id = ?', [row.id]).catch(() => undefined);
     }
     res.json(await sendTokens(res, row, ''));
   } catch (e) { console.error('[auth/google]', e); res.status(500).json({ error: { code: 'internal', message: 'Google sign-in failed.' } }); }
