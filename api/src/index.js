@@ -18,12 +18,14 @@ const corsOrigin = process.env.CORS_ORIGIN || '*';
 app.use(require('cors')({ origin: corsOrigin === '*' ? true : corsOrigin.split(','), credentials: false }));
 app.use(express.json({ limit: '12mb' }));
 
+const filesRouter = require('./routes/files');
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api', require('./routes/auth'));
 app.use('/api', require('./routes/fs'));
 app.use('/api', require('./routes/special'));
 app.use('/api', require('./routes/realtime'));
-app.use('/api', require('./routes/files'));
+app.use('/api', filesRouter);
 app.use('/api', require('./routes/adminApi'));
 
 // ── Cron endpoints (secret-protected; also run in-process) ────────────────────
@@ -37,8 +39,8 @@ app.post('/api/cron/:job', async (req, res) => {
 });
 
 // ── Static: uploads + SPA ─────────────────────────────────────────────────────
-const UPLOAD_ROOT = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
-app.use('/uploads', express.static(UPLOAD_ROOT, { maxAge: '30d', immutable: true }));
+app.use('/uploads', express.static(filesRouter.UPLOAD_ROOT, { maxAge: '30d', immutable: true }));
+app.get('/uploads/*', filesRouter.serveUpload);
 
 const DIST = path.resolve(process.cwd(), process.env.DIST_DIR || '../dist');
 if (fs.existsSync(path.join(DIST, 'index.html'))) {
@@ -96,10 +98,22 @@ async function bootstrapAdmin() {
   console.log(`[bootstrap] admin account ready for ${email}`);
 }
 
+async function logPendingPhotosSummary() {
+  try {
+    const pm = await store.queryDocs('photoModeration', { wheres: [{ field: 'photoStatus', op: '==', value: 'pending' }] });
+    const pu = await store.queryDocs('users', { wheres: [{ field: 'photoStatus', op: '==', value: 'pending' }] });
+    console.log(`[photos] pending_mod=${pm.length} (${pm.map((d) => `${d.id}:${d.data.photoURL || d.data.photoUrl || 'empty'}`).join(', ')}) | pending_users=${pu.length} (${pu.map((u) => `${u.id}:${u.data.pendingPhotoUrl || u.data.photoUrl || 'empty'}`).join(', ')})`);
+  } catch (e) {
+    console.warn('[photos] summary failed:', e.message);
+  }
+}
+
 async function main() {
   const ok = await initDb();
   if (ok) {
     await bootstrapAdmin().catch((e) => console.error('[bootstrap]', e.message));
+    await filesRouter.rescuePreviousBuildUploads();
+    await logPendingPhotosSummary();
     startCron();
   }
   const port = Number(process.env.PORT || 3001);
