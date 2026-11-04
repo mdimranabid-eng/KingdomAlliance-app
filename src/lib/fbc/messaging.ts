@@ -31,3 +31,4 @@ export function onMessage(_messaging: any, _nextOrObserver: any): () => void {
 export function isSupported(): Promise<boolean> {
   return Promise.resolve(false);
 }
+

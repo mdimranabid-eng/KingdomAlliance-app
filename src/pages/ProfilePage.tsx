@@ -87,6 +87,7 @@ import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { DetailItem, ProfileSection, Detail, PillGroup, hasValue } from '../components/ProfileCards';
 import { OnlineIndicator } from '../components/OnlineIndicator';
 import EditProfileModal from '../components/EditProfileModal';
+import { sound } from '../lib/sound';
 
 const BACKEND_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || '');
 import toast from 'react-hot-toast';
@@ -193,6 +194,12 @@ const [showEditModal, setShowEditModal] = useState(false);
   });
   const [lightboxZoomed, setLightboxZoomed] = useState(false);
   const [stats, setStats] = useState({ views: 0, interests: 0, shortlistedBy: 0, unread: 0, connections: 0 });
+  const [newMessageAlert, setNewMessageAlert] = useState<{
+    show: boolean;
+    count: number;
+    message: string;
+    chatUrl?: string;
+  }>({ show: false, count: 0, message: '' });
 
   const getSecureImageUrl = (url: string, _isWatermark: boolean = false) => {
     if (!url || typeof url !== 'string') return '';
@@ -1033,9 +1040,24 @@ const [showEditModal, setShowEditModal] = useState(false);
     );
     unsubscribers.push(unsubShortlists);
 
+    let prevUnreadCount: number | null = null;
     const unsubUnread = onSnapshot(
       query(collectionGroup(db, 'messages'), where('receiverId', '==', uid), where('read', '==', false)),
-      (snap) => setStats(prev => ({ ...prev, unread: snap.size })),
+      (snap) => {
+        const count = snap.size;
+        setStats(prev => ({ ...prev, unread: count }));
+        if (prevUnreadCount !== null && count > prevUnreadCount) {
+          sound.playNotification();
+          const diff = count - prevUnreadCount;
+          setNewMessageAlert({
+            show: true,
+            count,
+            message: `You received ${diff > 1 ? `${diff} new messages` : 'a new message'} in your inbox!`,
+            chatUrl: '/messages',
+          });
+        }
+        prevUnreadCount = count;
+      },
       (err) => console.error('Unread messages listener error:', err)
     );
     unsubscribers.push(unsubUnread);
@@ -1064,6 +1086,36 @@ const [showEditModal, setShowEditModal] = useState(false);
 
     return () => unsubscribers.forEach((unsub) => unsub());
   }, [id, currentUser]);
+
+  // Real-time incoming message alert when viewing another member's profile
+  useEffect(() => {
+    if (!currentUser || isOwnProfile) return;
+    const uid = currentUser.uid;
+    let prevCount: number | null = null;
+
+    const unsub = onSnapshot(
+      query(collectionGroup(db, 'messages'), where('receiverId', '==', uid), where('read', '==', false)),
+      (snap) => {
+        const count = snap.size;
+        if (prevCount !== null && count > prevCount) {
+          sound.playNotification();
+          const hasFromThisMember = snap.docs.some(d => d.data().senderId === id);
+          setNewMessageAlert({
+            show: true,
+            count,
+            message: hasFromThisMember
+              ? `${fullName || 'This member'} just sent you a new message!`
+              : 'You have a new message waiting in your inbox!',
+            chatUrl: hasFromThisMember ? `/messages/${id}` : '/messages',
+          });
+        }
+        prevCount = count;
+      },
+      (err) => console.error('Other profile message listener error:', err)
+    );
+
+    return () => unsub();
+  }, [currentUser?.uid, id, isOwnProfile, fullName]);
 
 
   const tabs = [
@@ -1259,6 +1311,59 @@ const [showEditModal, setShowEditModal] = useState(false);
           </div>
           <div className="relative z-10 -mt-11 rounded-[20px] border border-[#eee7d8] bg-white shadow-[0_20px_50px_-25px_rgba(74,53,33,0.25)] sm:-mt-14 sm:rounded-[2rem] md:-mt-16">
             <div className="p-4 sm:p-6 md:p-10">
+              {/* Live Incoming Message Notification Banner */}
+              <AnimatePresence>
+                {newMessageAlert.show && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -16, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -16, scale: 0.96 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                    className="mb-6 p-3.5 sm:p-4 rounded-2xl border border-amber-300/80 shadow-[0_14px_36px_-12px_rgba(201,168,76,0.45)] flex items-center justify-between gap-3 text-sm z-30"
+                    style={{
+                      background: 'linear-gradient(135deg, #fffaf2 0%, #fff4df 50%, #ffe9c4 100%)',
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="relative flex h-3 w-3 flex-shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-[#C9A84C] shadow-sm" />
+                      </span>
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#6b471f] text-[13px] sm:text-sm">New Message</span>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#C9A84C] text-white tracking-wider shadow-xs">
+                            LIVE
+                          </span>
+                        </div>
+                        <span className="text-[11.5px] sm:text-xs text-[#8f6337] truncate mt-0.5">
+                          {newMessageAlert.message}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => navigate(newMessageAlert.chatUrl || '/messages')}
+                        className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs text-white shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                        style={{ background: 'linear-gradient(135deg, #b3804c 0%, #8f6337 100%)' }}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Open Chat</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewMessageAlert({ show: false, count: 0, message: '' })}
+                        className="p-1.5 rounded-lg text-[#8f6337] hover:bg-amber-200/50 transition-colors cursor-pointer"
+                        aria-label="Dismiss alert"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="flex flex-col items-center gap-4 md:flex-row md:items-end md:gap-8 sm:gap-6">
                 {/* Profile Photo with Golden Ring */}
                 <div className="relative group">
@@ -1437,20 +1542,40 @@ const [showEditModal, setShowEditModal] = useState(false);
             ];
             return tiles.map((s, i) => {
               const isRowStart = i % 4 === 0;
+              const isUnreadTile = s.k === 'Unread Messages';
+              const hasUnread = isUnreadTile && Number(s.v) > 0;
               return (
                 <button
                   key={s.k}
                   type="button"
                   onClick={() => s.to && navigate(s.to)}
                   className={
-                    'text-center px-1.5 py-3 border-[#eee5d2] transition-colors sm:px-3 sm:py-[18px] ' +
+                    'text-center px-1.5 py-3 border-[#eee5d2] transition-all duration-300 sm:px-3 sm:py-[18px] ' +
                     (isRowStart ? (i > 0 ? 'xl:border-l' : '') : 'border-l') +
                     (i >= 4 ? ' border-t xl:border-t-0' : '') + ' ' +
+                    (isUnreadTile && (newMessageAlert.show || hasUnread)
+                      ? 'bg-gradient-to-br from-[#fff7ea] to-[#feecd2] ring-1 ring-[#C9A84C]/60 shadow-xs '
+                      : '') +
                     (s.to ? 'cursor-pointer hover:bg-[#faf4ea] group' : 'cursor-default')
                   }
                 >
-                  <div className="font-headline text-[18px] font-semibold text-[#8f6337] transition-colors group-hover:text-[#b8860b] sm:text-[24px]">{s.v}</div>
-                  <div className="mt-1 text-[7.5px] font-bold uppercase tracking-[0.6px] text-[#a89f8d] whitespace-nowrap sm:text-[9.5px] sm:tracking-[1.4px]">{s.k}</div>
+                  <div className="font-headline text-[18px] font-semibold text-[#8f6337] transition-colors group-hover:text-[#b8860b] sm:text-[24px] flex items-center justify-center gap-1.5">
+                    <span>{s.v}</span>
+                    {hasUnread && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 shadow-sm" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-[7.5px] font-bold uppercase tracking-[0.6px] text-[#a89f8d] whitespace-nowrap sm:text-[9.5px] sm:tracking-[1.4px] flex items-center justify-center gap-1">
+                    <span>{s.k}</span>
+                    {hasUnread && (
+                      <span className="px-1 py-0.2 rounded-full text-[7px] font-extrabold bg-[#C9A84C] text-white tracking-wider">
+                        NEW
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             });

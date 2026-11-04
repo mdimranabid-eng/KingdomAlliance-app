@@ -74,7 +74,8 @@ export function onDisconnect(r: RtdbRef): any {
 }
 
 // ── subscriptions ─────────────────────────────────────────────────────────────
-const POLL_MS = 10000;
+const getPresenceInterval = () => (typeof document !== 'undefined' && document.hidden ? 15000 : 4000);
+const getTypingInterval = () => (typeof document !== 'undefined' && document.hidden ? 8000 : 2000);
 
 export function onValue(r: RtdbRef, cb: (snap: { val: () => any }) => void): () => void {
   const emit = (v: any) => cb({ val: () => v });
@@ -88,30 +89,62 @@ export function onValue(r: RtdbRef, cb: (snap: { val: () => any }) => void): () 
   if (r.path.startsWith('status/')) {
     const uid = r.path.split('/')[1];
     let timer: any = null;
+    let stopped = false;
+
     const poll = async () => {
+      if (stopped) return;
       try {
         const states = await request<Record<string, any>>('GET', `/presence?uids=${encodeURIComponent(uid)}`);
         const s = states[uid];
         emit(s ? { state: s.state, last_changed: s.last_changed ? Timestamp.fromMillis(s.last_changed) : null } : null);
       } catch { /* offline — keep last value */ }
-      timer = setTimeout(poll, POLL_MS);
+      if (!stopped) {
+        timer = setTimeout(poll, getPresenceInterval());
+      }
     };
+
+    const onVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden && !stopped) {
+        if (timer) clearTimeout(timer);
+        poll();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
+
     poll();
-    return () => { if (timer) clearTimeout(timer); };
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
+    };
   }
 
   if (r.path.startsWith('typingStatus/')) {
     const chatId = r.path.split('/')[1];
     let timer: any = null;
+    let stopped = false;
+
     const poll = async () => {
+      if (stopped) return;
       try {
         const map = await request<Record<string, boolean>>('GET', `/typing/${encodeURIComponent(chatId)}`);
         emit(map || {});
       } catch { /* ignore */ }
-      timer = setTimeout(poll, 3000);
+      if (!stopped) {
+        timer = setTimeout(poll, getTypingInterval());
+      }
     };
+
     poll();
-    return () => { if (timer) clearTimeout(timer); };
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
   }
 
   // unknown path: emit null once

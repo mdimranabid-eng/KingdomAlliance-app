@@ -1,62 +1,54 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ref, onValue } from 'firebase/database';
-import { rtdb } from '../lib/firebase'; 
-import { isUserOnline } from '../lib/utils'; 
+import { rtdb } from '../lib/firebase';
+import { isUserOnline } from '../lib/utils';
 
-export const OnlineIndicator = ({ uid, initialLastActive }: { uid: string, initialLastActive: any }) => {
-  const [isOnline, setIsOnline] = useState(isUserOnline(initialLastActive));
-  const indicatorRef = useRef<HTMLDivElement>(null);
+interface OnlineIndicatorProps {
+  uid: string;
+  initialLastActive?: any;
+  showLabel?: boolean;
+}
+
+export const OnlineIndicator: React.FC<OnlineIndicatorProps> = ({
+  uid,
+  initialLastActive,
+  showLabel = true,
+}) => {
+  const [isOnline, setIsOnline] = useState(() => isUserOnline(initialLastActive));
 
   useEffect(() => {
     if (!uid) return;
-    let unsubscribe: (() => void) | null = null;
+    const statusRef = ref(rtdb, `/status/${uid}`);
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          // Attach RTDB listener just before card becomes visible
-          const statusRef = ref(rtdb, `/status/${uid}`);
-          unsubscribe = onValue(statusRef, (snapshot) => {
-            const val = snapshot.val();
-            setIsOnline(val?.state === 'online');
-          });
-        } else {
-          // Detach listener to save memory when scrolled away
-          if (unsubscribe) {
-            unsubscribe();
-            unsubscribe = null;
-          }
-        }
-      },
-      { rootMargin: '100px' } // Load data 100px before scrolling into view
-    );
-
-    if (indicatorRef.current) {
-      observer.observe(indicatorRef.current);
-    }
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val && typeof val.state === 'string') {
+        setIsOnline(val.state === 'online');
+      } else {
+        setIsOnline(isUserOnline(initialLastActive));
+      }
+    });
 
     return () => {
-      observer.disconnect();
-      if (unsubscribe) unsubscribe();
+      unsubscribe();
     };
-  }, [uid]);
+  }, [uid, initialLastActive]);
 
-  // Keep existing class names and logic, just attach the ref:
-  if (!isOnline) return null;
-
+  // Keep wrapper in DOM so presence transitions animate cleanly
   return (
-    <div ref={indicatorRef}>
-      {isOnline && (
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
-          </div>
-          <span className="text-xs font-medium text-green-500 tracking-wide">
-            Online
+    <div className="inline-flex items-center transition-all duration-300">
+      {isOnline ? (
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-[0_2px_8px_-2px_rgba(16,185,129,0.25)] transition-all animate-in fade-in zoom-in-95 duration-300"
+          title="Active on Kingdom Alliance"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-sm" />
           </span>
-        </div>
-      )}
+          {showLabel && <span className="tracking-wide">Online</span>}
+        </span>
+      ) : null}
     </div>
   );
 };

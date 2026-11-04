@@ -31,6 +31,7 @@ import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 import { OnlineIndicator } from '../components/OnlineIndicator';
 import ConfirmationModal from '../components/ConfirmationModal';
 import toast from 'react-hot-toast';
+import { sound } from '../lib/sound';
 
 export default function MessagesPage() {
   const { id: activeChatUserId } = useParams();
@@ -212,9 +213,20 @@ export default function MessagesPage() {
 
     console.log(`DEBUG: Setting up messages listener for chatId: ${chatId}`);
 
+    let isInitialMsgs = true;
+    let prevMsgCount = 0;
+
     const unsubscribeMessages = onSnapshot(msgsQuery, (snapshot) => {
       console.log(`DEBUG: onSnapshot message event fired for ${chatId}! Total messages:`, snapshot.size);
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      if (!isInitialMsgs && msgs.length > prevMsgCount) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.senderId !== currentUser.uid) {
+          sound.playReceived();
+        }
+      }
+      isInitialMsgs = false;
+      prevMsgCount = msgs.length;
       setMessages(msgs);
     }, (err) => {
       console.error(`DEBUG: onSnapshot message listener failed for ${chatId} with error:`, err);
@@ -401,6 +413,7 @@ export default function MessagesPage() {
     setNewMessage('');
     try {
       await addDoc(collection(db, `chats/${chatId}/messages`), msgData);
+      sound.playSent();
 
       // Create a real-time alert for the recipient
       await addDoc(collection(db, 'notifications'), {
