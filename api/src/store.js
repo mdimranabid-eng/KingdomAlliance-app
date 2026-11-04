@@ -178,10 +178,15 @@ function cmpValues(a, b) {
 }
 
 function matches(doc, w) {
-  // composite or(...)/and(...) filters (from the frontend shim)
-  if (w.composite) {
-    const fns = (w.filters || []).map((f) => () => matches(doc, f));
-    return w.composite === 'or' ? fns.some((f) => f()) : fns.every((f) => f());
+  if (!w) return true;
+  // composite or(...)/and(...) filters (from the frontend shim or nested queries)
+  if (w.composite === 'or' || w.__or) {
+    const list = w.filters || w.__or || [];
+    return list.some((f) => matches(doc, f));
+  }
+  if (w.composite === 'and' || w.__and) {
+    const list = w.filters || w.__and || [];
+    return list.every((f) => matches(doc, f));
   }
   const v = unwrapTs(getPath(doc.data, w.field));
   const t = unwrapTs(w.value);
