@@ -61,22 +61,39 @@ async function bootstrapAdmin() {
   const email = (process.env.BOOTSTRAP_ADMIN_EMAIL || '').trim().toLowerCase();
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
   if (!email || !password) return;
-  const [rows] = await pool.query('SELECT COUNT(*) AS n FROM admins');
-  if (rows[0].n > 0) return;
-  const uid = store.uuid();
-  await store.writeDoc('users', uid, {
-    uid, email, fullName: 'System Administrator', role: 'admin',
-    approvalStatus: 'approved', onboardingComplete: true, emailVerified: true,
-    isSuspended: false, isBanned: false, authProvider: 'email',
-    createdAt: { __st: 1 }, lastActive: { __st: 1 },
-  }, { merge: false, createOnly: true });
-  await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(password, 10), uid]);
+  const [existingUsers] = await pool.query('SELECT id, role, password_hash FROM users WHERE email = ? LIMIT 1', [email]);
+  let uid;
+  if (existingUsers.length > 0) {
+    uid = existingUsers[0].id;
+    if (existingUsers[0].role !== 'admin' || !existingUsers[0].password_hash) {
+      await store.writeDoc('users', uid, {
+        uid, email, fullName: 'System Administrator', role: 'admin',
+        approvalStatus: 'approved', onboardingComplete: true, emailVerified: true,
+        isSuspended: false, isBanned: false, authProvider: 'email',
+      }, { merge: true });
+      if (!existingUsers[0].password_hash) {
+        await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(password, 10), uid]);
+      }
+      await pool.query('UPDATE users SET role = ?, email_verified = 1 WHERE id = ?', ['admin', uid]);
+    }
+  } else {
+    const [rows] = await pool.query('SELECT COUNT(*) AS n FROM admins');
+    if (rows[0].n > 0) return;
+    uid = store.uuid();
+    await store.writeDoc('users', uid, {
+      uid, email, fullName: 'System Administrator', role: 'admin',
+      approvalStatus: 'approved', onboardingComplete: true, emailVerified: true,
+      isSuspended: false, isBanned: false, authProvider: 'email',
+      createdAt: { __st: 1 }, lastActive: { __st: 1 },
+    }, { merge: false, createOnly: true });
+    await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(password, 10), uid]);
+  }
   await pool.query(
     `INSERT INTO admins (id, email, email_verified, data) VALUES (?, ?, 1, ?)
-     ON DUPLICATE KEY UPDATE email_verified = 1`,
-    [uid, email, JSON.stringify({ email, emailVerified: true, permissions: ['*'] })]
+     ON DUPLICATE KEY UPDATE id = VALUES(id), email_verified = 1, data = VALUES(data)`,
+    [uid, email, JSON.stringify({ uid, email, role: 'admin', isAdmin: true, emailVerified: true, permissions: ['*'] })]
   );
-  console.log(`[bootstrap] admin account created for ${email}`);
+  console.log(`[bootstrap] admin account ready for ${email}`);
 }
 
 async function main() {

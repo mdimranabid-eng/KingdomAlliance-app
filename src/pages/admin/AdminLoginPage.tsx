@@ -188,12 +188,7 @@ export default function AdminLoginPage() {
 
       const idToken = await currentUser.getIdToken();
 
-      const isDev = import.meta.env.MODE === 'development';
-      const verifyEndpoint = isDev
-        ? '/api/verify-admin-email'
-        : window.location.hostname.includes('staging')
-          ? 'https://verifyadminemail-2wu7cebqxq-uc.a.run.app'
-          : 'https://verifyadminemail-zqwxjtgara-uc.a.run.app';
+      const verifyEndpoint = '/api/verify-admin-email';
 
       const verifyRes = await fetch(verifyEndpoint, {
         method: 'POST',

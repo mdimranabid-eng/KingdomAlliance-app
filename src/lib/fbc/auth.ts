@@ -22,6 +22,7 @@ export class User {
   stsTokenManager: any;
   mfaEnrolled: boolean;
   admin: boolean;
+  secondFactor: string;
   private _claims: any;
 
   constructor(data: any) {
@@ -35,10 +36,14 @@ export class User {
     this.stsTokenManager = { refreshToken: null, accessToken: null, expirationTime: null };
     this.mfaEnrolled = !!data.mfaEnrolled;
     this.admin = !!data.admin;
+    this.secondFactor = data.secondFactor || '';
     this._claims = null;
   }
 
   async getIdToken(_force?: boolean): Promise<string> {
+    if (_force) {
+      try { await this.reload(); } catch { /* ignore */ }
+    }
     return getAccessToken() || '';
   }
 
@@ -46,18 +51,35 @@ export class User {
     if (!this._claims) {
       try {
         const me = await request<any>('GET', '/auth/me');
+        this.admin = !!me.admin;
+        this.mfaEnrolled = !!me.mfaEnrolled;
+        this.secondFactor = me.secondFactor || '';
         this._claims = {
           claims: {
             admin: !!me.admin,
             email: me.email,
             email_verified: !!me.emailVerified,
             sign_in_second_factor: me.secondFactor || '',
+            firebase: {
+              sign_in_second_factor: me.secondFactor || undefined,
+            },
           },
           token: getAccessToken(),
           expirationTime: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
         };
       } catch {
-        this._claims = { claims: { admin: this.admin, email: this.email, email_verified: this.emailVerified }, token: getAccessToken() };
+        this._claims = {
+          claims: {
+            admin: this.admin,
+            email: this.email,
+            email_verified: this.emailVerified,
+            sign_in_second_factor: this.secondFactor || '',
+            firebase: {
+              sign_in_second_factor: this.secondFactor || undefined,
+            },
+          },
+          token: getAccessToken(),
+        };
       }
     }
     return this._claims;
@@ -70,6 +92,7 @@ export class User {
     this.photoURL = me.photoURL || this.photoURL;
     this.mfaEnrolled = !!me.mfaEnrolled;
     this.admin = !!me.admin;
+    this.secondFactor = me.secondFactor || '';
     this._claims = null;
   }
 
@@ -227,8 +250,10 @@ export const TotpMultiFactorGenerator = {
   async generateSecret(_session: any): Promise<any> {
     const data = await request<any>('POST', '/auth/mfa/enroll/start');
     return {
+      secretKey: data.secret,
       code: () => data.secret,
       qrCodeUri: data.qrCodeUri,
+      generateQrCodeUrl: () => data.qrCodeUri,
       toString: () => data.secret,
       secretKeyLength: 20,
     };

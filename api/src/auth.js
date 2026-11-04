@@ -82,7 +82,7 @@ function authRequired(req, res, next) {
     req.uid = payload.sub;
     req.email = payload.email;
     req.role = payload.role;
-    req.isAdmin = !!payload.admin;
+    req.isAdmin = !!payload.admin && !!payload.sign_in_second_factor;
     next();
   } catch (e) {
     return res.status(401).json({ error: 'unauthenticated' });
@@ -98,7 +98,7 @@ function authOptional(req, res, next) {
       req.uid = payload.sub;
       req.email = payload.email;
       req.role = payload.role;
-      req.isAdmin = !!payload.admin;
+      req.isAdmin = !!payload.admin && !!payload.sign_in_second_factor;
     }
   } catch { /* anonymous */ }
   next();

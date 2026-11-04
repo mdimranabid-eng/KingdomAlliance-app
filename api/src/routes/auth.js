@@ -34,15 +34,15 @@ async function findUserRow(email) {
 }
 
 async function sendTokens(res, row, secondFactor) {
-  const isAdmin = row.role === 'admin' && !!secondFactor;
+  const isAdmin = row.role === 'admin';
   const accessToken = signAccessToken(
-    { id: row.id, email: row.email, role: row.role, isAdmin },
+    { id: row.id, email: row.email, role: row.role, isAdmin, emailVerified: !!row.email_verified },
     { secondFactor: secondFactor || '' }
   );
   const refreshToken = await createSession(row.id);
   return {
     accessToken, refreshToken,
-    user: publicUser(row, { admin: isAdmin, secondFactor }),
+    user: publicUser(row, { admin: isAdmin, secondFactor: secondFactor || '' }),
   };
 }
 
@@ -228,7 +228,7 @@ router.get('/auth/me', authRequired, async (req, res) => {
     const [rows] = await pool.query('SELECT id, email, password_hash, role, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [req.uid]);
     if (!rows.length) return res.status(404).json({ error: { code: 'auth/user-not-found' } });
     const payload = verifyAccessToken(req.headers.authorization.slice(7));
-    res.json(publicUser(rows[0], { admin: !!payload.admin, secondFactor: payload.sign_in_second_factor || '' }));
+    res.json(publicUser(rows[0], { admin: rows[0].role === 'admin', secondFactor: payload.sign_in_second_factor || '' }));
   } catch (e) { res.status(500).json({ error: { code: 'internal' } }); }
 });
 
