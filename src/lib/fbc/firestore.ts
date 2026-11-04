@@ -164,6 +164,9 @@ export class QuerySnapshot {
   get empty(): boolean { return this.docs.length === 0; }
   get size(): number { return this.docs.length; }
   forEach(cb: (d: DocumentSnapshot) => void): void { this.docs.forEach(cb); }
+  docChanges(): { type: 'added' | 'modified' | 'removed'; doc: DocumentSnapshot }[] {
+    return this.docs.map((d) => ({ type: 'added', doc: d }));
+  }
   query: any = null;
 }
 

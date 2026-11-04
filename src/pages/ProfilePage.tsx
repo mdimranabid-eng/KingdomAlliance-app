@@ -201,6 +201,16 @@ const [showEditModal, setShowEditModal] = useState(false);
     chatUrl?: string;
   }>({ show: false, count: 0, message: '' });
 
+  const isDeclinedPrivacy = connectionState?.status === 'declined';
+  const rawFullName = profile
+    ? [profile.name || profile.fullName, profile.middleName, profile.lastName]
+        .filter(Boolean)
+        .map((name: any) => String(name).trim())
+        .join(' ')
+    : '';
+  const fullName = isDeclinedPrivacy ? 'Profile Unavailable' : rawFullName;
+  const defaultName = isDeclinedPrivacy ? 'Profile Unavailable' : (profile?.name || profile?.fullName || 'Unnamed Member');
+
   const getSecureImageUrl = (url: string, _isWatermark: boolean = false) => {
     if (!url || typeof url !== 'string') return '';
     const trimmed = url.trim();
@@ -1149,7 +1159,6 @@ const [showEditModal, setShowEditModal] = useState(false);
     </div>
   );
 
-  const isDeclinedPrivacy = connectionState?.status === 'declined';
   // Centralised photo privacy check — owner/admin always see; declined always
   // blurred; public profiles visible to everyone; protected profiles only
   // visible after an accepted connection.
@@ -1159,12 +1168,6 @@ const [showEditModal, setShowEditModal] = useState(false);
     isAdmin,
     connectionState?.status
   );
-  const rawFullName = [profile.name || profile.fullName, profile.middleName, profile.lastName]
-    .filter(Boolean)
-    .map(name => name.trim())
-    .join(' ');
-  const fullName = isDeclinedPrivacy ? 'Profile Unavailable' : rawFullName;
-  const defaultName = isDeclinedPrivacy ? 'Profile Unavailable' : (profile.name || profile.fullName || 'Unnamed Member');
 
   /* --- About tab: bio + curated record groups --- */
   const bio = (profile.aboutMe || '').trim();
