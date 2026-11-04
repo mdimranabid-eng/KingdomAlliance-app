@@ -164,40 +164,38 @@ export async function signOut(_auth?: any): Promise<void> {
   emitAuthEvent(null);
 }
 
-// ── Google sign-in (Google Identity Services) ─────────────────────────────────
+// ── Google sign-in ────────────────────────────────────────────────────────────
+// The OAuth web client only allows Firebase's own auth-handler as redirect URI,
+// so we reuse the REAL Firebase Auth SDK (already in the bundle for FCM) purely
+// for the popup dance: it returns a Google-issued ID token that we exchange for
+// our own session at /api/auth/google. Our backend stays the source of truth.
 export class GoogleAuthProvider {
   static PROVIDER_ID = 'google.com';
   setCustomParameters(_p: any): void { /* no-op */ }
 }
 
-function loadGis(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const w = window as any;
-    if (w.google?.accounts?.id) return resolve(w.google.accounts.id);
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true;
-    s.onload = () => (w.google?.accounts?.id ? resolve(w.google.accounts.id) : reject(new Error('Google sign-in unavailable')));
-    s.onerror = () => reject(new Error('Google sign-in unavailable'));
-    document.head.appendChild(s);
-  });
-}
+const REAL_FB_AUTH = 'firebase/auth/dist/esm/index.esm.js'; // real SDK, bypasses the shim alias
 
 export async function signInWithPopup(_auth: any, _provider: any): Promise<{ user: User }> {
-  const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
-  if (!clientId) throw authErr('auth/operation-not-allowed', 'Google sign-in is not configured (VITE_GOOGLE_CLIENT_ID missing).');
   try {
-    const gid = await loadGis();
-    const idToken: string = await new Promise((resolve, reject) => {
-      gid.initialize({
-        client_id: clientId,
-        callback: (resp: any) => (resp.credential ? resolve(resp.credential) : reject(new Error('no-credential'))),
-      });
-      gid.prompt();
-    });
+    // dynamic import: keeps the real auth SDK out of the initial bundle and
+    // avoids circular module-init issues with firebase/app
+    const mod: any = await import(REAL_FB_AUTH);
+    const { getApp } = await import('firebase/app'); // real (not aliased)
+    const fbAuth = mod.getAuth(getApp());
+    const provider = new mod.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const credential = await mod.signInWithPopup(fbAuth, provider);
+    const googleCred = mod.GoogleAuthProvider.credentialFromResult(credential);
+    const idToken = googleCred && (googleCred.idToken || googleCred.token);
+    if (!idToken) {
+      throw authErr('auth/invalid-credential', 'Google sign-in did not return a credential.');
+    }
     const data = await request<any>('POST', '/auth/google', { idToken });
     return { user: setCurrentUser(data.user, { accessToken: data.accessToken, refreshToken: data.refreshToken }) };
   } catch (e: any) {
+    // surface firebase-style codes (auth/popup-closed-by-user, auth/popup-blocked, …)
+    if (e?.code) throw e;
     throw authErr('auth/popup-closed-by-user', e?.message || 'Google sign-in was cancelled.');
   }
 }
