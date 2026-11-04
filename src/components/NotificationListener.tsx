@@ -6,7 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 import toast from 'react-hot-toast';
 
 export const NotificationListener: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const pathnameRef = useRef(location.pathname);
@@ -17,7 +17,7 @@ export const NotificationListener: React.FC = () => {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isAdmin) return;
 
     let isInitialNotifications = true;
 

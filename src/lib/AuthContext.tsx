@@ -86,6 +86,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      if (isAdmin) {
+        // Administrators do not have a matrimonial member profile
+        setProfile(null);
+        setIsAdmin(true);
+        return;
+      }
+
       let profileDoc;
       try {
         profileDoc = await withTimeout(getDoc(doc(db, 'users', uid)));
@@ -95,6 +102,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profileDoc?.exists()) {
         const data = profileDoc.data();
+        if (data?.role === 'admin') {
+          setProfile(null);
+          setIsAdmin(isAdmin);
+          return;
+        }
         const age = calculateAge(data.dob, data.age);
         setProfile({ ...data, age });
 

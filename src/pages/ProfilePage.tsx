@@ -232,11 +232,19 @@ const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     if (!id) return;
+    if (isAdmin && currentUser?.uid === id) {
+      navigate('/admin', { replace: true });
+      return;
+    }
     const unsubProfile = onSnapshot(
       doc(db, 'users', id),
       (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
+          if (data?.role === 'admin') {
+            navigate(isAdmin ? '/admin' : '/matches', { replace: true });
+            return;
+          }
           const age = calculateAge(data.dob, data.age);
           setProfile({ id: docSnap.id, ...data, age });
           setLoading(false);
@@ -247,22 +255,30 @@ const [showEditModal, setShowEditModal] = useState(false);
       }
     );
     return () => unsubProfile();
-  }, [id]);
+  }, [id, isAdmin, currentUser, navigate]);
 
   useEffect(() => {
     async function fetchProfileData() {
       if (!id) return;
+      if (isAdmin && currentUser?.uid === id) {
+        navigate('/admin', { replace: true });
+        return;
+      }
       setLoading(true);
       try {
         const docSnap = await getDoc(doc(db, 'users', id));
         if (docSnap.exists()) {
           const data = docSnap.data();
+          if (data?.role === 'admin') {
+            navigate(isAdmin ? '/admin' : '/matches', { replace: true });
+            return;
+          }
           const age = calculateAge(data.dob, data.age);
           setProfile({ id: docSnap.id, ...data, age });
 
           // --- PROFILE VIEW TRACKING START ---
-          // Only track if viewer is not viewing own profile
-          if (currentUser?.uid && currentUser.uid !== id) {
+          // Only track if viewer is a non-admin member not viewing own profile
+          if (currentUser?.uid && currentUser.uid !== id && !isAdmin) {
             const viewDocId = `${currentUser.uid}_${id}`;
             await setDoc(
               doc(db, 'profileViews', viewDocId),
@@ -276,7 +292,7 @@ const [showEditModal, setShowEditModal] = useState(false);
           }
           // --- PROFILE VIEW TRACKING END ---
 
-          if (currentUser) {
+          if (currentUser && !isAdmin) {
             const interestsRef = collection(db, 'interests');
             const q1 = query(interestsRef, where('fromId', '==', currentUser.uid), where('toId', '==', id));
             const q2 = query(interestsRef, where('fromId', '==', id), where('toId', '==', currentUser.uid));
@@ -1012,14 +1028,26 @@ const [showEditModal, setShowEditModal] = useState(false);
           <div className="sanctuary-grain sanctuary-panel rounded-[2rem] h-44 md:h-[190px] relative overflow-hidden">
             <div className="absolute right-10 top-1/2 -translate-y-1/2 font-headline text-[110px] md:text-[150px] opacity-10 text-white leading-none select-none">✝</div>
             <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 md:px-8 py-4">
-              <Link to={`/profile/${id}`} className="flex items-center gap-3 font-headline font-bold text-white hover:opacity-90 transition-opacity">
+              <Link to={isAdmin ? '/admin' : `/profile/${id}`} className="flex items-center gap-3 font-headline font-bold text-white hover:opacity-90 transition-opacity">
                 <img src="/images/logo2.png" alt="Kingdom Alliance" className="w-16 h-16 object-contain drop-shadow-lg" />
                 <span className="text-[17px] md:text-[28px] whitespace-nowrap font-extralight" style={{ fontFamily: "'Outfit', sans-serif" }}>The Kingdom Alliances</span>
               </Link>
               <nav className="hidden md:flex items-center gap-6 text-[12.5px] font-semibold text-white/75">
-                <Link to="/matches" className="hover:text-[#dfc88a] transition-colors">Matches</Link>
-                <Link to="/messages" className="hover:text-[#dfc88a] transition-colors">Messages</Link>
-                <Link to={`/profile/${currentUser?.uid}`} className="text-[#dfc88a]">My Profile</Link>
+                {isAdmin ? (
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#dfc88a]/40 bg-[#0c1829]/60 text-[#dfc88a] hover:bg-[#0c1829]/90 transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Back to Admin Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link to="/matches" className="hover:text-[#dfc88a] transition-colors">Matches</Link>
+                    <Link to="/messages" className="hover:text-[#dfc88a] transition-colors">Messages</Link>
+                    <Link to={`/profile/${currentUser?.uid}`} className="text-[#dfc88a]">My Profile</Link>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={logout}
@@ -1031,17 +1059,28 @@ const [showEditModal, setShowEditModal] = useState(false);
                   Logout
                 </button>
               </nav>
-              <button
-                type="button"
-                onClick={logout}
-                disabled={isLoggingOut}
-                aria-label="Logout"
-                title="Logout"
-                className="md:hidden flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/25 bg-white/10 text-white/85 text-[11.5px] font-semibold active:bg-white/25 transition-colors disabled:opacity-60"
-              >
-                {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-                Logout
-              </button>
+              <div className="md:hidden flex items-center gap-2">
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#dfc88a]/40 bg-[#0c1829]/60 text-[#dfc88a] text-[11.5px] font-semibold"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Dashboard
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={logout}
+                  disabled={isLoggingOut}
+                  aria-label="Logout"
+                  title="Logout"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/25 bg-white/10 text-white/85 text-[11.5px] font-semibold active:bg-white/25 transition-colors disabled:opacity-60"
+                >
+                  {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
           <div className="relative z-10 -mt-11 rounded-[20px] border border-[#eee7d8] bg-white shadow-[0_20px_50px_-25px_rgba(74,53,33,0.25)] sm:-mt-14 sm:rounded-[2rem] md:-mt-16">

@@ -109,9 +109,13 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Administrators bypass all standard user matrimonial flow redirections
-  if (isAdmin) {
-    if (location.pathname === '/onboarding') {
+  // Administrators only have the Admin Dashboard (no personal profile or member routes),
+  // except read-only inspection of another member's profile (/profile/:memberId).
+  if (isAdmin || profile?.role === 'admin') {
+    const isInspectingMemberProfile =
+      location.pathname.startsWith('/profile/') &&
+      location.pathname !== `/profile/${user.uid}`;
+    if (!isInspectingMemberProfile) {
       return <Navigate to="/admin" replace />;
     }
     return <>{children}</>;

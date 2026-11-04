@@ -36,7 +36,7 @@ import AdminReportModal from './admin/AdminReportModal';
 export default function Layout() {
   const { settings } = useSettings();
   const { user, profile, isAdmin } = useAuth();
-  usePresence(user?.uid);
+  usePresence(isAdmin ? undefined : user?.uid);
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -63,7 +63,7 @@ export default function Layout() {
   const { logout: handleLogout } = useLogout();
 
   React.useEffect(() => {
-    if (!user) return;
+    if (!user || isAdmin) return;
 
     const q = query(
       collectionGroup(db, 'messages'),
@@ -210,7 +210,7 @@ export default function Layout() {
   }, [user, isAdmin]);
 
   React.useEffect(() => {
-    if (!user) return;
+    if (!user || isAdmin) return;
     
     if (location.pathname.startsWith('/messages')) {
       const clearNotifications = async () => {
@@ -471,7 +471,7 @@ export default function Layout() {
 
           <div className="flex items-center gap-4">
             <Link
-              to="/faq"
+              to={isAdmin ? "/admin/help" : "/faq"}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:text-primary hover:bg-surface-variant/40 rounded-full transition-colors"
             >
               <HelpCircle className="w-4 h-4" />
@@ -489,26 +489,28 @@ export default function Layout() {
               <LogOut className="w-4 h-4" />
               Logout
             </button>
-            {profile && (
+            {isAdmin ? (
+              <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#0c1829] border border-[#C9A84C]/30 select-none">
+                <ShieldCheck className="w-4 h-4 text-[#C9A84C]" />
+                <span className="hidden sm:inline text-xs font-semibold tracking-wide text-[#C9A84C]">
+                  Administrator
+                </span>
+              </div>
+            ) : profile ? (
               <Link 
                 to={`/profile/${user?.uid}`}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-1 transition-all duration-200 rounded-full cursor-pointer group",
-                  isAdminArea
-                    ? "bg-[#f1f5f9] hover:bg-[#e2e8f0] border border-black/[0.04]"
-                    : "bg-surface-container-low hover:bg-surface-variant/40 border border-outline-variant"
-                )}
+                className="flex items-center gap-3 px-3 py-1 transition-all duration-200 rounded-full cursor-pointer group bg-surface-container-low hover:bg-surface-variant/40 border border-outline-variant"
               >
                 <div className="text-right hidden sm:block">
-                  <p className={cn("text-sm font-medium transition-colors", isAdminArea ? "text-[#0f172a] group-hover:text-[#1a2e4a]" : "font-label-lg text-on-surface group-hover:text-primary")}>{profile.name}</p>
+                  <p className="text-sm font-medium transition-colors font-label-lg text-on-surface group-hover:text-primary">{profile.name}</p>
                 </div>
                 <img
                   src={profile.photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}`}
                   alt="Avatar"
-                  className={cn("w-9 h-9 rounded-full object-cover group-hover:scale-105 transition-transform", isAdminArea ? "border-2 border-[#C9A84C]/30" : "border border-primary-container")}
+                  className="w-9 h-9 rounded-full object-cover group-hover:scale-105 transition-transform border border-primary-container"
                 />
               </Link>
-            )}
+            ) : null}
           </div>
         </header>
         )}

@@ -21,11 +21,11 @@ const toastStyle: React.CSSProperties = {
  * Shows an in-app toast notification instead of an OS notification.
  */
 export default function ForegroundNotificationListener() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user || !messaging) return;
+    if (!user || isAdmin || !messaging) return;
 
     const unsubscribe = onMessage(messaging, (payload: MessagePayload) => {
       const { notification, data } = payload;

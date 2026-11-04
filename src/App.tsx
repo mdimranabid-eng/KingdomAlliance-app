@@ -60,7 +60,8 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const ProfileRedirect = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  if (isAdmin) return <Navigate to="/admin" replace />;
   return <Navigate to={user ? `/profile/${user.uid}` : '/login'} replace />;
 };
 
