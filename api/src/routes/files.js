@@ -23,7 +23,12 @@ const upload = multer({
       cb(null, safe);
     },
   }),
-  limits: { fileSize: MAX_MB * 1024 * 1024 },
+  limits: {
+    fileSize: MAX_MB * 1024 * 1024,
+    fields: 10,
+    fieldNestingDepth: 2,
+    fieldArrayIndexLimit: 10,
+  },
   fileFilter: (req, file, cb) => {
     if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) cb(null, true);
     else cb(new Error('Invalid file format. Please upload JPEG, PNG, or WEBP.'));
