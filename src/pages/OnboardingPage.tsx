@@ -220,6 +220,13 @@ export default function RegisterPage() {
     if (draft) {
       try {
         const parsed = JSON.parse(draft);
+        if (typeof parsed.pendingPhotoUrl === 'string' && parsed.pendingPhotoUrl.startsWith('blob:')) {
+          parsed.pendingPhotoUrl = '';
+          parsed.photoStatus = 'idle';
+        }
+        if (Array.isArray(parsed.gallery)) {
+          parsed.gallery = parsed.gallery.filter((p: any) => p?.url && !String(p.url).startsWith('blob:'));
+        }
         setFormData(prev => ({ ...prev, ...parsed }));
       } catch (e) {}
     }
@@ -566,9 +573,9 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!formData.pendingPhotoUrl) {
+    if (!formData.pendingPhotoUrl || (formData.pendingPhotoUrl.startsWith('blob:') && !profilePhotoFile)) {
       setInvalidFields(['pendingPhotoUrl']);
-      setErrorMsg("Profile photo is required.");
+      setErrorMsg("Profile photo is required. Please select your photo to continue.");
       scrollToFirstError(['pendingPhotoUrl']);
       return;
     }
@@ -604,6 +611,13 @@ export default function RegisterPage() {
         await addDoc(collection(db, 'photoModeration'), {
           uid: activeUser.uid, userId: activeUser.uid, userName, photoURL: pair.url,
           thumbUrl: pair.thumbUrl, photoType: 'profilePhoto', galleryPosition: null,
+          photoStatus: 'pending', uploadedAt: serverTimestamp(), reviewedAt: null, reviewedBy: null, rejectedReason: null
+        });
+      } else if (finalPendingPhotoUrl && !finalPendingPhotoUrl.startsWith('blob:')) {
+        finalPhotoStatus = 'pending';
+        await addDoc(collection(db, 'photoModeration'), {
+          uid: activeUser.uid, userId: activeUser.uid, userName, photoURL: finalPendingPhotoUrl,
+          thumbUrl: finalPendingThumbUrl || finalPendingPhotoUrl, photoType: 'profilePhoto', galleryPosition: null,
           photoStatus: 'pending', uploadedAt: serverTimestamp(), reviewedAt: null, reviewedBy: null, rejectedReason: null
         });
       }

@@ -283,6 +283,14 @@ const TABLES = {
     scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     purge_after DATETIME NOT NULL,
     executed TINYINT(1) DEFAULT 0
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  uploaded_files: `CREATE TABLE IF NOT EXISTS uploaded_files (
+    path VARCHAR(255) PRIMARY KEY,
+    mime_type VARCHAR(64) NOT NULL DEFAULT 'image/jpeg',
+    content LONGBLOB NOT NULL,
+    size INT NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 };
 

@@ -80,10 +80,31 @@ export default function AdminPhotos() {
     let activeModeration: ModerationItem[] = [];
     let activeUsers: ModerationItem[] = [];
 
+    const normalizePhotoUrl = (u?: string) => {
+      if (!u || typeof u !== 'string') return '';
+      const trimmed = u.trim();
+      if (!trimmed || trimmed.startsWith('blob:')) return '';
+      if (trimmed.includes('/uploads/')) {
+        return `/uploads/${trimmed.split('/uploads/')[1]}`;
+      }
+      return trimmed;
+    };
+
     const updateCombinedItems = () => {
-      const moderationUids = new Set(activeModeration.map(item => item.uid));
+      const userByUid = new Map(activeUsers.map(u => [u.uid, u]));
+      const enrichedModeration = activeModeration.map(item => {
+        const fallbackUser = userByUid.get(item.uid);
+        const bestUrl = item.pendingPhotoUrl || item.photoURL || item.photoUrl || fallbackUser?.pendingPhotoUrl || fallbackUser?.photoURL || '';
+        return {
+          ...item,
+          photoURL: bestUrl,
+          photoUrl: bestUrl,
+          pendingPhotoUrl: bestUrl,
+        };
+      });
+      const moderationUids = new Set(enrichedModeration.map(item => item.uid));
       const filteredUsers = activeUsers.filter(userItem => !moderationUids.has(userItem.uid));
-      const combined = [...activeModeration, ...filteredUsers];
+      const combined = [...enrichedModeration, ...filteredUsers];
 
       combined.sort((a, b) => {
         const timeA = a.uploadedAt?.toDate?.()?.getTime() || a.uploadedAt?.seconds || 0;
@@ -105,13 +126,14 @@ export default function AdminPhotos() {
       activeModeration = snapshot.docs.map(doc => {
         const data = doc.data();
         const userName = data.userName || data.name || 'Unnamed User';
+        const resolved = normalizePhotoUrl(data.photoUrl || data.photoURL || data.pendingPhotoUrl || data.thumbUrl || '');
         return {
           id: doc.id,
           uid: data.userId || data.uid || '',
           userName: userName,
-          photoURL: data.photoUrl || data.photoURL || '',
-          photoUrl: data.photoUrl || data.photoURL || '',
-          pendingPhotoUrl: data.photoUrl || data.photoURL || '',
+          photoURL: resolved,
+          photoUrl: resolved,
+          pendingPhotoUrl: resolved,
           photoType: data.photoType || 'profilePhoto',
           galleryPosition: data.galleryPosition !== undefined ? data.galleryPosition : null,
           photoStatus: data.photoStatus || 'pending',
@@ -135,8 +157,8 @@ export default function AdminPhotos() {
     const unsubscribePendingUsers = onSnapshot(qPendingUsers, (snapshot) => {
       activeUsers = snapshot.docs.map(doc => {
         const data = doc.data();
-        const userName = data.name ? `${data.name} ${data.lastName || ''}`.trim() : 'Unnamed User';
-        const photo = data.pendingPhotoUrl || data.photoUrl || data.photoURL || '';
+        const userName = data.name ? `${data.name} ${data.lastName || ''}`.trim() : (data.fullName || 'Unnamed User');
+        const photo = normalizePhotoUrl(data.pendingPhotoUrl) || normalizePhotoUrl(data.pendingPhotoThumbUrl) || normalizePhotoUrl(data.photoUrl) || normalizePhotoUrl(data.photoURL) || '';
         return {
           id: `user-sync-${doc.id}`,
           uid: doc.id,
