@@ -1,45 +1,62 @@
 # Hostinger deployment — kingdom.madebyimran.org + thekingdomalliances.com
 
-## Domains served from the same `hostinger-deploy` branch
+## Phase 1 (legacy): kingdom.madebyimran.org — static SPA on Firebase backend
 
-| Domain | Docroot | Auto-deploy webhook (GitHub repo) |
-|---|---|---|
-| kingdom.madebyimran.org | /home/u182908316/domains/madebyimran.org/public_html/kingdom | hook 706991593 |
-| thekingdomalliances.com | /home/u182908316/domains/thekingdomalliances.com/public_html | hook 706993121 |
+- Static SPA at https://kingdom.madebyimran.org; backend remains Firebase (Auth, Firestore,
+  Cloud Functions `kingdom-alliance-v2`). Hostinger shared Node hosting can't run `npm build`,
+  so deploys push a prebuilt branch (`hostinger-deploy`) containing `dist/` + `.htaccess`:
+  `bash scripts/deployHostinger.sh` builds, force-pushes, and triggers the Hostinger git pull
+  (webhook 706991593; account u182908316, order 1010222761).
+- Verify after deploy: `/` renders hero, `/login` + `/dashboard` return 200, Firebase
+  email/OTP + Google sign-in work.
 
-One push to `hostinger-deploy` auto-deploys to **both** domains. Both are registered as Git deployments under Hostinger account order 1010222761, username u182908316.
+## Phase 2 (current): thekingdomalliances.com — full Node.js + MySQL app
 
-## Phase 1 status (done)
+**Live since 2026-11-04.** The Firebase → Node/MySQL conversion (see
+`docs/firebase-migration-audit.md`) is deployed as a real Node.js website on Hostinger:
 
+- **Website**: `thekingdomalliances.com` (Node.js type, account u182908316, order 1010222761).
+- **Deploy branch**: `hostinger-node-deploy` — an orphan branch containing the deployment
+  `package.json`, `api/src/**` (Express API), `dist/**` (prebuilt SPA). **Auto-deploy is
+  active**: every push to the branch triggers a Hostinger build (npm install + Passenger
+  restart). Settings: Node 22, express, entry file `api/src/index.js`, npm.
+- **Database**: MySQL `u182908316_kaapp` (user `u182908316_kaapp`, localhost:3306). The schema
+  self-bootstraps on boot (`api/src/db.js`). Connection details live ONLY in the website's
+  environment variables (DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD/DATABASE_URL), written by
+  `hosting_databases_setup-website` — never stored in git.
+- **Environment variables**: managed via the Hostinger MCP
+  (`hosting_nodejs_replace-environment-variables` — full replace!). The app secrets
+  (JWT_SECRET, OTP_HASH_SALT, SMTP, CRON_SECRET, BOOTSTRAP_ADMIN_*, etc.) are mirrored locally
+  in `api/.env.production-hostinger` (gitignored) — use that file as the source of truth when
+  re-saving env vars; the Hostinger API masks values and a replace deletes anything not re-sent.
+- **Cron**: runs in-process via node-cron (hourly deletion scheduler, daily OTP cleanup at
+  04:00, 8-hour admin moderation alerts). Secret-protected HTTP fallback:
+  `POST /api/cron/{deletions|otp-cleanup|approvals-check}` with header `x-cron-secret`.
+- **Admin bootstrap**: first boot created `themaster@thekingdomalliances.com` — password is in
+  `api/.env.production-hostinger`. Change it after first login; TOTP enrollment is required to
+  receive admin claims (two-factor admin login, like the old Firebase MFA flow).
+- **Known limitation — FCM push**: needs `server/serviceAccountKey.production.json` on the
+  server; GitHub secret scanning blocks committing it. Until it is uploaded via hPanel File
+  Manager into the app directory and `FIREBASE_SERVICE_ACCOUNT_PATH` is set, push
+  notifications are disabled (fail-soft — everything else works).
 
-- Frontend is deployed at https://kingdom.madebyimran.org (static SPA, Hostinger shared hosting, Node website `u182908316`, order 1010222761).
-- Backend remains Firebase (Auth, Firestore, Cloud Functions `kingdom-alliance-v2`), so the app is fully functional as on Firebase Hosting.
-- `kingdom.madebyimran.org` and `madebyimran.org` were added to Firebase Auth authorized domains (Google sign-in popups depend on it) — via Identity Toolkit admin API using the firebase-cli refresh token.
-- Deployment mechanics: Hostinger shared Node hosting can't run `npm build`, so deploys push a **prebuilt branch** (`hostinger-deploy`) containing `dist/` + `.htaccess` (SPA rewrite, HTTPS force, cache policy). Hostinger pulls it into the subdomain docroot.
-- **Auto-deploy sync is active**: the repository is registered in Hostinger Git deployment (`hosting_git_list-website-repositories`) and a push webhook (`https://webhooks.hostinger.com/deploy/69b2aa4c…`) is installed in the GitHub repo (hook id 706991593). Pushing `hostinger-deploy` deploys automatically; `scripts/deployHostinger.sh` works either way since it also waits for the MCP-triggered pull (idempotent).
-
-## How to redeploy
+### How to redeploy
 
 ```bash
-bash scripts/deployHostinger.sh
+npm run build        # rebuild dist/ from the main branch
+# copy api/src/** + dist/** into the hostinger-node-deploy branch (a git worktree is safest),
+# commit, push — Hostinger rebuilds automatically
 ```
 
-Builds, force-pushes the `hostinger-deploy` branch to GitHub, and triggers the Hostinger git pull through the Hostinger MCP (`hosting_git_deploy-website-repository`). Requires the local Hostinger MCP OAuth credentials (already authorized; re-auth with `npx @hostinger/mcp --login` if expired).
+### Verify after deploy
 
-## Verify after deploy
+- `https://thekingdomalliances.com/api/health` → `{"status":"ok"}`
+- `/login`, `/dashboard` → 200 (SPA fallback)
+- Register/login via the UI; admin login via `/admin` (password + TOTP)
+- Live smoke test: `bash scratch/e2e-live-test.sh`
 
-- `/` renders hero with no console errors
-- `/login`, `/dashboard` return 200 (SPA fallback via .htaccess)
-- Firebase auth: email/OTP and Google sign-in work (authorized domain present)
+## Hostinger MCP access
 
-## Constraints / notes
-
-- `index.html` is served no-store; hashed assets get 1y immutable cache.
-- Works offline of Firebase: none — Phase 1 keeps Firebase as live backend.
-- Hostinger MCP operations used: `hosting_identity_*` none; only git deploy. Read-only ops used to verify.
-
-## Phase 2 (planned)
-
-- Build `api/` (Express) on the same Node website, MySQL DB (schema in `api/src/db.js` is ready to bootstrap), OTP/email/notifications/trigger logic inlined into routes, schedulers via Hostinger cron (`hosting_cron-jops_list` → create via hPanel or MCP-supported ops).
-- Client data layer: replace Firebase SDK direct-access + onSnapshot listeners with API client + long polling (chat).
-- Schedulers: list existing cron via `hosting_cron-jobs_list`; processPendingDeletions / cleanupExpiredOtps / pendingApprovalCheck become cron entries.
+`npx @hostinger/mcp --login` (credentials: `~/.config/hostinger-mcp/credentials.json`;
+refresh via `scratch/mcp-cli-refresh.cjs`). MCP endpoint: `https://mcp.hostinger.com/` —
+meta-tools: `search`, `execute`, `multi-execute` (helper: `scratch/hostinger-mcp.cjs`).

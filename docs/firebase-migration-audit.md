@@ -66,6 +66,8 @@ deletion scheduler (hourly), OTP cleanup (daily).
 - [x] Audit + design (todos 0, 1)
 - [x] Express API (todos 2, 3)
 - [x] Frontend shim + Vite aliases (todo 4)
-- [x] Local verification (todo 5)
-- [ ] Hostinger: create MySQL DB + Node app (todo 6)
-- [ ] Deploy to thekingdomalliances.com + verify (todo 7)
+- [x] Local verification (todo 5) — 26/26 checks green (scratch/e2e-api-test*.sh)
+- [x] Hostinger: MySQL DB (u182908316_kaapp) + Node.js website created (todo 6)
+- [x] Deployed to thekingdomalliances.com + live verification (todo 7) — 8/8 live checks green
+      (scratch/e2e-live-test.sh); auto-deploy on push to `hostinger-node-deploy` branch.
+      See docs/hostinger-deployment.md for operational details.
