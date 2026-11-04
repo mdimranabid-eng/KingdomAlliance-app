@@ -7,6 +7,7 @@ const { authRequired, adminRequired } = require('../auth');
 const { consumeOtp, describeExistingAccount } = require('../otp');
 const { dispatchEmail } = require('../services/email');
 const { sendOnboardingEmail, deliverOnce } = require('../triggers');
+const { generateBiodataPdf } = require('../biodata');
 
 const router = express.Router();
 const DELETION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -197,6 +198,22 @@ router.post('/send-email', authRequired, async (req, res) => {
   } catch (error) {
     console.error('[SecureEmail] Delivery failed:', error);
     return res.status(500).json({ error: 'Unable to send email.' });
+  }
+});
+
+router.get('/my-profile-pdf', authRequired, async (req, res) => {
+  try {
+    const user = await store.getDoc('users', req.uid);
+    if (!user) return res.status(404).json({ error: 'User profile not found.' });
+    const data = user.data || {};
+    const profileId = data.profileId || `KA-${req.uid.slice(0, 6).toUpperCase()}`;
+    const pdf = await generateBiodataPdf({ ...data, uid: req.uid, profileId });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Kingdom_Alliance_Profile_Covenant_${profileId}.pdf"`);
+    return res.send(pdf);
+  } catch (error) {
+    console.error('[PDF Download] Failed:', error);
+    return res.status(500).json({ error: 'Unable to generate PDF dossier.' });
   }
 });
 
