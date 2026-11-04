@@ -10,7 +10,7 @@ import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc, T
 import { requestOtp, verifyOtp } from '../services/otpService';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import toast from 'react-hot-toast';
-import { cn } from '../lib/utils';
+import { cn, resolveApprovalStatus } from '../lib/utils';
 
 export default function RegisterPage() {
   const { settings } = useSettings();
@@ -42,14 +42,39 @@ export default function RegisterPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If the user is logged in via email/password, but their profile has not been verified yet,
+    if (!user || !profile) return;
+
+    const status = resolveApprovalStatus(profile);
+    // Block already-registered users from accessing the signup form again
+    if (profile.isBanned || status === 'banned') {
+      navigate('/banned', { replace: true });
+      return;
+    }
+    if (profile.isSuspended || status === 'suspended') {
+      navigate('/suspended', { replace: true });
+      return;
+    }
+    if (status === 'rejected') {
+      navigate('/rejected', { replace: true });
+      return;
+    }
+    if (profile.onboardingComplete || status === 'approved' || status === 'pending' || status === 'not_approved') {
+      navigate(status === 'approved' ? '/dashboard' : '/waiting-room', { replace: true });
+      return;
+    }
+
+    // If the user is in the middle of initial email registration and hasn't verified OTP yet,
     // automatically trigger the verification modal.
-    if (user && profile && profile.authProvider === 'email' && !profile.emailVerified) {
+    if (profile.authProvider === 'email' && !profile.emailVerified && !user.emailVerified) {
       setEmail(user.email || '');
       setRegisteredUid(user.uid);
       setShowOtpModal(true);
+      return;
     }
-  }, [user, profile]);
+
+    // Otherwise redirect verified incomplete users to finish onboarding
+    navigate('/onboarding', { replace: true });
+  }, [user, profile, navigate]);
 
   useEffect(() => {
     let interval: any;
@@ -96,10 +121,22 @@ export default function RegisterPage() {
     setGoogleLoading(true);
     setError(null);
     try {
-      // Utilize your central auth service state handler to enforce profile registration properties
-      await signInWithGoogle();
-      
-      // Pass them cleanly into the wizard tracking loop
+      // Utilize central auth service with 'register' mode so existing accounts are blocked
+      const res = await signInWithGoogle('register');
+      if (!res.isNewUser && (res.onboardingComplete || (res.status && res.status !== 'incomplete'))) {
+        await signOut();
+        const msg =
+          res.status === 'pending' || res.status === 'not_approved'
+            ? 'You have already signed up and your profile is waiting for admin approval. Please sign in to check your status.'
+            : res.status === 'approved'
+            ? 'An active account with this email already exists. Please sign in instead.'
+            : 'An account with this email already exists and cannot be registered again. Please sign in or contact support.';
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      // Pass new users cleanly into the onboarding wizard
       navigate('/onboarding');
     } catch (err: any) {
       if (err?.code === 'auth/multi-factor-auth-required') {
@@ -158,18 +195,19 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      // Save credentials locally and in sessionStorage for deferred creation
+      await sendEmailOtp(email);
+
+      // Save credentials locally and in sessionStorage only after email is confirmed available
       setSavedCredentials({ email, password });
       const creds = { email, password, fullName, authProvider: 'email', emailVerified: false };
       sessionStorage.setItem('saved_credentials', JSON.stringify(creds));
-
-      await sendEmailOtp(email);
 
       setOtpInputs(['', '', '', '', '', '']);
       setOtpError(null);
       setOtpTimer(120);
       setShowOtpModal(true);
     } catch (err: any) {
+      sessionStorage.removeItem('saved_credentials');
       // reCAPTCHA token was consumed by the failed attempt — reset the widget
       recaptchaRef.current?.reset();
       setRecaptchaToken(null);

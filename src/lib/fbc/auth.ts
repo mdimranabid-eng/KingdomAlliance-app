@@ -1,4 +1,10 @@
 // Firebase Auth compatibility layer backed by /api/auth/*.
+import { getApp } from 'firebase/app';
+import {
+  getAuth as getRealFbAuth,
+  GoogleAuthProvider as RealGoogleAuthProvider,
+  signInWithPopup as realSignInWithPopup,
+} from '@firebase/auth';
 import {
   request, setTokens, loadTokens, getAccessToken, getRefreshToken,
   setPersistenceMode, onAuthEvent, emitAuthEvent,
@@ -171,27 +177,23 @@ export async function signOut(_auth?: any): Promise<void> {
 // our own session at /api/auth/google. Our backend stays the source of truth.
 export class GoogleAuthProvider {
   static PROVIDER_ID = 'google.com';
-  setCustomParameters(_p: any): void { /* no-op */ }
+  _customParams: any = {};
+  setCustomParameters(p: any): void { this._customParams = { ...this._customParams, ...(p || {}) }; }
 }
-
-const REAL_FB_AUTH = 'firebase/auth/dist/esm/index.esm.js'; // real SDK, bypasses the shim alias
 
 export async function signInWithPopup(_auth: any, _provider: any): Promise<{ user: User }> {
   try {
-    // dynamic import: keeps the real auth SDK out of the initial bundle and
-    // avoids circular module-init issues with firebase/app
-    const mod: any = await import(REAL_FB_AUTH);
-    const { getApp } = await import('firebase/app'); // real (not aliased)
-    const fbAuth = mod.getAuth(getApp());
-    const provider = new mod.GoogleAuthProvider();
+    const fbAuth = getRealFbAuth(getApp());
+    const provider = new RealGoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    const credential = await mod.signInWithPopup(fbAuth, provider);
-    const googleCred = mod.GoogleAuthProvider.credentialFromResult(credential);
-    const idToken = googleCred && (googleCred.idToken || googleCred.token);
+    const credential = await realSignInWithPopup(fbAuth, provider);
+    const googleCred = RealGoogleAuthProvider.credentialFromResult(credential);
+    const idToken = googleCred && (googleCred.idToken || (googleCred as any).token);
     if (!idToken) {
       throw authErr('auth/invalid-credential', 'Google sign-in did not return a credential.');
     }
-    const data = await request<any>('POST', '/auth/google', { idToken });
+    const mode = _provider?._customParams?.mode || undefined;
+    const data = await request<any>('POST', '/auth/google', { idToken, mode });
     return { user: setCurrentUser(data.user, { accessToken: data.accessToken, refreshToken: data.refreshToken }) };
   } catch (e: any) {
     // surface firebase-style codes (auth/popup-closed-by-user, auth/popup-blocked, …)

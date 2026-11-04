@@ -6,17 +6,29 @@ PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo "✔ $1"; }
 bad() { FAIL=$((FAIL+1)); echo "✘ $1"; }
 cd "$(dirname "$0")/../api"
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+: "${DB_USER:=kaapp}"
+: "${DB_NAME:=kaapp}"
+: "${DB_PASSWORD:?DB_PASSWORD must be set in environment or api/.env}"
+: "${BOOTSTRAP_ADMIN_EMAIL:=admin@test.local}"
+: "${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD must be set in environment or api/.env}"
+: "${CRON_SECRET:?CRON_SECRET must be set in environment or api/.env}"
 TOTPJS="$(cd "$(dirname "$0")" && pwd)/totp-code.cjs"
 totp() { node "$TOTPJS" "$1"; }
 
 # 1. admin login — either needs enrollment or requires MFA (idempotent)
 AL=$(curl -s -X POST $API/auth/admin-login -H 'Content-Type: application/json' \
-  -d '{"email":"admin@test.local","password":"AdminPass123!"}')
+  -d "{\"email\":\"$BOOTSTRAP_ADMIN_EMAIL\",\"password\":\"$BOOTSTRAP_ADMIN_PASSWORD\"}")
 if echo "$AL" | grep -q 'mfaRequired'; then
   ok "admin login → MFA required (already enrolled)"
   # fetch the enrolled secret from the test DB to complete the challenge
-  SECRET=$(docker exec ka-mysql-test mysql -ukaapp -pkaapp123 kaapp -N \
-    -e "SELECT totp_secret FROM users WHERE email='admin@test.local'" 2>/dev/null | tr -d '[:space:]')
+  SECRET=$(docker exec -e MYSQL_PWD="$DB_PASSWORD" ka-mysql-test mysql -u"$DB_USER" "$DB_NAME" -N \
+    -e "SELECT totp_secret FROM users WHERE email='$BOOTSTRAP_ADMIN_EMAIL'" 2>/dev/null | tr -d '[:space:]')
   TICKET=$(echo "$AL" | node -pe 'JSON.parse(require("fs").readFileSync(0)).ticket')
   CODE=$(totp "$SECRET")
   CHAL=$(curl -s -X POST $API/auth/mfa/challenge -H 'Content-Type: application/json' -d "{\"ticket\":\"$TICKET\",\"code\":\"$CODE\"}")
@@ -42,7 +54,7 @@ else
 
   # 3. re-login → mfaRequired + challenge → admin claim
   AL2=$(curl -s -X POST $API/auth/admin-login -H 'Content-Type: application/json' \
-    -d '{"email":"admin@test.local","password":"AdminPass123!"}')
+    -d "{\"email\":\"$BOOTSTRAP_ADMIN_EMAIL\",\"password\":\"$BOOTSTRAP_ADMIN_PASSWORD\"}")
   TICKET=$(echo "$AL2" | node -pe 'JSON.parse(require("fs").readFileSync(0)).ticket')
   [ -n "$TICKET" ] && [ "$TICKET" != "undefined" ] && ok "admin re-login → MFA challenge ticket" || bad "admin re-login: $AL2"
   CODE2=$(totp "$SECRET")
@@ -67,7 +79,7 @@ TYP=$(curl -s "$API/typing/chatA_$AUID")
 echo "$TYP" | grep -q 'true' && ok "typing read" || bad "typing read: $TYP"
 
 # 6. cron endpoint
-CRON=$(curl -s -X POST $API/cron/otp-cleanup -H 'x-cron-secret: localcron')
+CRON=$(curl -s -X POST $API/cron/otp-cleanup -H "x-cron-secret: $CRON_SECRET")
 echo "$CRON" | grep -q '"ok":true' && ok "cron otp-cleanup" || bad "cron: $CRON"
 DENY=$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/cron/otp-cleanup)
 [ "$DENY" = "401" ] && ok "cron denied without secret" || bad "cron deny got $DENY"

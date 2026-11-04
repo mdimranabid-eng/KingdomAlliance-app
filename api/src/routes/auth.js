@@ -9,7 +9,7 @@ const {
   signAccessToken, verifyAccessToken, sha256, authRequired,
   createSession, consumeSession, revokeSession,
 } = require('../auth');
-const { issueOtp, consumeOtp } = require('../otp');
+const { issueOtp, consumeOtp, describeExistingAccount } = require('../otp');
 const { dispatchEmail } = require('../services/email');
 
 const router = express.Router();
@@ -27,7 +27,7 @@ const INITIAL_PROFILE = {
 
 async function findUserRow(email) {
   const [rows] = await pool.query(
-    'SELECT id, email, password_hash, role, totp_secret, totp_enabled, email_verified, is_banned, is_suspended, data FROM users WHERE email = ? LIMIT 1',
+    'SELECT id, email, password_hash, role, auth_provider, approval_status, onboarding_complete, is_approved, totp_secret, totp_enabled, email_verified, is_banned, is_suspended, deletion_status, data FROM users WHERE email = ? LIMIT 1',
     [String(email || '').trim().toLowerCase()]
   );
   return rows.length ? rows[0] : null;
@@ -72,7 +72,8 @@ router.post('/auth/register', async (req, res) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) throw authError('auth/invalid-email', 'Invalid email address.');
     if (typeof password !== 'string' || password.length < 8) throw authError('auth/weak-password', 'Password must be at least 8 characters.');
-    if (await findUserRow(cleanEmail)) throw authError('auth/email-already-in-use', 'This email is already registered. Please sign in instead.');
+    const existingRow = await findUserRow(cleanEmail);
+    if (existingRow) throw authError('auth/email-already-in-use', describeExistingAccount(existingRow), 409);
 
     const uid = store.uuid();
     await store.writeDoc('users', uid, {
@@ -150,7 +151,7 @@ router.post('/auth/mfa/challenge', async (req, res) => {
 // ── Google sign-in (GIS ID token) ─────────────────────────────────────────────
 router.post('/auth/google', async (req, res) => {
   try {
-    const { idToken } = req.body || {};
+    const { idToken, mode } = req.body || {};
     if (!idToken) return res.status(400).json({ error: { code: 'auth/invalid-credential', message: 'Missing Google credential.' } });
     const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
     const info = await r.json();
@@ -159,7 +160,38 @@ router.post('/auth/google', async (req, res) => {
       return res.status(401).json({ error: { code: 'auth/invalid-credential', message: 'Google sign-in could not be verified.' } });
     }
     let row = await findUserRow(info.email);
-    if (!row) {
+    if (row) {
+      const data = row.data && typeof row.data === 'object' ? row.data : (() => { try { return JSON.parse(row.data || '{}'); } catch { return {}; } })();
+      const isAlreadyRegistered =
+        !!row.onboarding_complete ||
+        !!data.onboardingComplete ||
+        (row.approval_status && row.approval_status !== 'incomplete') ||
+        (data.approvalStatus && data.approvalStatus !== 'incomplete') ||
+        !!row.is_banned ||
+        !!row.is_suspended ||
+        !!data.isBanned ||
+        !!data.isSuspended ||
+        !!row.deletion_status ||
+        !!data.deletionStatus ||
+        row.auth_provider === 'email';
+
+      if (mode === 'register' && isAlreadyRegistered) {
+        return res.status(409).json({
+          error: {
+            code: 'auth/email-already-in-use',
+            message: describeExistingAccount(row),
+          },
+        });
+      }
+      if (row.is_banned || data.isBanned || row.is_suspended || data.isSuspended) {
+        return res.status(403).json({
+          error: {
+            code: 'auth/user-disabled',
+            message: 'This account has been suspended or disabled.',
+          },
+        });
+      }
+    } else {
       const uid = store.uuid();
       await store.writeDoc('users', uid, {
         uid, email: info.email.toLowerCase(), fullName: info.name || '',
@@ -257,7 +289,19 @@ router.post('/otp/verify', async (req, res) => {
     if (!result.ok) return res.status(400).json({ error: { code: 'failed-precondition', message: result.message } });
     if (String(purpose) === 'register') {
       const row = await findUserRow(email);
-      if (row) return res.status(409).json({ error: { code: 'already-exists', message: 'This email is already registered. Please sign in instead.' } });
+      if (row) {
+        const isUnverifiedEmailDraft =
+          row.auth_provider === 'email' &&
+          !row.email_verified &&
+          !row.onboarding_complete &&
+          (row.approval_status === 'incomplete' || !row.approval_status) &&
+          !row.is_banned &&
+          !row.is_suspended &&
+          !row.deletion_status;
+        if (!isUnverifiedEmailDraft) {
+          return res.status(409).json({ error: { code: 'already-exists', message: describeExistingAccount(row) } });
+        }
+      }
     }
     res.json({ result: { success: true }, success: true });
   } catch (e) {

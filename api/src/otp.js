@@ -39,12 +39,52 @@ class OtpError extends Error {
   constructor(status, message, code) { super(message); this.status = status; this.code = code; }
 }
 
+function describeExistingAccount(row) {
+  const data = row.data && typeof row.data === 'object' ? row.data : (() => { try { return JSON.parse(row.data || '{}'); } catch { return {}; } })();
+  const status = row.approval_status || data.approvalStatus || data.status || 'incomplete';
+  const isBanned = !!(row.is_banned || data.isBanned || status === 'banned');
+  const isSuspended = !!(row.is_suspended || data.isSuspended || status === 'suspended');
+  const deletionStatus = row.deletion_status || data.deletionStatus || '';
+
+  if (isBanned || isSuspended || status === 'rejected' || deletionStatus) {
+    return 'An account with this email already exists and cannot be registered again. Please sign in or contact support.';
+  }
+  if (status === 'pending' || status === 'not_approved') {
+    return 'You have already signed up and your profile is waiting for admin approval. Please sign in to check your status.';
+  }
+  if (status === 'approved' || row.is_approved || data.isApproved) {
+    return 'An active account with this email already exists. Please sign in instead.';
+  }
+  return 'An account with this email already exists. Please sign in instead.';
+}
+
 async function issueOtp(email, purpose, captchaToken) {
   email = String(email || '').trim().toLowerCase();
   purpose = String(purpose || '');
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new OtpError(400, 'A valid email address is required.', 'invalid-argument');
   if (!VALID_PURPOSES.includes(purpose)) throw new OtpError(400, 'Invalid OTP purpose.', 'invalid-argument');
   if (!(await verifyCaptcha(captchaToken))) throw new OtpError(400, 'Captcha verification failed.', 'invalid-argument');
+
+  if (purpose === 'register') {
+    const [uRows] = await pool.query(
+      'SELECT id, email, auth_provider, email_verified, onboarding_complete, approval_status, is_approved, is_banned, is_suspended, deletion_status, data FROM users WHERE email = ? LIMIT 1',
+      [email]
+    );
+    if (uRows.length) {
+      const u = uRows[0];
+      const isUnverifiedEmailDraft =
+        u.auth_provider === 'email' &&
+        !u.email_verified &&
+        !u.onboarding_complete &&
+        (u.approval_status === 'incomplete' || !u.approval_status) &&
+        !u.is_banned &&
+        !u.is_suspended &&
+        !u.deletion_status;
+      if (!isUnverifiedEmailDraft) {
+        throw new OtpError(409, describeExistingAccount(u), 'already-exists');
+      }
+    }
+  }
 
   const [recent] = await pool.query(
     'SELECT COUNT(*) AS n FROM otp_requests_log WHERE email = ? AND purpose = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)',
@@ -97,4 +137,4 @@ async function consumeOtp(email, code, purpose) {
   return { ok: true };
 }
 
-module.exports = { issueOtp, consumeOtp, verifyCaptcha, hashOtp, OtpError, VALID_PURPOSES };
+module.exports = { issueOtp, consumeOtp, verifyCaptcha, hashOtp, OtpError, VALID_PURPOSES, describeExistingAccount };

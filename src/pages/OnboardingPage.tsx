@@ -432,18 +432,22 @@ export default function RegisterPage() {
         const checkRes = await fetch(`${backendUrl}/api/check-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: cleanEmail, mobileNumber: fullMobile })
+          body: JSON.stringify({
+            email: cleanEmail,
+            mobileNumber: fullMobile,
+            excludeUid: auth.currentUser?.uid || undefined,
+          })
         });
         const checkData = await checkRes.json();
         if (checkData.emailTaken) {
-          setErrorMsg("Email already registered. Please log in or use another email.");
+          setErrorMsg(checkData.emailMessage || "Email already registered. Please log in or use another email.");
           setInvalidFields(['email']);
           scrollToFirstError(['email']);
           setLoading(false);
           return;
         }
         if (checkData.mobileTaken) {
-          setErrorMsg("The mobile number entered is already registered.");
+          setErrorMsg(checkData.mobileMessage || "The mobile number entered is already registered.");
           setInvalidFields(['mobileNumber']);
           scrollToFirstError(['mobileNumber']);
           setLoading(false);

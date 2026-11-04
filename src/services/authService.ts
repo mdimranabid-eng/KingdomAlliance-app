@@ -62,8 +62,10 @@ const checkUserStatus = async (user: User): Promise<{ isNewUser: boolean; status
   };
 };
 
-export const signInWithGoogle = async (): Promise<AuthResponse> => {
-  const result = await signInWithPopup(auth, googleProvider);
+export const signInWithGoogle = async (mode: 'login' | 'register' = 'login'): Promise<AuthResponse> => {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account', mode });
+  const result = await signInWithPopup(auth, provider);
   const { isNewUser, status, onboardingComplete } = await checkUserStatus(result.user);
   return { user: result.user, isNewUser, status, onboardingComplete };
 };

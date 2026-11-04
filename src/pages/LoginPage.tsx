@@ -50,7 +50,11 @@ export default function LoginPage() {
 
       if (status === 'banned' || data.isBanned) {
         navigate('/banned');
-      } else if (status === 'not_approved' || status === 'pending') {
+      } else if (status === 'suspended' || data.isSuspended) {
+        navigate('/suspended');
+      } else if (status === 'rejected') {
+        navigate('/rejected');
+      } else if (status === 'not_approved' || status === 'pending' || (data.onboardingComplete && status !== 'approved')) {
         navigate('/waiting-room');
       } else if (status === 'approved') {
         navigate('/profile');
