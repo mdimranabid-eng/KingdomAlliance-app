@@ -250,34 +250,6 @@ async function reconcileUploads(pool) {
     if (purgedHashes > 0) {
       console.log(`[uploads] purged ${purgedHashes} stale uploadedImages hash cache entries`);
     }
-
-    const [modRows] = await pool.query("SELECT id, data FROM coll_store WHERE coll = 'photoModeration'");
-    const modSummary = modRows.map((r) => {
-      let d = {};
-      try { d = typeof r.data === 'object' ? r.data : JSON.parse(r.data || '{}'); } catch {}
-      const url = d.photoURL || d.photoUrl || d.pendingPhotoUrl || '';
-      const rel = urlToRelPath(url);
-      return { id: r.id, uid: d.uid, user: d.userName, status: d.photoStatus, url, onDisk: fileExistsInRoot(rel) };
-    });
-    console.log(`[uploads] photoModeration records (${modSummary.length}): ${JSON.stringify(modSummary)}`);
-
-    const [userRows] = await pool.query("SELECT id, email, photo_url, data FROM users WHERE role != 'admin'");
-    const userSummary = userRows.map((r) => {
-      let d = {};
-      try { d = typeof r.data === 'object' ? r.data : JSON.parse(r.data || '{}'); } catch {}
-      const pending = d.pendingPhotoUrl || '';
-      const photo = d.photoUrl || d.photoURL || r.photo_url || '';
-      return {
-        id: r.id,
-        email: r.email,
-        photoStatus: d.photoStatus,
-        pendingUrl: pending,
-        pendingOnDisk: fileExistsInRoot(urlToRelPath(pending)),
-        photoUrl: photo,
-        photoOnDisk: fileExistsInRoot(urlToRelPath(photo)),
-      };
-    });
-    console.log(`[uploads] user photo summary (${userSummary.length}): ${JSON.stringify(userSummary)}`);
   } catch (e) {
     console.error('[uploads] reconcile error:', e.message);
   }
