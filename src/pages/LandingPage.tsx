@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowRight, ChevronRight, Play, Shield, Users, MessageCircle, Heart, Lock, Eye, ShieldCheck, Database, Star, CheckCircle2, HelpCircle, ArrowUp } from 'lucide-react';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useSettings } from '../lib/SettingsContext';
 import PublicNavbar from '../components/PublicNavbar';
 import ScrollDown from '../components/ScrollDown';
@@ -84,6 +86,36 @@ export default function LandingPage() {
   const [currentVerse, setCurrentVerse] = useState(0);
   const [verseFading, setVerseFading] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [dynamicStories, setDynamicStories] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchApprovedStories() {
+      try {
+        const q = query(collection(db, 'success_stories'), where('status', '==', 'approved'), limit(6));
+        const snap = await getDocs(q);
+        if (isMounted && !snap.empty) {
+          const items = snap.docs.map((doc) => {
+            const data = doc.data();
+            const names = data.coupleNames || 'Kingdom Couple';
+            const initials = data.initials || names.split('&').map((n: string) => n.trim()[0]).filter(Boolean).join('&') || '💍';
+            return {
+              id: doc.id,
+              initials,
+              name: names,
+              text: data.story ? `"${data.story}"` : data.text || '',
+            };
+          });
+          setDynamicStories(items);
+        }
+      } catch (err) {
+        // Fall back gracefully to preset testimonials
+        console.warn('Could not load success stories:', err);
+      }
+    }
+    fetchApprovedStories();
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -335,13 +367,13 @@ export default function LandingPage() {
           </div>
 
           <div className="max-w-[960px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-            {testimonials.map((t, i) => (
+            {(dynamicStories.length > 0 ? [...dynamicStories, ...testimonials].slice(0, 6) : testimonials).map((t, i) => (
               <motion.div
-                key={i}
+                key={t.id || i}
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-60px' }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
+                transition={{ duration: 0.5, delay: (i % 3) * 0.1 }}
                 whileHover={{ y: -4, boxShadow: '0 12px 36px -8px rgba(0,0,0,0.07)' }}
                 className="bg-white/85 backdrop-blur-md rounded-[20px] border border-black/[0.04] p-5 sm:p-7 lg:p-8"
               >

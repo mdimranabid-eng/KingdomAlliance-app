@@ -134,14 +134,15 @@ export default function MatchesPage() {
           const searchedUser = { id: snap.docs[0].id, ...docData, age: calculateAge(docData.dob, docData.age) } as any;
           searchedUser.matchScore = calculateMatchScore(profile, searchedUser);
           
-          // 1. STRICT PRIVACY SHIELD: Do not allow bypassed searches for blocked/excluded users
+          // 1. STRICT PRIVACY SHIELD: Do not allow bypassed searches for blocked/excluded/paused users
           if (
             searchedUser.id === currentUserUid || 
             searchedUser.uid === currentUserUid ||
             blockedUids.has(searchedUser.id) || blockedUids.has(searchedUser.uid) ||
-            blockedByOthers.has(searchedUser.id) || blockedByOthers.has(searchedUser.uid)
+            blockedByOthers.has(searchedUser.id) || blockedByOthers.has(searchedUser.uid) ||
+            searchedUser.isPaused === true
           ) {
-            toast.error('This profile is unavailable.');
+            toast.error(searchedUser.isPaused ? 'This profile is currently paused in courtship mode.' : 'This profile is unavailable.');
             setLoading(false);
             return; 
           }
@@ -198,7 +199,8 @@ export default function MatchesPage() {
           const isApprovedUser = u.isApproved === true || uStatus === 'approved';
           const isNotSelf = u.uid !== currentUserUid && u.id !== currentUserUid;
           const isNotBannedOrPending = uStatus !== 'banned' && uStatus !== 'pending' && uStatus !== 'suspended' && !u.isBanned && !u.isSuspended;
-          return isApprovedUser && isNotSelf && isNotBannedOrPending;
+          const isNotPaused = u.isPaused !== true;
+          return isApprovedUser && isNotSelf && isNotBannedOrPending && isNotPaused;
         });
 
       // Apply Filters Locally for complex ones

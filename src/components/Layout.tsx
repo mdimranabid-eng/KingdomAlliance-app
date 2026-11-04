@@ -262,6 +262,16 @@ export default function Layout() {
       items: [{ label: 'Dashboard', path: '/admin', icon: ShieldCheck, exact: true }],
     },
     {
+      title: 'Moderation',
+      items: [
+        { label: 'Approvals', path: '/admin/approvals', icon: UserCheck, badgeCount: pendingApprovalsCount },
+        { label: 'Photos', path: '/admin/photos', icon: Camera, badgeCount: pendingPhotosCount },
+        { label: 'Success Stories', path: '/admin/stories', icon: Heart },
+        { label: 'User Directory', path: '/admin/users', icon: Users },
+        { label: 'Rejected Profiles', path: '/admin/rejected', icon: Ban },
+      ],
+    },
+    {
       title: 'Configuration',
       items: [
         { label: 'Church Info', path: '/admin/church-info', icon: Church },

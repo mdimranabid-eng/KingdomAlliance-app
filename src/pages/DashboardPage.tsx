@@ -22,7 +22,8 @@ import {
   MapPin,
   ChevronRight,
   Loader2,
-  X
+  X,
+  PauseCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge, generateUniqueProfileId, isUserOnline } from '../lib/utils';
@@ -301,9 +302,9 @@ export default function DashboardPage() {
           const myMaxAge = profile.partnerPreferences?.ageMax || 100;
           if (uAge < myMinAge || uAge > myMaxAge) return false;
 
-          // Sanity check for account validity
+          // Sanity check for account validity & paused status (Courtship mode)
           const uStatus = resolveApprovalStatus(u);
-          if (uStatus === 'banned' || uStatus === 'pending' || uStatus === 'suspended' || u.isBanned || u.isSuspended) return false;
+          if (uStatus === 'banned' || uStatus === 'pending' || uStatus === 'suspended' || u.isBanned || u.isSuspended || u.isPaused === true) return false;
 
           return true;
         });
@@ -563,6 +564,34 @@ export default function DashboardPage() {
         </motion.div>
       ) : (
         <>
+          {/* Courtship / Paused Profile Notice */}
+          {profile?.isPaused && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            >
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-700">
+                  <PauseCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-amber-900 text-sm sm:text-base">Profile Paused — Courtship Mode Active</h4>
+                  <p className="text-xs sm:text-sm text-amber-700 mt-0.5">
+                    Your profile is hidden from matches and search results. Your existing chats and connections remain active.
+                    {profile.pauseReason ? ` (Reason: ${profile.pauseReason})` : ''}
+                  </p>
+                </div>
+              </div>
+              <Link
+                to={`/profile/${profile.uid}?tab=privacy`}
+                className="inline-flex items-center justify-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors flex-shrink-0"
+              >
+                Manage Visibility
+              </Link>
+            </motion.div>
+          )}
+
           {/* Stats Grid */}
           {profile?.isApproved === false && (
             <motion.div

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, addDoc, serverTimestamp, setDoc, getDocs, deleteDoc, updateDoc, runTransaction, deleteField, writeBatch, collectionGroup, Timestamp, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -73,7 +73,9 @@ import {
   Cross,
   Droplet,
   Sparkles,
-  Lock
+  Lock,
+  PauseCircle,
+  PlayCircle
 } from 'lucide-react';
 import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge, shouldBlurPhoto } from '../lib/utils';
 import { useLogout } from '../hooks/useLogout';
@@ -136,8 +138,31 @@ export default function ProfilePage() {
   const [showUnblockConfirm, setShowUnblockConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
   const [showLimitAlert, setShowLimitAlert] = useState(false);
-  const [activeTab, setActiveTab] = useState('about');
-const [showRateLimitAlert, setShowRateLimitAlert] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'about');
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['about', 'preferences', 'activity', 'privacy'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  // Feature #5: Pause / Courtship Mode states
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pauseReasonOption, setPauseReasonOption] = useState<'courtship' | 'found_match' | 'break' | 'other'>('courtship');
+  const [customPauseReason, setCustomPauseReason] = useState('');
+  const [pauseSaving, setPauseSaving] = useState(false);
+
+  // Feature #8: Success Story / Testimony states
+  const [showTestimonyModal, setShowTestimonyModal] = useState(false);
+  const [testimonyCoupleNames, setTestimonyCoupleNames] = useState('');
+  const [testimonyWeddingDate, setTestimonyWeddingDate] = useState('');
+  const [testimonyStory, setTestimonyStory] = useState('');
+  const [testimonySaving, setTestimonySaving] = useState(false);
+  const [existingTestimony, setExistingTestimony] = useState<any | null>(null);
+
+  const [showRateLimitAlert, setShowRateLimitAlert] = useState(false);
   const [rateLimitResetTime, setRateLimitResetTime] = useState<string | null>(null);
   const [showAccountDeleteConfirm, setShowAccountDeleteConfirm] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -320,6 +345,121 @@ const [showEditModal, setShowEditModal] = useState(false);
     }
     fetchProfileData();
   }, [id, currentUser]);
+
+  // Listen for member's own submitted success story
+  useEffect(() => {
+    if (!currentUser || !isOwnProfile) return;
+    const q = query(
+      collection(db, 'success_stories'),
+      where('userId', '==', currentUser.uid)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const d = snap.docs[0].data();
+        setExistingTestimony({ id: snap.docs[0].id, ...d });
+        setTestimonyCoupleNames(d.coupleNames || '');
+        setTestimonyWeddingDate(d.weddingDate || '');
+        setTestimonyStory(d.story || d.text || '');
+      } else {
+        setExistingTestimony(null);
+      }
+    }, (err) => {
+      console.warn('Could not listen for user testimony:', err);
+    });
+    return () => unsub();
+  }, [currentUser?.uid, isOwnProfile]);
+
+  const handlePauseProfile = async (reasonText: string) => {
+    if (!currentUser) return;
+    setPauseSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        isPaused: true,
+        pauseReason: reasonText,
+        pausedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setProfile((prev: any) => ({
+        ...prev,
+        isPaused: true,
+        pauseReason: reasonText,
+      }));
+      try {
+        localStorage.removeItem('kingdomAlliance_dailyMatches');
+        localStorage.removeItem('kingdomAlliance_dailyMatches_date');
+      } catch {}
+      setShowPauseModal(false);
+      toast.success('Your profile is now paused (hidden from searches).');
+    } catch (err: any) {
+      console.error('Error pausing profile:', err);
+      toast.error(err.message || 'Failed to pause profile');
+    } finally {
+      setPauseSaving(false);
+    }
+  };
+
+  const handleResumeProfile = async () => {
+    if (!currentUser) return;
+    setPauseSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        isPaused: false,
+        pauseReason: '',
+        updatedAt: serverTimestamp(),
+      });
+      setProfile((prev: any) => ({
+        ...prev,
+        isPaused: false,
+        pauseReason: '',
+      }));
+      try {
+        localStorage.removeItem('kingdomAlliance_dailyMatches');
+        localStorage.removeItem('kingdomAlliance_dailyMatches_date');
+      } catch {}
+      toast.success('Your profile is now active and visible to matches!');
+    } catch (err: any) {
+      console.error('Error resuming profile:', err);
+      toast.error(err.message || 'Failed to resume profile');
+    } finally {
+      setPauseSaving(false);
+    }
+  };
+
+  const handleSaveTestimony = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (!testimonyCoupleNames.trim() || !testimonyStory.trim()) {
+      toast.error('Please enter couple names and your testimony.');
+      return;
+    }
+    setTestimonySaving(true);
+    try {
+      const storyPayload: any = {
+        userId: currentUser.uid,
+        userEmail: currentUser.email || '',
+        coupleNames: testimonyCoupleNames.trim(),
+        weddingDate: testimonyWeddingDate.trim() || '',
+        story: testimonyStory.trim(),
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (existingTestimony?.id) {
+        await updateDoc(doc(db, 'success_stories', existingTestimony.id), storyPayload);
+        toast.success('Testimony updated! Our team will review it shortly.');
+      } else {
+        await addDoc(collection(db, 'success_stories'), storyPayload);
+        toast.success('Praise God! Your testimony has been submitted for pastoral review.');
+      }
+      setShowTestimonyModal(false);
+    } catch (err: any) {
+      console.error('Error saving testimony:', err);
+      toast.error(err.message || 'Failed to submit testimony');
+    } finally {
+      setTestimonySaving(false);
+    }
+  };
 
   const handleDeleteMyAccount = async () => {
     if (!currentUser || deletingAccount) return;
@@ -1187,6 +1327,11 @@ const [showEditModal, setShowEditModal] = useState(false);
                             <Clock className="w-3 h-3" /> Photo Review
                           </span>
                         )}
+                        {profile.isPaused && (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-[3px] rounded-full text-[9px] sm:text-[10.5px] font-bold tracking-[0.6px] sm:tracking-[1px] bg-amber-100 text-amber-900 border border-amber-300">
+                            <PauseCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-700" /> Paused
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1451,27 +1596,145 @@ const [showEditModal, setShowEditModal] = useState(false);
 
 
               {activeTab === 'privacy' && isOwnProfile && (
-                <div className="space-y-3 sm:space-y-4">
+                <div className="space-y-4 sm:space-y-5">
+                  {/* Feature #5: Profile Visibility & Courtship Mode */}
+                  <div className="rounded-[1.5rem] p-6 sm:p-7 border border-[#e8dfcf] bg-white shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
+                          profile.isPaused ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                        )}>
+                          {profile.isPaused ? <PauseCircle className="w-6 h-6" /> : <PlayCircle className="w-6 h-6" />}
+                        </div>
+                        <div>
+                          <h2 className="text-base sm:text-lg font-bold text-[#4a3521]">
+                            Profile Visibility & Courtship Mode
+                          </h2>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={cn(
+                              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                              profile.isPaused ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            )}>
+                              <span className={cn('size-1.5 rounded-full', profile.isPaused ? 'bg-amber-500' : 'bg-emerald-500')} />
+                              {profile.isPaused ? 'Paused / Hidden' : 'Active & Visible'}
+                            </span>
+                            {profile.isPaused && profile.pauseReason && (
+                              <span className="text-[11px] text-slate-500 truncate max-w-[200px]">
+                                ({profile.pauseReason})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {profile.isPaused ? (
+                        <button
+                          onClick={handleResumeProfile}
+                          disabled={pauseSaving}
+                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 disabled:opacity-50"
+                        >
+                          {pauseSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                          Resume My Profile
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setPauseReasonOption('courtship');
+                            setCustomPauseReason('');
+                            setShowPauseModal(true);
+                          }}
+                          className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0"
+                        >
+                          <PauseCircle className="w-4 h-4" />
+                          Pause Profile
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      {profile.isPaused
+                        ? 'Your profile is temporarily paused and will not appear in search results or daily suggestions. Your existing chats, connections, and saved bookmarks remain completely intact and active.'
+                        : 'Entering the courtship / talking stage with someone, or taking a short break? Pausing hides your profile from new member searches while keeping all your existing messages and connections safe.'}
+                    </p>
+                  </div>
+
+                  {/* Feature #8: Success Story / Testimony Card */}
+                  <div className="rounded-[1.5rem] p-6 sm:p-7 border border-[#e8dfcf] bg-gradient-to-br from-[#faf6ef] via-white to-[#f5ecdd] shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-[#d4af37]/15 text-[#9e7a2b] flex items-center justify-center flex-shrink-0">
+                          <Sparkles className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h2 className="text-base sm:text-lg font-bold text-[#4a3521]">
+                            Found Your Match? Share Your Testimony
+                          </h2>
+                          <p className="text-[11px] text-[#8a7a65]">
+                            Encourage other Christian believers with what God has done.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (existingTestimony) {
+                            setTestimonyCoupleNames(existingTestimony.coupleNames || '');
+                            setTestimonyWeddingDate(existingTestimony.weddingDate || '');
+                            setTestimonyStory(existingTestimony.story || existingTestimony.text || '');
+                          }
+                          setShowTestimonyModal(true);
+                        }}
+                        className="px-5 py-2.5 bg-[#4a3521] hover:bg-[#382717] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0"
+                      >
+                        <Heart className="w-4 h-4 text-[#d4af37]" />
+                        {existingTestimony ? 'Edit Our Testimony' : 'Share Our Story'}
+                      </button>
+                    </div>
+
+                    {existingTestimony ? (
+                      <div className="mt-4 p-4 rounded-xl bg-white/80 border border-[#e8dfcf] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-[#4a3521]">{existingTestimony.coupleNames}</span>
+                          <span className={cn(
+                            'text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full',
+                            existingTestimony.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                            existingTestimony.status === 'rejected' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800'
+                          )}>
+                            {existingTestimony.status === 'approved' ? 'Live on Landing Page' :
+                             existingTestimony.status === 'rejected' ? 'Needs Revision' : 'Pending Pastoral Review'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 italic line-clamp-2">
+                          "{existingTestimony.story || existingTestimony.text}"
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-2">
+                        If God has united you with your future spouse through Kingdom Alliance, we would love to celebrate your story! Approved testimonies are featured on our homepage to inspire others.
+                      </p>
+                    )}
+                  </div>
+
                   <BlockedUsersList />
 
                   {/* Danger Zone — Delete My Profile */}
                   <div
-                    className="rounded-[2rem] p-8 border-2 border-red-200"
+                    className="rounded-[1.5rem] p-6 sm:p-7 border-2 border-red-200"
                     style={{ background: 'rgba(254, 242, 242, 0.6)' }}
                   >
-                    <h2 className="text-xl font-bold text-red-700 flex items-center gap-3 mb-3">
-                      <AlertTriangle className="w-6 h-6" /> Danger Zone
+                    <h2 className="text-base sm:text-lg font-bold text-red-700 flex items-center gap-2.5 mb-2">
+                      <AlertTriangle className="w-5 h-5" /> Danger Zone — Delete Account
                     </h2>
-                    <p className="text-slate-600 text-sm leading-relaxed mb-5">
+                    <p className="text-slate-600 text-xs sm:text-sm leading-relaxed mb-4">
                       Permanently delete your Kingdom Alliance profile. Your account will be
-                      disabled immediately and permanently removed after 7 days. Until then you
-                      can sign in and choose Reactivate before the recovery deadline.
+                      disabled immediately and permanently removed after 7 days. If you've found someone, consider pausing your profile or sharing your testimony instead!
                     </p>
                     <button
                       onClick={() => setShowDeleteConfirmation(true)}
-                      className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md flex items-center gap-2 hover:bg-red-700 transition-colors"
+                      className="px-5 py-2.5 bg-red-600 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md flex items-center gap-2 hover:bg-red-700 transition-colors"
                     >
-                      <Trash2 className="w-5 h-5" /> Delete My Profile
+                      <Trash2 className="w-4 h-4" /> Delete My Profile
                     </button>
                   </div>
                 </div>
@@ -1492,7 +1755,21 @@ const [showEditModal, setShowEditModal] = useState(false);
                             Every other state (accepted, declined, etc.) is
                             surfaced through dedicated pages (Messages,
                             Interests), not via extra buttons here. */}
-                        {((!connectionState || connectionState.status === 'none') && !interestJustSent) && !(connectionState?.status === 'pending' && connectionState?.fromId === currentUser?.uid) && (
+                        {profile.isPaused && (!connectionState || connectionState.status === 'none') && !interestJustSent && (
+                          <div className="w-full p-4 rounded-[14px] bg-amber-50/90 border border-amber-200 text-center">
+                            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-2 text-amber-700">
+                              <PauseCircle className="w-4 h-4" />
+                            </div>
+                            <p className="text-[13px] font-bold text-amber-900">
+                              Profile Paused (Courtship Mode)
+                            </p>
+                            <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                              This member is currently in courtship or taking a personal break, and is not accepting new interests right now.
+                            </p>
+                          </div>
+                        )}
+
+                        {!profile.isPaused && ((!connectionState || connectionState.status === 'none') && !interestJustSent) && !(connectionState?.status === 'pending' && connectionState?.fromId === currentUser?.uid) && (
                           <button
                             onClick={handleSendInterest}
                             disabled={sendingInterest}
@@ -2224,6 +2501,223 @@ const [showEditModal, setShowEditModal] = useState(false);
         cancelText="No, Keep Blocked"
         isDestructive={false}
       />
+
+      {/* Feature #5: Pause Profile Modal */}
+      <AnimatePresence>
+        {showPauseModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !pauseSaving && setShowPauseModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden p-6 sm:p-8"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                  <PauseCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-[#4a3521]">Pause Your Profile</h3>
+                  <p className="text-xs text-slate-500">Temporarily hide from matches & searches</p>
+                </div>
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-600 mb-5 leading-relaxed">
+                When paused, new members cannot discover you in search or daily suggestions. Your current conversations and accepted connections stay completely open.
+              </p>
+
+              <div className="space-y-2.5 mb-5">
+                {[
+                  { key: 'courtship', label: '💬 In courtship / talking stage with a prospect' },
+                  { key: 'found_match', label: '💍 Found my partner on Kingdom Alliance!' },
+                  { key: 'break', label: '⏸️ Taking a personal / prayerful break' },
+                  { key: 'other', label: '✍️ Other reason' },
+                ].map((opt) => (
+                  <label
+                    key={opt.key}
+                    className={cn(
+                      'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all',
+                      pauseReasonOption === opt.key
+                        ? 'border-amber-400 bg-amber-50/70 text-amber-950 font-medium'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="pauseReason"
+                      value={opt.key}
+                      checked={pauseReasonOption === opt.key}
+                      onChange={() => setPauseReasonOption(opt.key as any)}
+                      className="text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-xs sm:text-sm">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {pauseReasonOption === 'found_match' && (
+                <div className="p-3 bg-[#faf6ef] rounded-xl border border-[#e8dfcf] text-xs text-[#6e583c] mb-5">
+                  ✨ Praise God! You can also submit your wedding or engagement testimony to inspire other believers.
+                </div>
+              )}
+
+              {pauseReasonOption === 'other' && (
+                <div className="mb-5">
+                  <input
+                    type="text"
+                    value={customPauseReason}
+                    onChange={(e) => setCustomPauseReason(e.target.value)}
+                    placeholder="Enter short reason (optional)..."
+                    maxLength={150}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPauseModal(false)}
+                  disabled={pauseSaving}
+                  className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-xs sm:text-sm hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={pauseSaving}
+                  onClick={() => {
+                    const reason =
+                      pauseReasonOption === 'courtship' ? 'In courtship / talking with a prospect' :
+                      pauseReasonOption === 'found_match' ? 'Found my partner on Kingdom Alliance' :
+                      pauseReasonOption === 'break' ? 'Taking a personal break' :
+                      (customPauseReason.trim() || 'Paused by member');
+                    handlePauseProfile(reason);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  {pauseSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PauseCircle className="w-4 h-4" />}
+                  Confirm & Pause
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Feature #8: Success Story / Testimony Submission Modal */}
+      <AnimatePresence>
+        {showTestimonyModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !testimonySaving && setShowTestimonyModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden p-6 sm:p-8 my-8"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 rounded-xl bg-[#d4af37]/15 text-[#9e7a2b] flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-[#4a3521]">Share Your Love Story</h3>
+                  <p className="text-xs text-slate-500">Celebrate God's faithfulness together</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveTestimony} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Couple Names *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={testimonyCoupleNames}
+                    onChange={(e) => setTestimonyCoupleNames(e.target.value)}
+                    placeholder="e.g. David & Maria"
+                    maxLength={100}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#d4af37]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Wedding or Engagement Date / Year (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={testimonyWeddingDate}
+                    onChange={(e) => setTestimonyWeddingDate(e.target.value)}
+                    placeholder="e.g. October 2025 or Married Summer 2025"
+                    maxLength={50}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#d4af37]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Your Testimony / Story *
+                  </label>
+                  <textarea
+                    required
+                    rows={5}
+                    value={testimonyStory}
+                    onChange={(e) => setTestimonyStory(e.target.value)}
+                    placeholder="Tell us how you connected, how God confirmed your steps, or what advice you'd share with other Christian singles..."
+                    maxLength={3000}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#d4af37] leading-relaxed resize-none"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-400 mt-1">
+                    <span>Be genuine and uplifting.</span>
+                    <span>{testimonyStory.length} / 3000</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-[11px] text-amber-800 flex items-start gap-2">
+                  <Heart className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <span>
+                    Your testimony will be reviewed by our moderation team before appearing on our homepage.
+                  </span>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTestimonyModal(false)}
+                    disabled={testimonySaving}
+                    className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-xs sm:text-sm hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={testimonySaving}
+                    className="flex-1 px-4 py-2.5 bg-[#4a3521] hover:bg-[#382717] text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition-colors flex items-center justify-center gap-2"
+                  >
+                    {testimonySaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-[#d4af37]" />}
+                    Submit Testimony
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <EditProfileModal
         isOpen={showEditModal}

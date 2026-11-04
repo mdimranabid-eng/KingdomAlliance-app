@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Clock,
   ArrowUpRight,
+  Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AdminReportModal from '../../components/admin/AdminReportModal';
@@ -44,6 +45,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [maleFemaleRatio, setMaleFemaleRatio] = useState({ male: 0, female: 0 });
   const [photoPendingCount, setPhotoPendingCount] = useState(0);
+  const [storiesPendingCount, setStoriesPendingCount] = useState(0);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [timeframe, setTimeframe] = useState<'7d' | '30d' | 'all'>('30d');
   const approvedUsersRef = React.useRef<any[]>([]);
@@ -125,6 +127,13 @@ export default function AdminDashboard() {
       console.error('Error listening for photo moderation count:', error);
     });
 
+    const storiesQuery = query(collection(db, 'success_stories'), where('status', '==', 'pending'));
+    const unsubStories = onSnapshot(storiesQuery, (snapshot) => {
+      setStoriesPendingCount(snapshot.size);
+    }, (error) => {
+      console.error('Error listening for success stories count:', error);
+    });
+
     const unsubInterests = onSnapshot(collection(db, 'interests'), (snapshot) => {
       const interestsData = snapshot.docs.map((d) => d.data());
       const activeUserUids = new Set(approvedUsersRef.current.map((u: any) => u.uid || u.id));
@@ -142,6 +151,7 @@ export default function AdminDashboard() {
     return () => {
       unsubUsers();
       unsubPhotos();
+      unsubStories();
       unsubInterests();
     };
   }, []);
@@ -309,70 +319,90 @@ export default function AdminDashboard() {
           <h2 className="text-base font-display font-semibold mb-5">Operations & Quick Actions</h2>
 
           {/* Status indicators */}
-          <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="grid grid-cols-3 gap-2.5 mb-5">
             <div className="bg-white/5 rounded-xl p-3 border border-white/10">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-[#94a3b8]">Approvals</span>
+                <span className="text-[9px] font-semibold uppercase tracking-widest text-[#94a3b8]">Approvals</span>
                 <span className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                  'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold',
                   stats.pendingApprovals > 0
                     ? 'bg-amber-500/15 text-amber-400'
                     : 'bg-emerald-500/15 text-emerald-400'
                 )}>
-                  <span className="size-1.5 rounded-full bg-current" />
-                  {stats.pendingApprovals > 0 ? 'Pending' : 'Clear'}
+                  <span className="size-1 rounded-full bg-current" />
+                  {stats.pendingApprovals > 0 ? stats.pendingApprovals : 'Clear'}
                 </span>
               </div>
-              <p className="text-2xl font-bold">{stats.pendingApprovals}</p>
+              <p className="text-xl font-bold">{stats.pendingApprovals}</p>
             </div>
 
             <div className="bg-white/5 rounded-xl p-3 border border-white/10">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-[#94a3b8]">Photos</span>
+                <span className="text-[9px] font-semibold uppercase tracking-widest text-[#94a3b8]">Photos</span>
                 <span className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                  'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold',
                   photoPendingCount > 0
                     ? 'bg-amber-500/15 text-amber-400'
                     : 'bg-emerald-500/15 text-emerald-400'
                 )}>
-                  <span className="size-1.5 rounded-full bg-current" />
-                  {photoPendingCount > 0 ? 'Pending' : 'Clean'}
+                  <span className="size-1 rounded-full bg-current" />
+                  {photoPendingCount > 0 ? photoPendingCount : 'Clean'}
                 </span>
               </div>
-              <p className="text-2xl font-bold">{photoPendingCount}</p>
+              <p className="text-xl font-bold">{photoPendingCount}</p>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-semibold uppercase tracking-widest text-[#94a3b8]">Stories</span>
+                <span className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold',
+                  storiesPendingCount > 0
+                    ? 'bg-amber-500/15 text-amber-400'
+                    : 'bg-emerald-500/15 text-emerald-400'
+                )}>
+                  <span className="size-1 rounded-full bg-current" />
+                  {storiesPendingCount > 0 ? storiesPendingCount : 'Clean'}
+                </span>
+              </div>
+              <p className="text-xl font-bold">{storiesPendingCount}</p>
             </div>
           </div>
 
           {/* Health Callout */}
           <div className={cn(
             'flex items-start gap-3 p-3.5 rounded-xl border mb-5',
-            stats.pendingApprovals > 0
+            (stats.pendingApprovals > 0 || photoPendingCount > 0 || storiesPendingCount > 0)
               ? 'bg-amber-500/10 border-amber-500/20'
               : 'bg-emerald-500/10 border-emerald-500/20'
           )}>
             <Info className={cn(
               'w-4 h-4 flex-shrink-0 mt-0.5',
-              stats.pendingApprovals > 0 ? 'text-amber-400' : 'text-emerald-400'
+              (stats.pendingApprovals > 0 || photoPendingCount > 0 || storiesPendingCount > 0) ? 'text-amber-400' : 'text-emerald-400'
             )} />
             <div>
               <p className={cn(
                 'text-xs font-bold',
-                stats.pendingApprovals > 0 ? 'text-amber-300' : 'text-emerald-300'
+                (stats.pendingApprovals > 0 || photoPendingCount > 0 || storiesPendingCount > 0) ? 'text-amber-300' : 'text-emerald-300'
               )}>
-                {stats.pendingApprovals > 0 ? 'Approval Queue Growing' : 'Queue Healthy'}
+                {(stats.pendingApprovals > 0 || photoPendingCount > 0 || storiesPendingCount > 0) ? 'Action Required in Review Queue' : 'Queue Healthy'}
               </p>
               <p className="text-[11px] text-[#94a3b8] font-medium mt-0.5">
                 {stats.pendingApprovals > 0
-                  ? `There are ${stats.pendingApprovals} members waiting for verification.`
-                  : 'All registration requests have been processed.'}
+                  ? `${stats.pendingApprovals} members awaiting approval.`
+                  : photoPendingCount > 0
+                  ? `${photoPendingCount} photos awaiting moderation.`
+                  : storiesPendingCount > 0
+                  ? `${storiesPendingCount} success stories awaiting review.`
+                  : 'All registration, photo, and testimony requests have been processed.'}
               </p>
             </div>
           </div>
 
           {/* Action tiles */}
-          <div className="grid grid-cols-2 gap-3">
-            <Link to="/admin/approvals" className="group flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3.5 transition-all">
-              <div className="p-2 bg-[#d4af37]/15 rounded-lg text-[#d4af37]">
+          <div className="grid grid-cols-3 gap-2.5">
+            <Link to="/admin/approvals" className="group flex flex-col gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 transition-all">
+              <div className="p-2 w-fit bg-[#d4af37]/15 rounded-lg text-[#d4af37]">
                 <UserCheck className="w-4 h-4" />
               </div>
               <div>
@@ -380,13 +410,22 @@ export default function AdminDashboard() {
                 <p className="text-[10px] text-[#94a3b8]">Review queue</p>
               </div>
             </Link>
-            <Link to="/admin/photos" className="group flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3.5 transition-all">
-              <div className="p-2 bg-[#d4af37]/15 rounded-lg text-[#d4af37]">
+            <Link to="/admin/photos" className="group flex flex-col gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 transition-all">
+              <div className="p-2 w-fit bg-[#d4af37]/15 rounded-lg text-[#d4af37]">
                 <Image className="w-4 h-4" />
               </div>
               <div>
                 <p className="text-xs font-semibold">Photos</p>
                 <p className="text-[10px] text-[#94a3b8]">Moderation</p>
+              </div>
+            </Link>
+            <Link to="/admin/stories" className="group flex flex-col gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 transition-all">
+              <div className="p-2 w-fit bg-[#d4af37]/15 rounded-lg text-[#d4af37]">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold">Stories</p>
+                <p className="text-[10px] text-[#94a3b8]">Testimonies</p>
               </div>
             </Link>
           </div>

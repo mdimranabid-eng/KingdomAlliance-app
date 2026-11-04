@@ -57,7 +57,7 @@ function safeInitialAccount(data) {
 const USER_SIZE_FIELDS = [
   ['name', 128], ['aboutMe', 2000], ['denomination', 100], ['church', 200], ['churchName', 200],
   ['education', 200], ['profession', 200], ['location', 200], ['mobileNumber', 20],
-  ['familyDetails', 2000], ['photoRejectionReason', 500],
+  ['familyDetails', 2000], ['photoRejectionReason', 500], ['pauseReason', 250],
 ];
 
 function isValidUser(data) {
@@ -99,6 +99,46 @@ function isValidContactMessage(data) {
     typeof data.subject === 'string' && data.subject.length <= 100 &&
     typeof data.message === 'string' && data.message.length <= 1000 &&
     data.status === 'new' && createdAtOk(data);
+}
+
+// ── success_stories ───────────────────────────────────────────────────────────
+function checkSuccessStories(ctx) {
+  const { op, id, incoming, existing } = ctx;
+  if (op === 'get') {
+    if (isAdmin(ctx)) return {};
+    if (existing && existing.status === 'approved') return {};
+    if (ctx.auth && existing && existing.userId === ctx.auth.uid) return {};
+    throw new PermissionDenied();
+  }
+  if (op === 'list') {
+    if (isAdmin(ctx)) return {};
+    if (ctx.auth && ctx.auth.uid) {
+      return { filter: (d) => d.status === 'approved' || d.userId === ctx.auth.uid };
+    }
+    // Public unauthenticated visitor on landing page:
+    return { filter: (d) => d.status === 'approved' };
+  }
+  if (op === 'create') {
+    if (!isValidId(id) || !isUsableAccount(ctx)) throw new PermissionDenied();
+    if (g(incoming, 'userId') !== ctx.auth?.uid) throw new PermissionDenied();
+    if (g(incoming, 'status') !== 'pending') throw new PermissionDenied();
+    const coupleNames = g(incoming, 'coupleNames', '');
+    const story = g(incoming, 'story', g(incoming, 'text', ''));
+    if (typeof coupleNames !== 'string' || coupleNames.length < 2 || coupleNames.length > 120) throw new PermissionDenied();
+    if (typeof story !== 'string' || story.length < 10 || story.length > 4000) throw new PermissionDenied();
+    if (!createdAtOk(incoming)) throw new PermissionDenied();
+    return {};
+  }
+  if (op === 'update') {
+    if (isAdmin(ctx)) return {};
+    throw new PermissionDenied();
+  }
+  if (op === 'delete') {
+    if (isAdmin(ctx)) return {};
+    if (isUsableAccount(ctx) && existing && existing.userId === ctx.auth?.uid) return {};
+    throw new PermissionDenied();
+  }
+  throw new PermissionDenied();
 }
 
 
@@ -322,6 +362,7 @@ async function check(ctx) {
     throw new PermissionDenied();
   }
   if (collPath === 'churches') { if (isAdmin(ctx)) return {}; throw new PermissionDenied(); }
+  if (collPath === 'success_stories') return checkSuccessStories(ctx);
   if (collPath === 'contact_messages') {
     if (op === 'create') { if (isValidContactMessage(ctx.incoming)) return {}; throw new PermissionDenied(); }
     if (isAdmin(ctx)) return {};
