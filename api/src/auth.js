@@ -36,6 +36,10 @@ function verifyAccessToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
+function verifyAccessTokenIgnoreExpiry(token) {
+  return jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+}
+
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 const opaque = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
 
@@ -126,6 +130,7 @@ function adminRequired(req, res, next) {
 module.exports = {
   signAccessToken,
   verifyAccessToken,
+  verifyAccessTokenIgnoreExpiry,
   sha256,
   opaque,
   authRequired,
