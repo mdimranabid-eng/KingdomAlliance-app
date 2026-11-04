@@ -170,6 +170,120 @@ function serveUpload(req, res) {
   }
 }
 
+function urlToRelPath(u) {
+  if (!u || typeof u !== 'string') return '';
+  const trimmed = u.trim();
+  if (!trimmed.includes('/uploads/')) return '';
+  return sanitizeRelPath(decodeURIComponent(trimmed.split('/uploads/')[1] || ''));
+}
+
+function fileExistsInRoot(rel) {
+  if (!rel) return false;
+  const full = path.resolve(UPLOAD_ROOT, rel);
+  return full.startsWith(UPLOAD_ROOT + path.sep) && fs.existsSync(full) && fs.statSync(full).isFile();
+}
+
+function copyDirRecursive(srcDir, destDir) {
+  if (!fs.existsSync(srcDir)) return 0;
+  let copied = 0;
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      fs.mkdirSync(destPath, { recursive: true });
+      copied += copyDirRecursive(srcPath, destPath);
+    } else if (entry.isFile() && !fs.existsSync(destPath)) {
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.copyFileSync(srcPath, destPath);
+      copied += 1;
+    }
+  }
+  return copied;
+}
+
+function listFilesRecursive(dir, base = dir) {
+  if (!fs.existsSync(dir)) return [];
+  let results = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results = results.concat(listFilesRecursive(full, base));
+    } else if (entry.isFile()) {
+      results.push(path.relative(base, full));
+    }
+  }
+  return results;
+}
+
+async function reconcileUploads(pool) {
+  try {
+    const cwd = process.cwd();
+    let migrated = 0;
+    if (cwd.includes('/hbuilds/versions/')) {
+      const domainRoot = cwd.split('/hbuilds/versions/')[0];
+      const versionsDir = path.join(domainRoot, 'hbuilds', 'versions');
+      if (fs.existsSync(versionsDir)) {
+        for (const ver of fs.readdirSync(versionsDir)) {
+          const oldUploads = path.join(versionsDir, ver, 'nodejs', 'uploads');
+          if (oldUploads !== UPLOAD_ROOT && fs.existsSync(oldUploads)) {
+            migrated += copyDirRecursive(oldUploads, UPLOAD_ROOT);
+          }
+        }
+      }
+    }
+    const filesOnDisk = listFilesRecursive(UPLOAD_ROOT);
+    console.log(`[uploads] root=${UPLOAD_ROOT} migrated=${migrated} filesOnDisk=${filesOnDisk.length} list=${JSON.stringify(filesOnDisk.slice(0, 30))}`);
+
+    if (!pool) return;
+    // Purge stale uploadedImages hash cache entries whose files are missing on disk
+    const [hashRows] = await pool.query("SELECT id, data FROM coll_store WHERE coll = 'uploadedImages'");
+    let purgedHashes = 0;
+    for (const row of hashRows) {
+      let d = {};
+      try { d = typeof row.data === 'object' ? row.data : JSON.parse(row.data || '{}'); } catch {}
+      const rel = urlToRelPath(d.url || '');
+      if (!rel || !fileExistsInRoot(rel)) {
+        await pool.query("DELETE FROM coll_store WHERE coll = 'uploadedImages' AND id = ?", [row.id]);
+        purgedHashes += 1;
+      }
+    }
+    if (purgedHashes > 0) {
+      console.log(`[uploads] purged ${purgedHashes} stale uploadedImages hash cache entries`);
+    }
+
+    const [modRows] = await pool.query("SELECT id, data FROM coll_store WHERE coll = 'photoModeration'");
+    const modSummary = modRows.map((r) => {
+      let d = {};
+      try { d = typeof r.data === 'object' ? r.data : JSON.parse(r.data || '{}'); } catch {}
+      const url = d.photoURL || d.photoUrl || d.pendingPhotoUrl || '';
+      const rel = urlToRelPath(url);
+      return { id: r.id, uid: d.uid, user: d.userName, status: d.photoStatus, url, onDisk: fileExistsInRoot(rel) };
+    });
+    console.log(`[uploads] photoModeration records (${modSummary.length}): ${JSON.stringify(modSummary)}`);
+
+    const [userRows] = await pool.query("SELECT id, email, photo_url, data FROM users WHERE role != 'admin'");
+    const userSummary = userRows.map((r) => {
+      let d = {};
+      try { d = typeof r.data === 'object' ? r.data : JSON.parse(r.data || '{}'); } catch {}
+      const pending = d.pendingPhotoUrl || '';
+      const photo = d.photoUrl || d.photoURL || r.photo_url || '';
+      return {
+        id: r.id,
+        email: r.email,
+        photoStatus: d.photoStatus,
+        pendingUrl: pending,
+        pendingOnDisk: fileExistsInRoot(urlToRelPath(pending)),
+        photoUrl: photo,
+        photoOnDisk: fileExistsInRoot(urlToRelPath(photo)),
+      };
+    });
+    console.log(`[uploads] user photo summary (${userSummary.length}): ${JSON.stringify(userSummary)}`);
+  } catch (e) {
+    console.error('[uploads] reconcile error:', e.message);
+  }
+}
+
 router.UPLOAD_ROOT = UPLOAD_ROOT;
 router.serveUpload = serveUpload;
+router.reconcileUploads = reconcileUploads;
 module.exports = router;
