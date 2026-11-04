@@ -83,7 +83,7 @@ router.post('/check-email', async (req, res) => {
 });
 
 // ── Account deletion (accountDeletion.ts deleteAccount) ───────────────────────
-router.post('/account/delete', authRequired, async (req, res) => {
+router.post(['/account/delete', '/delete-account'], authRequired, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT role, email FROM users WHERE id = ? LIMIT 1', [req.uid]);
     if (!rows.length) return res.status(404).json({ error: 'Profile not found.' });
@@ -121,7 +121,7 @@ router.post('/account/delete', authRequired, async (req, res) => {
 
 
 // ── Account reactivation ──────────────────────────────────────────────────────
-router.post('/account/reactivate', authRequired, async (req, res) => {
+router.post(['/account/reactivate', '/reactivate-account'], authRequired, async (req, res) => {
   try {
     const user = await store.getDoc('users', req.uid);
     if (!user) return res.status(404).json({ error: 'Profile not found.' });

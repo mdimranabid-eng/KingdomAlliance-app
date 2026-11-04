@@ -70,7 +70,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
     setLoading(true);
     try {
       // 2. Send POST request to VITE_BACKEND_URL + '/api/reset-password'
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
       const response = await fetch(`${backendUrl}/api/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
