@@ -160,12 +160,16 @@ export class DocumentSnapshot {
 export class QuerySnapshot {
   readonly docs: DocumentSnapshot[];
   readonly metadata = { hasPendingWrites: false, fromCache: false };
-  constructor(docs: DocumentSnapshot[]) { this.docs = docs; }
+  private readonly _changes: { type: 'added' | 'modified' | 'removed'; doc: DocumentSnapshot }[];
+  constructor(docs: DocumentSnapshot[], changes?: { type: 'added' | 'modified' | 'removed'; doc: DocumentSnapshot }[]) {
+    this.docs = docs;
+    this._changes = changes || docs.map((d) => ({ type: 'added', doc: d }));
+  }
   get empty(): boolean { return this.docs.length === 0; }
   get size(): number { return this.docs.length; }
   forEach(cb: (d: DocumentSnapshot) => void): void { this.docs.forEach(cb); }
   docChanges(): { type: 'added' | 'modified' | 'removed'; doc: DocumentSnapshot }[] {
-    return this.docs.map((d) => ({ type: 'added', doc: d }));
+    return this._changes;
   }
   query: any = null;
 }
@@ -222,6 +226,7 @@ export function onSnapshot(
   let stopped = false;
   let lastSig: string | null = null;
   let timer: any = null;
+  let prevDocsMap: Map<string, number> | null = null;
 
   const isDoc = refOrQuery && refOrQuery.kind === 'doc';
 
@@ -240,10 +245,35 @@ export function onSnapshot(
       } else {
         const q: FsQuery = refOrQuery;
         const payload = await request<any>('POST', '/fs/watch', queryBody(q));
-        const sig = (payload.docs || []).map((d: any) => `${d.id}:${d.updatedMs}`).join('|');
+        const currentDocs = payload.docs || [];
+        const sig = currentDocs.map((d: any) => `${d.id}:${d.updatedMs}`).join('|');
         if (sig !== lastSig) {
           lastSig = sig;
-          cb(new QuerySnapshot((payload.docs || []).map((d: any) => toSnap(d))));
+          const currentMap = new Map<string, number>();
+          const docSnaps = currentDocs.map((d: any) => {
+            currentMap.set(d.id, d.updatedMs || 0);
+            return toSnap(d);
+          });
+
+          const changes: { type: 'added' | 'modified' | 'removed'; doc: DocumentSnapshot }[] = [];
+          if (prevDocsMap === null) {
+            docSnaps.forEach((d) => changes.push({ type: 'added', doc: d }));
+          } else {
+            docSnaps.forEach((d) => {
+              if (!prevDocsMap.has(d.id)) {
+                changes.push({ type: 'added', doc: d });
+              } else if (prevDocsMap.get(d.id) !== (currentMap.get(d.id) || 0)) {
+                changes.push({ type: 'modified', doc: d });
+              }
+            });
+            prevDocsMap.forEach((_, id) => {
+              if (!currentMap.has(id)) {
+                changes.push({ type: 'removed', doc: new DocumentSnapshot(id, null) });
+              }
+            });
+          }
+          prevDocsMap = currentMap;
+          cb(new QuerySnapshot(docSnaps, changes));
         }
       }
     } catch (e: any) {

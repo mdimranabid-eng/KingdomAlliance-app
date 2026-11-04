@@ -10,6 +10,7 @@ export const NotificationListener: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const pathnameRef = useRef(location.pathname);
+  const seenNotificationIds = useRef(new Set<string>());
 
   // Keep location pathname updated in ref to avoid subscribing/unsubscribing on path change
   useEffect(() => {
@@ -32,20 +33,29 @@ export const NotificationListener: React.FC = () => {
       // Skip initial load fetch to prevent massive wave of toasts for old notifications
       if (isInitialNotifications) {
         isInitialNotifications = false;
+        snapshot.docs.forEach((d) => seenNotificationIds.current.add(d.id));
         return;
       }
 
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
+          const docId = change.doc.id;
+          if (seenNotificationIds.current.has(docId)) {
+            return;
+          }
+          seenNotificationIds.current.add(docId);
+
           const data = change.doc.data();
           const type = data.type;
 
-          // Trigger native OS/browser notification if the tab is in background
+          // Trigger native OS/browser notification only once per notification event if tab is in background
           if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
             try {
+              const tag = `ka-${data.chatId || data.fromId || docId}`;
               new Notification(data.title || 'Kingdom Alliance', {
                 body: data.message || 'You have a new update.',
                 icon: '/images/logo.png',
+                tag,
               });
             } catch {
               // Ignore background notification failure
