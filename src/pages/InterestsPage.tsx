@@ -16,7 +16,10 @@ import {
   ArrowRight,
   Loader2,
   Mail,
-  HeartHandshake
+  HeartHandshake,
+  Inbox,
+  Send,
+  XCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn, handleFirestoreError, OperationType, calculateAge } from '../lib/utils';
@@ -25,7 +28,8 @@ import { BlurablePhoto } from '../components/BlurablePhoto';
 
 export default function InterestsPage() {
   const { user: authUser } = useAuth();
-  const [tab, setTab] = useState<'received' | 'sent' | 'declined' | 'accepted'>('received');
+  const [tab, setTab] = useState<'received' | 'sent' | 'declined'>('received');
+  const [counts, setCounts] = useState({ received: 0, sent: 0, declined: 0 });
   const [interests, setInterests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -36,14 +40,58 @@ export default function InterestsPage() {
   const [pendingWithdrawInterestId, setPendingWithdrawInterestId] = useState<string | null>(null);
   const [pendingWithdrawTargetId, setPendingWithdrawTargetId] = useState<string | null>(null);
 
+  const fetchCounts = async () => {
+    if (!authUser) return;
+    try {
+      const qReceived = query(
+        collection(db, 'interests'),
+        where('toId', '==', authUser.uid),
+        where('status', '==', 'pending')
+      );
+      const qSent = query(
+        collection(db, 'interests'),
+        where('fromId', '==', authUser.uid),
+        where('status', '==', 'pending')
+      );
+      const qDeclined1 = query(
+        collection(db, 'interests'),
+        where('toId', '==', authUser.uid),
+        where('status', '==', 'declined')
+      );
+      const qDeclined2 = query(
+        collection(db, 'interests'),
+        where('fromId', '==', authUser.uid),
+        where('status', '==', 'declined')
+      );
+
+      const [snapRec, snapSent, snapDec1, snapDec2] = await Promise.all([
+        getDocs(qReceived),
+        getDocs(qSent),
+        getDocs(qDeclined1),
+        getDocs(qDeclined2)
+      ]);
+
+      const allDeclined = [...snapDec1.docs, ...snapDec2.docs];
+      const myDeclined = allDeclined.filter(d => d.data()?.declinedBy === authUser.uid);
+
+      setCounts({
+        received: snapRec.size,
+        sent: snapSent.size,
+        declined: myDeclined.length
+      });
+    } catch (e) {
+      console.warn('Error fetching interest counts:', e);
+    }
+  };
+
   const fetchInterests = async () => {
     if (!authUser) return;
     setLoading(true);
     try {
       let interestDocs: any[] = [];
-      if (tab === 'accepted' || tab === 'declined') {
-        const q1 = query(collection(db, 'interests'), where('fromId', '==', authUser.uid), where('status', '==', tab));
-        const q2 = query(collection(db, 'interests'), where('toId', '==', authUser.uid), where('status', '==', tab));
+      if (tab === 'declined') {
+        const q1 = query(collection(db, 'interests'), where('fromId', '==', authUser.uid), where('status', '==', 'declined'));
+        const q2 = query(collection(db, 'interests'), where('toId', '==', authUser.uid), where('status', '==', 'declined'));
         const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
         interestDocs = [...snap1.docs, ...snap2.docs].map(d => ({ id: d.id, ...d.data() }));
       } else {
@@ -56,7 +104,6 @@ export default function InterestsPage() {
       }
 
       // Sort in-memory to resolve "missing index" error immediately
-      // We still recommend creating the index for better performance with large datasets
       interestDocs.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || 0;
         const timeB = b.createdAt?.seconds || 0;
@@ -88,12 +135,11 @@ export default function InterestsPage() {
         filtered = filtered.filter(i => i.toId === authUser.uid && i.status === 'pending');
       } else if (tab === 'sent') {
         filtered = filtered.filter(i => i.fromId === authUser.uid && i.status === 'pending');
-      } else if (tab === 'accepted') {
-        filtered = filtered.filter(i => i.status === 'accepted');
       } else if (tab === 'declined') {
         filtered = filtered.filter(i => i.status === 'declined' && i.declinedBy === authUser.uid);
       }
       setInterests(filtered);
+      fetchCounts();
     } catch (err) {
       console.error(err);
     } finally {
@@ -338,49 +384,81 @@ export default function InterestsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-        <div>
-          <h1 className="font-headline text-3xl md:text-4xl text-on-surface">Interests</h1>
-          <p className="text-on-surface-variant">Connect with members who share your vision</p>
-        </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="space-y-1">
+        <h1 className="font-headline text-3xl md:text-4xl text-[#4a3521]">Interests</h1>
+        <p className="text-[#7A6E68] text-sm">Review incoming interests and track your sent requests</p>
+      </div>
 
-        <div className="flex p-1 bg-surface-container rounded-2xl border border-outline-variant flex-wrap gap-1 md:gap-0">
+      {/* Prominent Tab Navigation Bar - Highly Visible */}
+      <div className="w-full bg-[#f6ecdd]/60 p-2 rounded-2xl border border-[#e2ddd2] shadow-sm">
+        <div className="grid grid-cols-3 gap-2">
+          {/* Received Tab */}
           <button 
+            type="button"
             onClick={() => setTab('received')}
             className={cn(
-              "px-6 py-2.5 rounded-xl font-label-lg transition-all",
-              tab === 'received' ? "bg-primary text-on-primary shadow-lg" : "text-on-surface-variant hover:bg-surface-variant"
+              "flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2.5 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer",
+              tab === 'received' 
+                ? "bg-[#4a3521] text-[#dfc88a] shadow-lg ring-1 ring-[#4a3521]" 
+                : "bg-white/80 text-[#64748b] hover:bg-white hover:text-[#4a3521]"
             )}
           >
-            Received
+            <Inbox className={cn("w-4 h-4 sm:w-4.5 sm:h-4.5", tab === 'received' ? "text-[#dfc88a]" : "text-[#8a7a65]")} />
+            <span>Received</span>
+            <span className={cn(
+              "px-2 py-0.5 rounded-full text-[11px] font-bold",
+              tab === 'received'
+                ? "bg-[#dfc88a] text-[#4a3521]"
+                : counts.received > 0
+                ? "bg-amber-100 text-amber-800"
+                : "bg-slate-100 text-slate-600"
+            )}>
+              {counts.received}
+            </span>
           </button>
+
+          {/* Sent Tab */}
           <button 
+            type="button"
             onClick={() => setTab('sent')}
             className={cn(
-              "px-6 py-2.5 rounded-xl font-label-lg transition-all",
-              tab === 'sent' ? "bg-primary text-on-primary shadow-lg" : "text-on-surface-variant hover:bg-surface-variant"
+              "flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2.5 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer",
+              tab === 'sent' 
+                ? "bg-[#4a3521] text-[#dfc88a] shadow-lg ring-1 ring-[#4a3521]" 
+                : "bg-white/80 text-[#64748b] hover:bg-white hover:text-[#4a3521]"
             )}
           >
-            Sent
+            <Send className={cn("w-4 h-4 sm:w-4.5 sm:h-4.5", tab === 'sent' ? "text-[#dfc88a]" : "text-[#8a7a65]")} />
+            <span>Sent</span>
+            <span className={cn(
+              "px-2 py-0.5 rounded-full text-[11px] font-bold",
+              tab === 'sent' ? "bg-[#dfc88a] text-[#4a3521]" : "bg-slate-100 text-slate-600"
+            )}>
+              {counts.sent}
+            </span>
           </button>
+
+          {/* Declined Tab */}
           <button 
+            type="button"
             onClick={() => setTab('declined')}
             className={cn(
-              "px-6 py-2.5 rounded-xl font-label-lg transition-all",
-              tab === 'declined' ? "bg-primary text-on-primary shadow-lg" : "text-on-surface-variant hover:bg-surface-variant"
+              "flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2.5 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer",
+              tab === 'declined' 
+                ? "bg-[#4a3521] text-[#dfc88a] shadow-lg ring-1 ring-[#4a3521]" 
+                : "bg-white/80 text-[#64748b] hover:bg-white hover:text-[#4a3521]"
             )}
           >
-            Declined
-          </button>
-          <button 
-            onClick={() => setTab('accepted')}
-            className={cn(
-              "px-6 py-2.5 rounded-xl font-label-lg transition-all",
-              tab === 'accepted' ? "bg-primary text-on-primary shadow-lg" : "text-on-surface-variant hover:bg-surface-variant"
-            )}
-          >
-            Accepted
+            <XCircle className={cn("w-4 h-4 sm:w-4.5 sm:h-4.5", tab === 'declined' ? "text-[#dfc88a]" : "text-[#8a7a65]")} />
+            <span>Declined</span>
+            <span className={cn(
+              "px-2 py-0.5 rounded-full text-[11px] font-bold",
+              tab === 'declined' ? "bg-[#dfc88a] text-[#4a3521]" : "bg-slate-100 text-slate-600"
+            )}>
+              {counts.declined}
+            </span>
           </button>
         </div>
       </div>
@@ -392,17 +470,25 @@ export default function InterestsPage() {
           ))}
         </div>
       ) : interests.length === 0 ? (
-        <div className="py-20 text-center space-y-4">
-          <div className="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center mx-auto text-on-surface-variant">
-            <Heart className="w-10 h-10" />
+        <div className="py-16 text-center space-y-4 bg-white/70 rounded-3xl border border-[#e2ddd2] p-8">
+          <div className="w-16 h-16 bg-[#faf4ea] rounded-full flex items-center justify-center mx-auto text-[#b8860b]">
+            <Heart className="w-8 h-8" />
           </div>
-          <h3 className="font-headline text-2xl text-on-surface">No Interests Yet</h3>
-          <p className="text-on-surface-variant max-w-sm mx-auto">
+          <h3 className="font-headline text-2xl text-[#4a3521]">
+            {tab === 'received' ? 'No Pending Interests Received' : tab === 'sent' ? 'No Interests Sent' : 'No Declined Interests'}
+          </h3>
+          <p className="text-[#7A6E68] max-w-md mx-auto text-sm leading-relaxed">
             {tab === 'received' 
-              ? "You haven't received any interests yet. Make sure your profile is complete to get more visibility!"
-              : "You haven't sent any interests yet. Start exploring matches to find your future partner."}
+              ? "You don't have any pending interests right now. When another member expresses interest in connecting with you, they will appear right here!"
+              : tab === 'sent'
+              ? "You haven't sent any interests yet. Start exploring matches to find someone who shares your faith and values."
+              : "You haven't declined any interests."}
           </p>
-          <Link to="/matches" className="inline-block text-primary font-bold hover:underline">Explore Matches</Link>
+          {tab !== 'declined' && (
+            <Link to="/matches" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4a3521] text-[#dfc88a] font-bold text-xs hover:opacity-90 transition-all">
+              Explore Matches <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -413,7 +499,6 @@ export default function InterestsPage() {
                 interest={interest} 
                 isReceived={tab === 'received'}
                 isDeclinedView={tab === 'declined'}
-                isAcceptedView={tab === 'accepted'}
                 isProcessing={processingId === interest.id}
                 onAccept={() => handleAcceptInterest(interest.id)}
                 onDecline={() => handleDeclineInterest(interest.id)}
@@ -427,16 +512,6 @@ export default function InterestsPage() {
                   setShowWithdrawConfirm(true);
                 }}
                 onDelete={() => handleDeletePermanently(interest.id)}
-                onWithdrawAndDecline={() => {
-                  setPendingWithdrawId(interest.id);
-                  setPendingTargetUserId(
-                    interest.toId === authUser?.uid 
-                      ? interest.fromId 
-                      : interest.toId
-                  );
-                  setShowWithdrawDeclineConfirm(true);
-                }}
-                onUnblockAndAccept={() => handleUnblockAndAccept(interest.id, interest.toId === authUser?.uid ? interest.fromId : interest.toId)}
               />
             ))}
           </AnimatePresence>
@@ -476,7 +551,7 @@ export default function InterestsPage() {
   );
 }
 
-function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, isProcessing, onAccept, onDecline, onWithdraw, onDelete, onWithdrawAndDecline, onUnblockAndAccept }: any) {
+function InterestCard({ interest, isReceived, isDeclinedView, isProcessing, onAccept, onDecline, onWithdraw, onDelete }: any) {
   const { user } = interest;
 
   return (
@@ -503,7 +578,7 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
           <h3 className="member-name member-name-sm truncate text-[22px] text-on-surface">{user.name}, {user.age}</h3>
           <span className={cn(
             "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest",
-            interest.status === 'pending' ? "bg-secondary-container/20 text-secondary" :
+            interest.status === 'pending' ? "bg-amber-100 text-amber-800" :
             interest.status === 'accepted' ? "bg-green-100 text-green-700" : "bg-error/10 text-error"
           )}>
             {interest.status}
@@ -518,7 +593,7 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
             <button 
               disabled={isProcessing}
               onClick={onDelete}
-              className="flex-1 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-xl text-xs font-bold transition-all"
+              className="flex-1 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
               Delete
             </button>
@@ -528,41 +603,18 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
             <button 
               disabled={isProcessing}
               onClick={onAccept}
-              className="flex-1 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1.5"
+              className="flex-1 py-2 bg-[#4a3521] text-[#dfc88a] rounded-xl text-xs font-bold hover:opacity-90 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
             >
               {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3.5 h-3.5" /> Accept</>}
             </button>
             <button 
               disabled={isProcessing}
               onClick={onDecline}
-              className="px-4 py-1.5 bg-surface-container-high text-on-surface-variant rounded-xl text-xs font-bold border border-outline-variant hover:bg-surface-variant transition-all"
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-200 transition-all cursor-pointer"
             >
               Decline
             </button>
           </div>
-        ) : isAcceptedView ? (
-          <div className="flex flex-col gap-3">
-            <Link 
-              to={`/messages?chatWith=${user.id}`}
-              className="flex-1 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1.5 w-full"
-            >
-              <MessageCircle className="w-4 h-4" /> Send Message
-            </Link>
-            <button
-              disabled={isProcessing}
-              onClick={onWithdrawAndDecline}
-              className="px-4 py-1.5 bg-surface-container-high text-on-surface-variant rounded-xl text-xs font-bold border border-outline-variant hover:bg-error/10 hover:text-error transition-all"
-            >
-              Withdraw & Decline
-            </button>
-          </div>
-        ) : interest.status === 'accepted' ? (
-          <Link 
-            to={`/messages?chatWith=${user.id}`}
-            className="flex items-center gap-2 text-primary font-bold text-xs hover:underline"
-          >
-            <MessageCircle className="w-4 h-4" /> Start Conversation
-          </Link>
         ) : (
           <div className="flex flex-col gap-2">
             <p className="text-xs text-on-surface-variant italic">
@@ -572,7 +624,7 @@ function InterestCard({ interest, isReceived, isDeclinedView, isAcceptedView, is
               <button
                 disabled={isProcessing}
                 onClick={onWithdraw}
-                className="self-start px-3 py-1 bg-error/10 text-error hover:bg-error/20 rounded-lg text-[11px] font-bold transition-all"
+                className="self-start px-3 py-1 bg-error/10 text-error hover:bg-error/20 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
               >
                 Withdraw
               </button>
