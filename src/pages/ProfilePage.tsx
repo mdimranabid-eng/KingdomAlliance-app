@@ -208,6 +208,15 @@ const [showEditModal, setShowEditModal] = useState(false);
   });
   const [lightboxZoomed, setLightboxZoomed] = useState(false);
   const [stats, setStats] = useState({ views: 0, interests: 0, shortlistedBy: 0, unread: 0, connections: 0 });
+  const [unackInterestsCount, setUnackInterestsCount] = useState(0);
+  const [lastAckInterestsCount, setLastAckInterestsCount] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('ka_acknowledged_interests_count');
+      return v !== null ? Number(v) : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [newMessageAlert, setNewMessageAlert] = useState<{
     show: boolean;
     count: number;
@@ -1123,11 +1132,23 @@ const [showEditModal, setShowEditModal] = useState(false);
     unsubscribers.push(unsubViews);
 
     const unsubInterests = onSnapshot(
-      query(collection(db, 'interests'), where('toId', '==', uid)),
+      query(collection(db, 'interests'), where('toId', '==', uid), where('status', '==', 'pending')),
       (snap) => setStats(prev => ({ ...prev, interests: snap.size })),
       (err) => console.error('Interests listener error:', err)
     );
     unsubscribers.push(unsubInterests);
+
+    const unsubInterestNotifs = onSnapshot(
+      query(
+        collection(db, 'notifications'),
+        where('userId', '==', uid),
+        where('read', '==', false),
+        where('type', '==', 'interest')
+      ),
+      (snap) => setUnackInterestsCount(snap.size),
+      (err) => console.error('Interest notifications listener error:', err)
+    );
+    unsubscribers.push(unsubInterestNotifs);
 
     const unsubShortlists = onSnapshot(
       query(collection(db, 'shortlists'), where('targetId', '==', uid)),
@@ -1671,11 +1692,23 @@ const [showEditModal, setShowEditModal] = useState(false);
               const isRowStart = i % 4 === 0;
               const isUnreadTile = s.k === 'Unread Messages';
               const hasUnread = isUnreadTile && Number(s.v) > 0;
+              const isInterestsTile = s.k === 'Interests';
+              const hasUnackInterest = isInterestsTile && stats.interests > 0 && (
+                unackInterestsCount > 0 || stats.interests > lastAckInterestsCount
+              );
               return (
                 <button
                   key={s.k}
                   type="button"
-                  onClick={() => s.to && navigate(s.to)}
+                  onClick={() => {
+                    if (isInterestsTile) {
+                      try {
+                        localStorage.setItem('ka_acknowledged_interests_count', String(stats.interests));
+                        setLastAckInterestsCount(stats.interests);
+                      } catch {}
+                    }
+                    if (s.to) navigate(s.to);
+                  }}
                   className={
                     'text-center px-1.5 py-3 border-[#eee5d2] transition-all duration-300 sm:px-3 sm:py-[18px] ' +
                     (isRowStart ? (i > 0 ? 'xl:border-l' : '') : 'border-l') +
@@ -1683,15 +1716,24 @@ const [showEditModal, setShowEditModal] = useState(false);
                     (isUnreadTile && (newMessageAlert.show || hasUnread)
                       ? 'bg-gradient-to-br from-[#fff7ea] to-[#feecd2] ring-1 ring-[#C9A84C]/60 shadow-xs '
                       : '') +
+                    (hasUnackInterest
+                      ? 'bg-gradient-to-br from-[#fffdf5] via-[#fef6e4] to-[#fcefd2] ring-2 ring-amber-400/80 shadow-md animate-pulse '
+                      : '') +
                     (s.to ? 'cursor-pointer hover:bg-[#faf4ea] group' : 'cursor-default')
                   }
                 >
                   <div className="font-headline text-[18px] font-semibold text-[#8f6337] transition-colors group-hover:text-[#b8860b] sm:text-[24px] flex items-center justify-center gap-1.5">
-                    <span>{s.v}</span>
+                    <span className={hasUnackInterest ? 'text-amber-800 font-bold' : ''}>{s.v}</span>
                     {hasUnread && (
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 shadow-sm" />
+                      </span>
+                    )}
+                    {hasUnackInterest && (
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500 shadow-sm" />
                       </span>
                     )}
                   </div>
@@ -1699,6 +1741,11 @@ const [showEditModal, setShowEditModal] = useState(false);
                     <span>{s.k}</span>
                     {hasUnread && (
                       <span className="px-1 py-0.2 rounded-full text-[7px] font-extrabold bg-[#C9A84C] text-white tracking-wider">
+                        NEW
+                      </span>
+                    )}
+                    {hasUnackInterest && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[7px] font-extrabold bg-gradient-to-r from-amber-500 to-[#c9a84c] text-white tracking-wider shadow-xs animate-bounce">
                         NEW
                       </span>
                     )}

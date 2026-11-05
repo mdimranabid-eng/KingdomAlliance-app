@@ -79,6 +79,9 @@ export default function InterestsPage() {
         sent: snapSent.size,
         declined: myDeclined.length
       });
+      try {
+        localStorage.setItem('ka_acknowledged_interests_count', String(snapRec.size));
+      } catch {}
     } catch (e) {
       console.warn('Error fetching interest counts:', e);
     }
