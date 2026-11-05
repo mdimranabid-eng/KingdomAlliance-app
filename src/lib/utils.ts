@@ -18,13 +18,14 @@ export function shouldBlurPhoto(
   profile: any,
   viewer: { uid?: string | null } | null | undefined,
   isAdmin: boolean,
-  connectionStatus?: string | null
+  connectionStatus?: string | null,
+  photoItem?: { privacy?: string } | null
 ): boolean {
   const isOwnProfile = !!viewer?.uid && viewer.uid === (profile?.uid || profile?.id);
   if (isOwnProfile || isAdmin) return false;
   if (connectionStatus === 'declined') return true;
 
-  const privacy = profile?.photoPrivacy;
+  const privacy = photoItem?.privacy || profile?.photoPrivacy;
   const isProtected = privacy === 'protected' || privacy === 'accepted_only';
   if (!isProtected) return false;
 

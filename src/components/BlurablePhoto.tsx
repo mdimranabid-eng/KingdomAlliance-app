@@ -90,22 +90,25 @@ export function BlurablePhoto({ targetUid, src, fallbackSrc, alt, className, pro
     status
   );
 
-  const effectiveSrc = blur && fallbackSrc ? fallbackSrc : src;
+  const imageSource = src || fallbackSrc || `https://api.dicebear.com/7.x/avataaars/svg?seed=${targetUid}`;
 
   if (blur) {
     return (
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full overflow-hidden">
         <img
-          src={effectiveSrc}
+          src={imageSource}
           alt={alt}
-          className={`${className ?? ''} blur-md scale-95`.trim()}
+          className={`${className ?? ''} blur-lg scale-105 pointer-events-none transition-all`.trim()}
         />
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px] z-10">
-          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-2 border border-white/30">
-            <Lock className="w-5 h-5 text-white" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] z-10 p-3 select-none">
+          <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-1.5 border border-white/30 shadow-md">
+            <Lock className="w-4 h-4 text-white" />
           </div>
-          <p className="text-white text-[11px] font-semibold text-center leading-tight px-4">
-            Photo visible after<br />connection accepted
+          <p className="text-white text-[11px] font-bold text-center leading-tight drop-shadow px-2">
+            Blurred until connected
+          </p>
+          <p className="text-white/80 text-[9.5px] text-center leading-tight mt-0.5">
+            Visible once connected
           </p>
         </div>
       </div>
@@ -114,7 +117,7 @@ export function BlurablePhoto({ targetUid, src, fallbackSrc, alt, className, pro
 
   return (
     <img
-      src={effectiveSrc}
+      src={imageSource}
       alt={alt}
       className={className ?? ''}
     />

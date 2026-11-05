@@ -40,6 +40,9 @@ import {
   HardDrive,
   Pencil,
   Upload,
+  Camera,
+  Eye,
+  Shield,
   ExternalLink,
   Scale,
   Languages,
@@ -136,6 +139,11 @@ export default function ProfilePage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<'profile' | 'gallery'>('gallery');
+  const [uploadPrivacy, setUploadPrivacy] = useState<'public' | 'accepted_only'>('public');
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [updatingPrivacy, setUpdatingPrivacy] = useState(false);
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
@@ -152,6 +160,12 @@ export default function ProfilePage() {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (profile?.photoPrivacy) {
+      setUploadPrivacy(profile.photoPrivacy);
+    }
+  }, [profile?.photoPrivacy]);
 
   // Feature #5: Pause / Courtship Mode states
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -601,8 +615,8 @@ const [showEditModal, setShowEditModal] = useState(false);
     }
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const submitModalPhotoUpload = async () => {
+    const file = selectedPhotoFile;
     if (!file || !currentUser) return;
 
     if (uploadTarget === 'gallery' && (profile.gallery || []).length >= 3) {
@@ -614,19 +628,16 @@ const [showEditModal, setShowEditModal] = useState(false);
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       alert("Invalid file format. Please upload JPEG, PNG, or WEBP.");
-      setShowUploadModal(false);
       return;
     }
 
     if (file.size >= 10 * 1024 * 1024) {
       alert("File size must be less than 10MB.");
-      setShowUploadModal(false);
       return;
     }
 
     setUploadingPhoto(true);
     setGalleryError(null);
-    setShowUploadModal(false);
 
     try {
       const pair = await uploadUserPhotos(
@@ -645,6 +656,7 @@ const [showEditModal, setShowEditModal] = useState(false);
           url,
           thumbUrl: pair.thumbUrl,
           status: 'pending',
+          privacy: uploadPrivacy,
           createdAt: new Date().toISOString()
         };
 
@@ -660,6 +672,7 @@ const [showEditModal, setShowEditModal] = useState(false);
           photoType: 'galleryPhoto',
           galleryPosition: updatedGallery.length,
           photoStatus: 'pending',
+          privacy: uploadPrivacy,
           uploadedAt: serverTimestamp(),
           reviewedAt: null,
           reviewedBy: null,
@@ -668,9 +681,15 @@ const [showEditModal, setShowEditModal] = useState(false);
 
         await updateDoc(doc(db, 'users', currentUser.uid), {
           gallery: updatedGallery,
+          photoPrivacy: uploadPrivacy,
           updatedAt: serverTimestamp()
         });
-        setProfile({ ...profile, gallery: updatedGallery });
+        setProfile({ ...profile, gallery: updatedGallery, photoPrivacy: uploadPrivacy });
+        toast.success(
+          uploadPrivacy === 'accepted_only'
+            ? 'Gallery photo uploaded! Privacy: Blurred until connected'
+            : 'Gallery photo uploaded! Privacy: Public'
+        );
       } else {
         // Create photoModeration document for profile photo
         await addDoc(collection(db, 'photoModeration'), {
@@ -682,6 +701,7 @@ const [showEditModal, setShowEditModal] = useState(false);
           photoType: 'profilePhoto',
           galleryPosition: null,
           photoStatus: 'pending',
+          privacy: uploadPrivacy,
           uploadedAt: serverTimestamp(),
           reviewedAt: null,
           reviewedBy: null,
@@ -694,6 +714,7 @@ const [showEditModal, setShowEditModal] = useState(false);
           photoStatus: 'pending',
           rejectedPhotoUrl: '',
           rejectedPhotoReason: '',
+          photoPrivacy: uploadPrivacy,
           updatedAt: serverTimestamp()
         });
         setProfile({ 
@@ -702,13 +723,71 @@ const [showEditModal, setShowEditModal] = useState(false);
           pendingPhotoThumbUrl: pair.thumbUrl,
           photoStatus: 'pending',
           rejectedPhotoUrl: '',
-          rejectedPhotoReason: ''
+          rejectedPhotoReason: '',
+          photoPrivacy: uploadPrivacy
         });
+        toast.success(
+          uploadPrivacy === 'accepted_only'
+            ? 'Profile photo uploaded! Privacy: Blurred until connected'
+            : 'Profile photo uploaded! Privacy: Public'
+        );
       }
+      setShowUploadModal(false);
+      setSelectedPhotoFile(null);
+      setPhotoPreview(null);
     } catch (err: any) {
       setGalleryError(err.message || "Upload failed");
+      toast.error(err.message || "Upload failed");
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  const handleUpdatePhotoPrivacy = async (newPrivacy: 'public' | 'accepted_only') => {
+    if (!currentUser) return;
+    setUpdatingPrivacy(true);
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        photoPrivacy: newPrivacy,
+        updatedAt: serverTimestamp()
+      });
+      setProfile((prev: any) => ({ ...prev, photoPrivacy: newPrivacy }));
+      setUploadPrivacy(newPrivacy);
+      toast.success(
+        newPrivacy === 'accepted_only'
+          ? 'Photo privacy set to: Blurred until connected'
+          : 'Photo privacy set to: Public'
+      );
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update photo privacy');
+    } finally {
+      setUpdatingPrivacy(false);
+    }
+  };
+
+  const handleToggleGalleryPhotoPrivacy = async (photoId: string) => {
+    if (!currentUser || !profile?.gallery) return;
+    const targetPhoto = profile.gallery.find((p: any) => p.id === photoId);
+    if (!targetPhoto) return;
+    const currentPhotoPrivacy = targetPhoto.privacy || profile.photoPrivacy || 'public';
+    const newPhotoPrivacy = currentPhotoPrivacy === 'accepted_only' ? 'public' : 'accepted_only';
+
+    const updatedGallery = profile.gallery.map((p: any) =>
+      p.id === photoId ? { ...p, privacy: newPhotoPrivacy } : p
+    );
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        gallery: updatedGallery,
+        updatedAt: serverTimestamp()
+      });
+      setProfile((prev: any) => ({ ...prev, gallery: updatedGallery }));
+      toast.success(
+        newPhotoPrivacy === 'accepted_only'
+          ? 'Gallery photo set to: Blurred until connected'
+          : 'Gallery photo set to: Public'
+      );
+    } catch (err: any) {
+      toast.error('Failed to update photo privacy');
     }
   };
 
@@ -1392,25 +1471,26 @@ const [showEditModal, setShowEditModal] = useState(false);
                     <PhotoProtector>
                       <img
                         src={getSecureImageUrl(
-                          canViewPhotos
-                            ? ((isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl)
-                              ? profile.rejectedPhotoUrl
-                              : (profile.photoUrl || profile.pendingPhotoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`))
-                            : `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`
+                          (isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl)
+                            ? profile.rejectedPhotoUrl
+                            : (profile.photoUrl || profile.pendingPhotoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`)
                         )}
                         alt={profile.name}
                         className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
-                          (!canViewPhotos || (isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl) || connectionState?.status === 'declined') ? 'blur-md scale-95' : ''
+                          (!canViewPhotos || (isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl) || connectionState?.status === 'declined') ? 'blur-lg scale-105' : ''
                         }`}
                       />
                     </PhotoProtector>
                     {!canViewPhotos && profile.photoStatus !== 'pending' && !(isOwnProfile && profile.photoStatus === 'rejected' && profile.rejectedPhotoUrl) && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px] z-20">
-                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-2 border border-white/30">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] z-20 p-4 text-center select-none">
+                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-2 border border-white/30 shadow-lg">
                           <Lock className="w-5 h-5 text-white" />
                         </div>
-                        <p className="text-white text-[11px] font-semibold text-center leading-tight px-4">
-                          Photo visible after<br />connection accepted
+                        <p className="text-white text-[12px] font-bold text-center leading-tight drop-shadow px-1">
+                          Blurred until connected
+                        </p>
+                        <p className="text-white/80 text-[10px] text-center mt-1">
+                          Photo visible after connection accepted
                         </p>
                       </div>
                     )}
@@ -1439,12 +1519,49 @@ const [showEditModal, setShowEditModal] = useState(false);
                   </div>
 
                   {isOwnProfile && (
-                    <button
-                      onClick={() => { setUploadTarget('profile'); setShowUploadModal(true); }}
-                      className="absolute bottom-0.5 right-0.5 p-1.5 bg-secondary text-on-secondary rounded-full shadow-lg hover:scale-110 transition-all z-20 ring-2 ring-white sm:p-2"
-                    >
-                      <Pencil className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          setUploadTarget('profile');
+                          setUploadPrivacy(profile.photoPrivacy === 'accepted_only' ? 'accepted_only' : 'public');
+                          setSelectedPhotoFile(null);
+                          setPhotoPreview(null);
+                          setShowUploadModal(true);
+                        }}
+                        className="absolute bottom-0.5 right-0.5 p-1.5 bg-secondary text-on-secondary rounded-full shadow-lg hover:scale-110 transition-all z-20 ring-2 ring-white sm:p-2 cursor-pointer"
+                        title="Upload new profile photo"
+                      >
+                        <Pencil className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </button>
+                      <div className="flex justify-center mt-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadPrivacy(profile.photoPrivacy === 'accepted_only' ? 'accepted_only' : 'public');
+                            setShowPrivacyModal(true);
+                          }}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-sm transition-all border cursor-pointer",
+                            profile.photoPrivacy === 'accepted_only'
+                              ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                              : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                          )}
+                          title="Click to change photo privacy"
+                        >
+                          {profile.photoPrivacy === 'accepted_only' ? (
+                            <>
+                              <Lock className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Blurred until connected</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3.5 h-3.5 text-slate-600" />
+                              <span>Photo: Public</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
 
@@ -1779,6 +1896,90 @@ const [showEditModal, setShowEditModal] = useState(false);
 
               {activeTab === 'privacy' && isOwnProfile && (
                 <div className="space-y-4 sm:space-y-5">
+                  {/* Feature #1: Photo Privacy Settings */}
+                  <div className="rounded-[1.5rem] p-6 sm:p-7 border border-[#e8dfcf] bg-white shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
+                          profile.photoPrivacy === 'accepted_only' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                        )}>
+                          {profile.photoPrivacy === 'accepted_only' ? <Lock className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+                        </div>
+                        <div>
+                          <h2 className="text-base sm:text-lg font-bold text-[#4a3521]">
+                            Photo Privacy Settings
+                          </h2>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={cn(
+                              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                              profile.photoPrivacy === 'accepted_only' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            )}>
+                              <span className={cn('size-1.5 rounded-full', profile.photoPrivacy === 'accepted_only' ? 'bg-amber-500' : 'bg-emerald-500')} />
+                              {profile.photoPrivacy === 'accepted_only' ? 'Blurred Until Connected' : 'Public to All Members'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-5">
+                      Control who can see your profile and gallery photos. When set to <strong>Blurred until connected</strong>, your photos are blurred with a privacy lock overlay for all members until an interest is mutually accepted.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdatePhotoPrivacy('public')}
+                        disabled={updatingPrivacy}
+                        className={cn(
+                          "p-4 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer",
+                          profile.photoPrivacy !== 'accepted_only'
+                            ? "border-[#C9A84C] bg-[rgba(201,168,76,0.06)] ring-1 ring-[#C9A84C]"
+                            : "border-[#e2ddd2] hover:border-[#C9A84C]/50 bg-white"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                          profile.photoPrivacy !== 'accepted_only' ? "bg-[#C9A84C] text-white" : "bg-slate-100 text-slate-600"
+                        )}>
+                          <Eye className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm text-[#4a3521]">Public</div>
+                          <div className="text-xs text-[#7A6E68] mt-0.5">
+                            Your photos are visible to all approved Christian members browsing the platform.
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdatePhotoPrivacy('accepted_only')}
+                        disabled={updatingPrivacy}
+                        className={cn(
+                          "p-4 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer",
+                          profile.photoPrivacy === 'accepted_only'
+                            ? "border-[#C9A84C] bg-[rgba(201,168,76,0.06)] ring-1 ring-[#C9A84C]"
+                            : "border-[#e2ddd2] hover:border-[#C9A84C]/50 bg-white"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                          profile.photoPrivacy === 'accepted_only' ? "bg-[#C9A84C] text-white" : "bg-slate-100 text-slate-600"
+                        )}>
+                          <Lock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm text-[#4a3521]">Blurred until connected</div>
+                          <div className="text-xs text-[#7A6E68] mt-0.5">
+                            Photos remain blurred with a lock overlay until you mutually accept an interest.
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Feature #5: Profile Visibility & Courtship Mode */}
                   <div className="rounded-[1.5rem] p-6 sm:p-7 border border-[#e8dfcf] bg-white shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
@@ -2087,20 +2288,52 @@ const [showEditModal, setShowEditModal] = useState(false);
                     title="Photo Gallery"
                     compact
                     action={isOwnProfile ? (
-                      <button
-                        onClick={() => {
-                          if ((profile.gallery || []).length >= 3) {
-                            setShowLimitAlert(true);
-                            return;
-                          }
-                          setUploadTarget('gallery');
-                          setShowUploadModal(true);
-                        }}
-                        className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold text-[#3d2f05] shadow-[0_8px_20px_-12px_rgba(184,134,11,0.7)] transition-transform hover:-translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]/60 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-[11px]"
-                        style={{ background: 'linear-gradient(135deg, #dfc88a, #C9A84C)' }}
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Add photo
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadPrivacy(profile.photoPrivacy === 'accepted_only' ? 'accepted_only' : 'public');
+                            setShowPrivacyModal(true);
+                          }}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all border cursor-pointer",
+                            profile.photoPrivacy === 'accepted_only'
+                              ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                              : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                          )}
+                          title="Click to change photo privacy"
+                        >
+                          {profile.photoPrivacy === 'accepted_only' ? (
+                            <>
+                              <Lock className="w-3 h-3 text-amber-600" />
+                              <span className="hidden sm:inline">Blurred until connected</span>
+                              <span className="sm:hidden">Blurred</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3 h-3 text-slate-600" />
+                              <span>Public</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if ((profile.gallery || []).length >= 3) {
+                              setShowLimitAlert(true);
+                              return;
+                            }
+                            setUploadTarget('gallery');
+                            setUploadPrivacy(profile.photoPrivacy === 'accepted_only' ? 'accepted_only' : 'public');
+                            setSelectedPhotoFile(null);
+                            setPhotoPreview(null);
+                            setShowUploadModal(true);
+                          }}
+                          className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold text-[#3d2f05] shadow-[0_8px_20px_-12px_rgba(184,134,11,0.7)] transition-transform hover:-translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C]/60 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-[11px]"
+                          style={{ background: 'linear-gradient(135deg, #dfc88a, #C9A84C)' }}
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add photo
+                        </button>
+                      </div>
                     ) : undefined}
                   >
 
@@ -2137,10 +2370,10 @@ const [showEditModal, setShowEditModal] = useState(false);
                           >
                             <PhotoProtector showWatermark>
                               <img
-                                src={canViewPhotos ? getSecureImageUrl(photo.url) : `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}-gallery-${index}`}
+                                src={getSecureImageUrl(photo.url || photo.thumbUrl)}
                                 alt={`Gallery photo ${index + 1}`}
                                 className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
-                                  (!canViewPhotos || photo.status === 'rejected' || isDeclinedPrivacy) ? 'blur-md scale-95 pointer-events-none' : ''
+                                  (!canViewPhotos || photo.status === 'rejected' || isDeclinedPrivacy) ? 'blur-lg scale-105 pointer-events-none' : ''
                                 }`}
                               />
                             </PhotoProtector>
@@ -2152,12 +2385,15 @@ const [showEditModal, setShowEditModal] = useState(false);
                               </div>
                             )}
                             {!canViewPhotos && photo.status !== 'pending' && photo.status !== 'rejected' && !isDeclinedPrivacy && (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px] z-20">
-                                <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-1.5 border border-white/30">
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] z-20 p-2 text-center select-none">
+                                <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-1.5 border border-white/30 shadow">
                                   <Lock className="w-4 h-4 text-white" />
                                 </div>
-                                <p className="text-white text-[9px] font-semibold text-center leading-tight px-3">
-                                  Connect to<br />view photo
+                                <p className="text-white text-[10px] font-bold text-center leading-tight px-1.5 drop-shadow">
+                                  Blurred until connected
+                                </p>
+                                <p className="text-white/80 text-[8.5px] text-center leading-tight mt-0.5">
+                                  Visible once connected
                                 </p>
                               </div>
                             )}
@@ -2179,16 +2415,39 @@ const [showEditModal, setShowEditModal] = useState(false);
                               </div>
                             )}
                             {isOwnProfile && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeletePhoto(photo.id);
-                                }}
-                                title="Delete photo"
-                                className="absolute top-3 right-3 p-2.5 bg-error hover:bg-error/90 text-white rounded-xl transition-all shadow-lg z-30"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleGalleryPhotoPrivacy(photo.id);
+                                  }}
+                                  className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-md px-2 py-0.5 text-[9px] font-bold text-white hover:bg-black/80 transition-colors shadow"
+                                  title="Click to toggle photo privacy"
+                                >
+                                  {(photo.privacy || profile.photoPrivacy) === 'accepted_only' ? (
+                                    <>
+                                      <Lock className="w-2.5 h-2.5 text-amber-300" />
+                                      <span>Blurred</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Eye className="w-2.5 h-2.5 text-emerald-300" />
+                                      <span>Public</span>
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePhoto(photo.id);
+                                  }}
+                                  title="Delete photo"
+                                  className="absolute top-3 right-3 p-2.5 bg-error hover:bg-error/90 text-white rounded-xl transition-all shadow-lg z-30"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
                             )}
                           </div>
                         );
@@ -2614,23 +2873,300 @@ const [showEditModal, setShowEditModal] = useState(false);
         )}
       </AnimatePresence>
 
-      {/* Upload Modal */}
-      <ConfirmationModal
-        isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-        title={`Upload ${uploadTarget === 'profile' ? 'Profile Photo' : 'Gallery Photo'}`}
-        message="Select a photo to upload. Max size 3MB. All photos are reviewed by moderators."
-        confirmText="Choose Photo"
-        cancelText="Cancel"
-        onConfirm={() => document.getElementById('photo-upload')?.click()}
-      />
-      <input
-        id="photo-upload"
-        type="file"
-        accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp"
-        className="hidden"
-        onChange={handlePhotoUpload}
-      />
+      {/* Photo Upload & Privacy Modal */}
+      <AnimatePresence>
+        {showUploadModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!uploadingPhoto) {
+                  setShowUploadModal(false);
+                  setSelectedPhotoFile(null);
+                  setPhotoPreview(null);
+                }
+              }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-[#e2ddd2] overflow-hidden z-10"
+            >
+              <div className="p-6 sm:p-7 space-y-5">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-[#f0ead9] pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[rgba(201,168,76,0.12)] text-[#b8860b] flex items-center justify-center">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-[#4a3521]">
+                        Upload {uploadTarget === 'profile' ? 'Profile Photo' : 'Gallery Photo'}
+                      </h3>
+                      <p className="text-xs text-[#7A6E68]">
+                        Max 10MB (JPEG, PNG, WEBP). Reviewed by moderation.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!uploadingPhoto) {
+                        setShowUploadModal(false);
+                        setSelectedPhotoFile(null);
+                        setPhotoPreview(null);
+                      }
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Privacy Options Selector */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#7A6E68]">
+                    Photo Privacy Visibility
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setUploadPrivacy('public')}
+                      className={cn(
+                        "p-3.5 rounded-xl border flex items-start gap-2.5 text-left transition-all cursor-pointer",
+                        uploadPrivacy === 'public'
+                          ? "border-[#C9A84C] bg-[rgba(201,168,76,0.06)] ring-1 ring-[#C9A84C]"
+                          : "border-[#e2ddd2] hover:border-[#C9A84C]/50 text-slate-600"
+                      )}
+                    >
+                      <Eye className={cn("w-4 h-4 mt-0.5 shrink-0", uploadPrivacy === 'public' ? "text-[#b8860b]" : "text-slate-400")} />
+                      <div>
+                        <div className="font-bold text-xs text-[#4a3521]">Public</div>
+                        <div className="text-[11px] text-[#7A6E68] leading-snug">Visible to all Christian members</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setUploadPrivacy('accepted_only')}
+                      className={cn(
+                        "p-3.5 rounded-xl border flex items-start gap-2.5 text-left transition-all cursor-pointer",
+                        uploadPrivacy === 'accepted_only'
+                          ? "border-[#C9A84C] bg-[rgba(201,168,76,0.06)] ring-1 ring-[#C9A84C]"
+                          : "border-[#e2ddd2] hover:border-[#C9A84C]/50 text-slate-600"
+                      )}
+                    >
+                      <Lock className={cn("w-4 h-4 mt-0.5 shrink-0", uploadPrivacy === 'accepted_only' ? "text-[#b8860b]" : "text-slate-400")} />
+                      <div>
+                        <div className="font-bold text-xs text-[#4a3521]">Blurred until connected</div>
+                        <div className="text-[11px] text-[#7A6E68] leading-snug">Visible only to accepted connections</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* File picker & Preview */}
+                <div className="space-y-3">
+                  {photoPreview ? (
+                    <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[#e2ddd2] bg-slate-100 flex items-center justify-center">
+                      <img
+                        src={photoPreview}
+                        alt="Preview"
+                        className={cn(
+                          "w-full h-full object-cover transition-all",
+                          uploadPrivacy === 'accepted_only' && "blur-lg scale-105"
+                        )}
+                      />
+                      {uploadPrivacy === 'accepted_only' && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] z-10 p-3 text-center select-none">
+                          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-1.5 border border-white/30 shadow-md">
+                            <Lock className="w-5 h-5 text-white" />
+                          </div>
+                          <p className="text-white text-xs font-bold drop-shadow">
+                            Blurred until connected
+                          </p>
+                          <p className="text-white/80 text-[10px] mt-0.5">
+                            Photo visible after connection accepted
+                          </p>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPhotoFile(null);
+                          setPhotoPreview(null);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors z-20 cursor-pointer"
+                        title="Remove photo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="modal-photo-file"
+                      className="border-2 border-dashed border-[#e2ddd2] hover:border-[#C9A84C] rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-[#faf6ef]/50 hover:bg-[#faf6ef]"
+                    >
+                      <Upload className="w-8 h-8 text-[#C9A84C] mb-2" />
+                      <span className="text-sm font-bold text-[#4a3521]">Choose photo from device</span>
+                      <span className="text-xs text-[#7A6E68] mt-1">JPEG, PNG, or WEBP up to 10MB</span>
+                      <input
+                        id="modal-photo-file"
+                        type="file"
+                        accept="image/jpeg, image/png, image/webp, .jpg, .jpeg, .png, .webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 10 * 1024 * 1024) {
+                              toast.error("File size must be less than 10MB.");
+                              return;
+                            }
+                            setSelectedPhotoFile(file);
+                            setPhotoPreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {galleryError && (
+                  <p className="text-xs text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200">
+                    {galleryError}
+                  </p>
+                )}
+
+                {/* Footer Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!uploadingPhoto) {
+                        setShowUploadModal(false);
+                        setSelectedPhotoFile(null);
+                        setPhotoPreview(null);
+                      }
+                    }}
+                    disabled={uploadingPhoto}
+                    className="flex-1 py-3 px-4 border border-[#e2ddd2] rounded-xl text-sm font-semibold text-[#4a3521] hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitModalPhotoUpload}
+                    disabled={uploadingPhoto || !selectedPhotoFile}
+                    className="flex-1 py-3 px-4 bg-[#4a3521] hover:bg-[#382717] text-white rounded-xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {uploadingPhoto ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 text-[#d4af37]" />
+                        Upload Photo
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Photo Privacy Modal */}
+      <AnimatePresence>
+        {showPrivacyModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPrivacyModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-[#e2ddd2] p-6 sm:p-7 space-y-5 z-10"
+            >
+              <div className="flex items-center justify-between border-b border-[#f0ead9] pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#4a3521]">Photo Privacy Settings</h3>
+                    <p className="text-xs text-[#7A6E68]">Choose who can view your photos</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPrivacyModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUpdatePhotoPrivacy('public');
+                    setShowPrivacyModal(false);
+                  }}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer",
+                    profile.photoPrivacy !== 'accepted_only'
+                      ? "border-[#C9A84C] bg-[rgba(201,168,76,0.06)] ring-1 ring-[#C9A84C]"
+                      : "border-[#e2ddd2] hover:border-[#C9A84C]/50 bg-white"
+                  )}
+                >
+                  <Eye className="w-5 h-5 text-[#b8860b] shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-sm text-[#4a3521]">Public</div>
+                    <div className="text-xs text-[#7A6E68] mt-0.5">
+                      Visible to all approved Christian members browsing Kingdom Alliance.
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUpdatePhotoPrivacy('accepted_only');
+                    setShowPrivacyModal(false);
+                  }}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer",
+                    profile.photoPrivacy === 'accepted_only'
+                      ? "border-[#C9A84C] bg-[rgba(201,168,76,0.06)] ring-1 ring-[#C9A84C]"
+                      : "border-[#e2ddd2] hover:border-[#C9A84C]/50 bg-white"
+                  )}
+                >
+                  <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-sm text-[#4a3521]">Blurred until connected</div>
+                    <div className="text-xs text-[#7A6E68] mt-0.5">
+                      Your photos are blurred with a privacy lock overlay until you accept a connection request.
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation */}
       <ConfirmationModal
