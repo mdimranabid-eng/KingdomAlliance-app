@@ -1,16 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useSettings } from '../lib/SettingsContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function PublicNavbar() {
   const { settings } = useSettings();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [onDark, setOnDark] = useState(false);
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
+
+  const scrollToHomeTop = (smooth = true) => {
+    const behavior = smooth ? 'smooth' : 'auto';
+    window.scrollTo({ top: 0, behavior });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+    const snapContainer = document.querySelector('.snap-container') || document.querySelector('.landing-page');
+    if (snapContainer) {
+      snapContainer.scrollTo({ top: 0, behavior });
+    }
+    const hero = document.getElementById('hero') || document.querySelector('section');
+    if (hero) {
+      hero.scrollIntoView({ behavior, block: 'start' });
+    }
+  };
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    closeMenu();
+
+    if (location.pathname === '/') {
+      if (window.location.hash) {
+        window.history.pushState(null, '', '/');
+      }
+      scrollToHomeTop(true);
+    } else {
+      navigate('/');
+      setTimeout(() => scrollToHomeTop(false), 20);
+      setTimeout(() => scrollToHomeTop(true), 120);
+    }
+  };
+
+  const handleAnchorClick = (e: React.MouseEvent, targetId: string) => {
+    closeMenu();
+    if (location.pathname === '/') {
+      e.preventDefault();
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.history.pushState(null, '', `/#${targetId}`);
+      }
+    }
+  };
 
   useEffect(() => {
     let rafId: number;
@@ -56,8 +101,13 @@ export default function PublicNavbar() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between relative">
-          {/* Logo */}
-          <Link to="/" onClick={() => { closeMenu(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-2 relative z-50">
+          {/* Logo & Site Name */}
+          <Link
+            to="/"
+            onClick={handleLogoClick}
+            className="flex items-center gap-2 relative z-50 cursor-pointer"
+            title={settings.siteName}
+          >
             <img src="/images/logo2.png" alt="Kingdom Alliance" className="w-10 h-10 object-contain" />
             <span className={`font-extralight text-lg tracking-tight transition-colors duration-300 ${textPrimary}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
               {settings.siteName}
@@ -75,12 +125,14 @@ export default function PublicNavbar() {
             </Link>
             <a
               href="/#benefits"
+              onClick={(e) => handleAnchorClick(e, 'benefits')}
               className={`transition-colors duration-300 ${textMuted} hover:${onDark ? 'text-white' : 'text-[#C4856A]'}`}
             >
               Why Us
             </a>
             <a
               href="/#stories"
+              onClick={(e) => handleAnchorClick(e, 'stories')}
               className={`transition-colors duration-300 ${textMuted} hover:${onDark ? 'text-white' : 'text-[#C4856A]'}`}
             >
               Stories
@@ -150,10 +202,10 @@ export default function PublicNavbar() {
             >
               <div className="flex flex-col gap-6">
                 {[
-                  { to: '/', label: 'Home' },
+                  { to: '/', label: 'Home', isHome: true },
                   { to: '/about', label: 'About Us' },
-                  { href: '/#benefits', label: 'Why Us' },
-                  { href: '/#stories', label: 'Stories' },
+                  { href: '/#benefits', label: 'Why Us', id: 'benefits' },
+                  { href: '/#stories', label: 'Stories', id: 'stories' },
                   { to: '/faq', label: 'Help Center' },
                   { to: '/contact', label: 'Contact Us' },
                   { to: '/terms', label: 'Terms' },
@@ -162,7 +214,7 @@ export default function PublicNavbar() {
                     <a
                       key={i}
                       href={item.href}
-                      onClick={() => { closeMenu(); }}
+                      onClick={(e) => handleAnchorClick(e, item.id || '')}
                       className="text-lg font-medium text-[#4a3521] hover:text-[#C4856A] transition-colors py-2 border-b border-[#e2ddd2]/30"
                     >
                       {item.label}
@@ -171,7 +223,7 @@ export default function PublicNavbar() {
                     <Link
                       key={item.to}
                       to={item.to!}
-                      onClick={() => { closeMenu(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      onClick={item.isHome ? handleLogoClick : () => { closeMenu(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       className="text-lg font-medium text-[#4a3521] hover:text-[#C4856A] transition-colors py-2 border-b border-[#e2ddd2]/30"
                     >
                       {item.label}

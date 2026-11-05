@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import NotificationListener from './components/NotificationListener';
@@ -67,10 +68,29 @@ const ProfileRedirect = () => {
   return <Navigate to={user ? `/profile/${user.uid}` : '/login'} replace />;
 };
 
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+      const snapContainer = document.querySelector('.snap-container') || document.querySelector('.landing-page');
+      if (snapContainer) {
+        snapContainer.scrollTop = 0;
+      }
+    }
+  }, [pathname, hash]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <Router>
+        <ScrollToTop />
         <Toaster position="bottom-right" />
         <NotificationListener />
         <ForegroundNotificationListener />

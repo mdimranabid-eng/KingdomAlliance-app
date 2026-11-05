@@ -128,6 +128,40 @@ export default function LandingPage() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const handleHash = () => {
+      if (window.location.hash) {
+        const id = window.location.hash.replace('#', '');
+        const el = document.getElementById(id);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const snap = document.querySelector('.snap-container') || document.querySelector('.landing-page');
+        if (snap) snap.scrollTo({ top: 0, behavior: 'smooth' });
+        const hero = document.getElementById('hero');
+        if (hero) hero.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+
+    if (window.location.hash) {
+      const id = window.location.hash.replace('#', '');
+      const timer = setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      const snap = document.querySelector('.snap-container') || document.querySelector('.landing-page');
+      if (snap) snap.scrollTop = 0;
+    }
+
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
   const colors: Record<string, { bg: string; text: string }> = {
     terracotta: { bg: 'bg-[#F5E6DE]', text: 'text-[#C4856A]' },
     coral: { bg: 'bg-[#F8ECE6]', text: 'text-[#D4967E]' },
@@ -141,7 +175,7 @@ export default function LandingPage() {
 
       <main className="flex-1">
         {/* ===== HERO ===== */}
-        <section className="relative landing-section flex items-center justify-center overflow-hidden snap-start">
+        <section id="hero" className="relative landing-section flex items-center justify-center overflow-hidden snap-start">
           {/* Video Background */}
           <div className="absolute inset-0 overflow-hidden bg-[#3a2e28]">
             <video
