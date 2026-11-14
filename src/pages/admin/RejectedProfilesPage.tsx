@@ -193,9 +193,9 @@ export default function RejectedProfilesPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ uid })
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Deletion failed. Please retry.');
-      setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+      setUsers(prev => prev.filter(u => u.id !== selectedUser.id && u.uid !== uid));
       setSelectedUser(null);
       setShowDeleteConfirm(false);
       showToast('User account permanently deleted.', 'success');
@@ -306,7 +306,7 @@ export default function RejectedProfilesPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      {user.photoStatus === 'pending' || (user.gallery && user.gallery.some((p: any) => p.status === 'pending')) ? (
+                      {user.photoStatus === 'pending' || (Array.isArray(user.gallery) && user.gallery.some((p: any) => p?.status === 'pending')) ? (
                         <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md inline-flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           Pending
@@ -366,7 +366,7 @@ export default function RejectedProfilesPage() {
 
       {/* User Details Modal */}
       <AdminUserDetailModal
-        user={selectedUser}
+        user={showDeleteConfirm || showApproveConfirm ? null : selectedUser}
         onClose={() => setSelectedUser(null)}
         actions={
           selectedUser && (
@@ -459,13 +459,16 @@ export default function RejectedProfilesPage() {
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-[#0f172a]">Permanently Delete User</h3>
+                  <p className="text-xs text-[#64748b]">
+                    Deleting <strong className="text-[#0f172a]">{selectedUser.name || selectedUser.email}</strong>
+                  </p>
                   <div className="text-[13px] text-[#64748b] space-y-3 pt-3 text-left bg-[#f8fafc] p-4 rounded-xl ring-1 ring-black/[0.04]">
                     <p className="font-semibold text-red-600 text-[11px] uppercase tracking-wider">Cascading deletion will purge:</p>
                     <ul className="space-y-1.5 list-disc pl-3 text-[12px]">
-                      <li>Profile details &amp; document <code className="bg-white px-1 rounded text-[#0f172a]">/users</code></li>
-                      <li>Cloudinary images &amp; gallery</li>
-                      <li>All <code className="bg-white px-1 rounded text-[#0f172a]">/interests</code> connections</li>
-                      <li>Shortlists &amp; bookmarks</li>
+                      <li>Profile details, sessions &amp; SQL <code className="bg-white px-1 rounded text-[#0f172a]">users</code> records</li>
+                      <li>Uploaded profile &amp; gallery photos from server storage</li>
+                      <li>All <code className="bg-white px-1 rounded text-[#0f172a]">interests</code>, shortlists &amp; block records</li>
+                      <li>Notifications, profile views &amp; moderation logs</li>
                       <li>Chat history &amp; messages</li>
                     </ul>
                     <p className="text-[11px] font-medium text-[#94a3b8] pt-1">This operation is irreversible.</p>
@@ -474,7 +477,10 @@ export default function RejectedProfilesPage() {
                 <div className="flex gap-3 pt-2">
                   <button 
                     disabled={deletingUser}
-                    onClick={() => setShowDeleteConfirm(false)}
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setSelectedUser(null);
+                    }}
                     className="flex-1 py-2.5 bg-[#f1f5f9] text-[#0f172a] rounded-xl text-[13px] font-medium hover:bg-[#e2e8f0] transition-all disabled:opacity-50"
                   >
                     Cancel

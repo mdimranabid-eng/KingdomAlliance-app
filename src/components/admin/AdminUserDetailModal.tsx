@@ -130,6 +130,16 @@ interface AdminUserDetailModalProps {
   actions?: React.ReactNode;
 }
 
+function formatList(val: any, fallback = ''): string {
+  if (!val) return fallback;
+  if (Array.isArray(val)) {
+    const joined = val.filter(Boolean).join(', ');
+    return joined || fallback;
+  }
+  if (typeof val === 'string') return val.trim() || fallback;
+  return String(val) || fallback;
+}
+
 export default function AdminUserDetailModal({
   user,
   onClose,
@@ -269,8 +279,8 @@ export default function AdminUserDetailModal({
                   <DetailItem label="Complexion" value={user.complexion} />
                   <DetailItem label="Physical Status" value={user.physicalStatus} colSpan={2} />
                   {user.physicalStatusDesc && <DetailItem label="Disability Info" value={user.physicalStatusDesc} colSpan={2} />}
-                  <DetailItem label="Mother Tongue" value={Array.isArray(user.motherTongue) ? user.motherTongue.join(', ') : user.motherTongue} />
-                  <DetailItem label="Languages Known" value={user.languagesKnown?.join(', ')} colSpan={2} />
+                  <DetailItem label="Mother Tongue" value={formatList(user.motherTongue)} />
+                  <DetailItem label="Languages Known" value={formatList(user.languagesKnown)} colSpan={2} />
                   <DetailItem label="Citizenship" value={user.citizenship} />
                   <DetailItem label="Country Living" value={user.countryLiving} />
                   <DetailItem label="City Living" value={user.cityLiving} colSpan={2} />
@@ -345,7 +355,7 @@ export default function AdminUserDetailModal({
                   <DetailItem label="Dietary Habits" value={user.dietaryHabits} />
                   <DetailItem label="Drinking" value={user.drinkingHabits} />
                   <DetailItem label="Smoking" value={user.smokingHabits} />
-                  <DetailItem label="Hobbies / Interests" value={user.hobbies?.join(', ') || 'None'} />
+                  <DetailItem label="Hobbies / Interests" value={formatList(user.hobbies, 'None')} />
                 </div>
               </div>
 
@@ -373,9 +383,9 @@ export default function AdminUserDetailModal({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-secondary/5 rounded-3xl border border-secondary/20">
                   <DetailItem label="Age Range" value={user.partnerPreferences?.ageMin ? `${user.partnerPreferences?.ageMin} - ${user.partnerPreferences?.ageMax} Years` : null} />
                   <DetailItem label="Height Range" value={user.partnerPreferences?.heightMin ? `${user.partnerPreferences?.heightMin} - ${user.partnerPreferences?.heightMax} ft` : null} />
-                  <DetailItem label="Marital Status" value={user.partnerPreferences?.maritalStatus?.join(', ') || 'Any'} />
-                  <DetailItem label="Denominations" value={user.partnerPreferences?.denominations?.join(', ') || 'Any'} />
-                  <DetailItem label="Mother Tongue" value={user.partnerPreferences?.motherTongue?.join(', ') || 'Any'} />
+                  <DetailItem label="Marital Status" value={formatList(user.partnerPreferences?.maritalStatus, 'Any')} />
+                  <DetailItem label="Denominations" value={formatList(user.partnerPreferences?.denominations, 'Any')} />
+                  <DetailItem label="Mother Tongue" value={formatList(user.partnerPreferences?.motherTongue, 'Any')} />
                   <DetailItem label="Education" value={user.partnerPreferences?.educationLevel || 'Any'} />
                   <DetailItem label="Employment" value={user.partnerPreferences?.employmentStatus || 'Any'} />
                   <DetailItem label="Location" value={user.partnerPreferences?.city || user.partnerPreferences?.country ? `${user.partnerPreferences?.city || 'Any City'}, ${user.partnerPreferences?.country || 'Any Country'}` : 'Any'} />
@@ -452,12 +462,24 @@ export default function AdminUserDetailModal({
 }
 
 function DetailItem({ label, value, colSpan = 1 }: { label: string, value: any, colSpan?: number }) {
-  if (!value) return null;
+  if (value === null || value === undefined || value === '') return null;
   const spanClass = colSpan === 2 ? "col-span-2" : colSpan === 3 ? "col-span-1 md:col-span-3" : "";
+  const displayValue = Array.isArray(value)
+    ? value.filter(Boolean).join(', ')
+    : typeof value === 'object'
+      ? (typeof value.toDate === 'function'
+          ? value.toDate().toLocaleDateString()
+          : typeof value.__ts === 'number'
+            ? new Date(value.__ts).toLocaleDateString()
+            : typeof value.seconds === 'number'
+              ? new Date(value.seconds * 1000).toLocaleDateString()
+              : JSON.stringify(value))
+      : String(value);
+  if (!displayValue) return null;
   return (
     <div className={cn("space-y-1", spanClass)}>
       <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{label}</p>
-      <p className="font-medium text-on-surface text-sm">{value}</p>
+      <p className="font-medium text-on-surface text-sm">{displayValue}</p>
     </div>
   );
 }

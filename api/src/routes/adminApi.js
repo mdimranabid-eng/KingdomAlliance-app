@@ -184,6 +184,7 @@ router.post('/admin/delete-admin', adminRequired, async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired code. Request a new code if needed.' });
     }
     await store.deleteDoc('adminDeletionRequests', `${req.uid}_${uid}`);
+    await cascadeDeleteUser(uid, (msg) => console.log(`[DeleteAdmin] ${msg}`)).catch((e) => console.warn('[DeleteAdmin] cascade notice:', e.message));
     await pool.query('DELETE FROM users WHERE id = ?', [uid]);
     await pool.query('DELETE FROM admins WHERE id = ?', [uid]);
     await pool.query('DELETE FROM sessions WHERE user_id = ?', [uid]);

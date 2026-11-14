@@ -1147,7 +1147,7 @@ export default function RegisterPage() {
                             </CardField>
                           </div>
                           <CardField label="Hobbies" field="hobbies" isOptional>
-                            <FieldInput type="text" value={formData.hobbies.join(', ')}
+                            <FieldInput type="text" value={Array.isArray(formData.hobbies) ? formData.hobbies.join(', ') : (formData.hobbies || '')}
                               onChange={(e) => updateFormData('hobbies', e.target.value.split(',').map(s => s.trim()))}
                               placeholder="E.g. Reading, Traveling" />
                           </CardField>

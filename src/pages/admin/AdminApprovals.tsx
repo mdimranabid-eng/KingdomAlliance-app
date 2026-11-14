@@ -441,28 +441,30 @@ export default function AdminApprovals() {
         user={selectedUser}
         onClose={() => setSelectedUser(null)}
         actions={
-          <div className="flex gap-3 w-full">
-            <button
-              onClick={() => {
-                setConfirmModal({ isOpen: true, userId: selectedUser.id, name: selectedUser.name });
-                setSelectedUser(null);
-              }}
-              className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              Approve
-            </button>
-            <button
-              onClick={() => {
-                setRejectionModal({ isOpen: true, userId: selectedUser.id, reason: '' });
-                setSelectedUser(null);
-              }}
-              className="flex-1 py-3 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 shadow-sm flex items-center justify-center gap-2"
-            >
-              <X className="w-4 h-4" />
-              Reject
-            </button>
-          </div>
+          selectedUser && (
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => {
+                  setConfirmModal({ isOpen: true, userId: selectedUser.id, name: selectedUser.name });
+                  setSelectedUser(null);
+                }}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 shadow-sm flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Approve
+              </button>
+              <button
+                onClick={() => {
+                  setRejectionModal({ isOpen: true, userId: selectedUser.id, reason: '' });
+                  setSelectedUser(null);
+                }}
+                className="flex-1 py-3 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 shadow-sm flex items-center justify-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Reject
+              </button>
+            </div>
+          )
         }
       />
     </div>

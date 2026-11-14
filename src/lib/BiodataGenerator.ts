@@ -37,6 +37,12 @@ const urlToBase64 = async (url: string): Promise<string | null> => {
   }
 };
 
+const formatList = (val: any, fallback = ''): string => {
+  if (Array.isArray(val)) return val.filter(Boolean).join(', ') || fallback;
+  if (typeof val === 'string') return val.trim() || fallback;
+  return fallback;
+};
+
 /**
  * Utility to generate a high-end, simple and elegant Matrimonial Biodata PDF in Grayscale.
  */
@@ -216,15 +222,15 @@ export const generateBiodataPDF = async (user: any) => {
     const items = [
       { label: 'Age Range', value: prefs.ageMin ? `${prefs.ageMin} - ${prefs.ageMax} Years` : null },
       { label: 'Height Range', value: prefs.heightMin ? `${prefs.heightMin} - ${prefs.heightMax} ft` : null },
-      { label: 'Denomination', value: prefs.denominations?.join(', ') },
-      { label: 'Mother Tongue', value: prefs.motherTongue?.join(', ') },
+      { label: 'Denomination', value: formatList(prefs.denominations) || null },
+      { label: 'Mother Tongue', value: formatList(prefs.motherTongue) || null },
       { label: 'Education', value: prefs.educationLevel },
       { label: 'Employment', value: prefs.employmentStatus },
       { label: 'Location', value: prefs.city || prefs.country ? `${prefs.city || 'Any'}, ${prefs.country || 'Any'}` : null },
-      { label: 'Marital Status', value: prefs.maritalStatus?.join(', ') },
+      { label: 'Marital Status', value: formatList(prefs.maritalStatus) || null },
       { label: 'Relocation', value: prefs.relocationPreference },
       { label: 'Diet/Drink/Smoke', value: `${prefs.dietaryHabits || 'Any'} / ${prefs.drinkingHabits || 'Any'} / ${prefs.smokingHabits || 'Any'}` }
-    ].filter(i => i.value && !i.value.includes('undefined'));
+    ].filter(i => i.value && !String(i.value).includes('undefined'));
 
     items.forEach((item, i) => {
       if (currentY > pageHeight - 15) {
@@ -279,8 +285,8 @@ export const generateBiodataPDF = async (user: any) => {
     { label: 'Body Type', value: user.bodyType },
     { label: 'Physical Status', value: user.physicalStatus },
     { label: 'Physical Status Details', value: user.physicalStatusDesc },
-    { label: 'Mother Tongue', value: Array.isArray(user.motherTongue) ? user.motherTongue.join(', ') : user.motherTongue },
-    { label: 'Languages Known', value: user.languagesKnown?.join(', ') },
+    { label: 'Mother Tongue', value: formatList(user.motherTongue) || null },
+    { label: 'Languages Known', value: formatList(user.languagesKnown) || null },
     { label: 'Nationality', value: user.citizenship },
     { label: 'Country Living', value: user.countryLiving },
     { label: 'City Living', value: user.cityLiving },
@@ -318,7 +324,7 @@ export const generateBiodataPDF = async (user: any) => {
     mainY);
 
   mainY = addMainSection('Lifestyle & Habits', 
-    `Dietary Habits: ${user.dietaryHabits || 'N/A'}\nDrinking Habits: ${user.drinkingHabits || 'N/A'}\nSmoking Habits: ${user.smokingHabits || 'N/A'}\nHobbies & Interests: ${user.hobbies?.join(', ') || 'N/A'}`, 
+    `Dietary Habits: ${user.dietaryHabits || 'N/A'}\nDrinking Habits: ${user.drinkingHabits || 'N/A'}\nSmoking Habits: ${user.smokingHabits || 'N/A'}\nHobbies & Interests: ${formatList(user.hobbies, 'N/A')}`, 
     mainY);
 
   mainY = addPreferenceGrid(user.partnerPreferences, mainY);
