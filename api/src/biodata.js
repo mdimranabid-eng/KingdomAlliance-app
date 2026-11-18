@@ -35,9 +35,17 @@ function generateBiodataPdf(data) {
   const email = data.email || '—';
 
   // Date and timestamp of execution
-  const executionDate = data.submittedAt
-    ? (data.submittedAt instanceof Date ? data.submittedAt : new Date(data.submittedAt))
-    : (data.createdAt instanceof Date ? data.createdAt : new Date());
+  const toValidDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date && !Number.isNaN(val.getTime())) return val;
+    if (typeof val === 'object') {
+      if (typeof val.__ts === 'number') return new Date(val.__ts);
+      if (typeof val.seconds === 'number') return new Date(val.seconds * 1000);
+    }
+    const d = new Date(val);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const executionDate = toValidDate(data.submittedAt) || toValidDate(data.createdAt) || new Date();
   const dateStr = executionDate.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric'
   });

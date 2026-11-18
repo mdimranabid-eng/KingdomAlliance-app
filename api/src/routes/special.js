@@ -177,7 +177,7 @@ router.post('/send-email', authRequired, async (req, res) => {
     }
     const sender = await store.getDoc('users', req.uid);
     const sData = sender ? sender.data : {};
-    if (!sData.isApproved || sData.isBanned || sData.isSuspended) {
+    if (!(sData.isApproved || sData.approvalStatus === 'approved') || sData.isBanned || sData.isSuspended) {
       return res.status(403).json({ error: 'An approved active account is required.' });
     }
     const recipientId = request ? iData.toId : iData.fromId;

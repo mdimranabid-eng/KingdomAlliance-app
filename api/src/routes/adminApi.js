@@ -332,6 +332,9 @@ router.post('/admin/approve-photo', adminRequired, async (req, res) => {
           notifications: { __au: [note] },
         }, { merge: true });
       }
+      if (userData.email) {
+        dispatchEmail(userData.email, null, 'photo_approved').catch((e) => console.warn('[ApprovePhoto] email failed:', e.message));
+      }
     }
     return res.status(200).json({ success: true, message: 'Photo approved successfully.' });
   } catch (error) {
@@ -426,6 +429,9 @@ router.post('/admin/reject-photo', adminRequired, async (req, res) => {
           updatedAt: { __st: 1 },
           notifications: { __au: [note] },
         }, { merge: true });
+      }
+      if (userData.email) {
+        dispatchEmail(userData.email, null, 'photo_rejected', reason).catch((e) => console.warn('[RejectPhoto] email failed:', e.message));
       }
     }
     return res.status(200).json({ success: true, message: 'Photo rejected successfully.' });

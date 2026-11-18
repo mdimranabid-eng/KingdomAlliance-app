@@ -79,6 +79,34 @@ function template(type, secret, reason, senderName) {
       return ['Your Kingdom Alliance administrator password was reset', wrap('Administrator Password Reset',
         `<p>Hello,</p><p>Your Kingdom Alliance administrator password was reset by a system administrator. Your temporary password is:</p>` + codeBlock(secret) +
         '<p>Sign in and change your password immediately.</p>')];
+    case 'admin_invitation':
+      return ['You Have Been Added as an Admin — Kingdom Alliance', wrap('Welcome to the Admin Team',
+        `<p>Hello,</p><p>You have been granted administrator access to the Kingdom Alliance platform. Use the temporary password below to log in at <a href="https://thekingdomalliances.com/admin/login" style="color: #d4af37;">https://thekingdomalliances.com/admin/login</a>:</p>` + codeBlock(secret) +
+        '<p style="font-size: 14px; color: #64748b;">On your first login, you will be required to verify your email via a one-time code and set up two-factor authentication (Google Authenticator).</p>')];
+    case 'photo_approved':
+      return ['Your Kingdom Alliance Photo is Approved', wrap('Photo Approved!',
+        '<p>Hello,</p><p>Great news! The photo you recently uploaded to your Kingdom Alliance profile has been reviewed and <strong>approved</strong>.</p><p>It is now live on your profile for other members to see.</p>')];
+    case 'photo_rejected':
+      return ['Action Required: Kingdom Alliance Photo Update', wrap('Photo Update Required',
+        `<p>Hello,</p><p>We recently reviewed a photo you uploaded to Kingdom Alliance. Unfortunately, it does not meet our community guidelines and has been <strong>rejected</strong>.</p>
+         <div style="background-color: #fef2f2; padding: 15px; border-left: 4px solid #dc2626; margin: 20px 0;">
+           <p style="margin: 0; color: #991b1b;"><strong>Admin Notes:</strong> ${reason || 'Please ensure your photo is clear, appropriate, and clearly shows your face.'}</p>
+         </div>
+         <p>Please log in and upload a new photo that adheres to our guidelines.</p>`)];
+    case 'profile_approved':
+      return ['Congratulations! Your Kingdom Alliance profile is approved', wrap('Welcome to Kingdom Alliance!',
+        '<p>Hello,</p><p><strong>Congratulations! Your Kingdom Alliance profile has been approved.</strong></p><p>You now have full access to the platform. You can log in immediately to start connecting with other members.</p>')];
+    case 'profile_rejected':
+      return ['Action Required: Kingdom Alliance Profile Update', wrap('Profile Update Required',
+        `<p>Hello,</p><p>Thank you for applying to join Kingdom Alliance. <strong>Action Required: Your profile needs a few updates before approval.</strong></p>
+         <div style="background-color: #fef2f2; padding: 15px; border-left: 4px solid #dc2626; margin: 20px 0;">
+           <p style="margin: 0; color: #991b1b;"><strong>Admin Notes:</strong> ${reason || 'Please review your profile details and submit again.'}</p>
+         </div>
+         <p>Please log back into your account to make the requested changes.</p>`)];
+    case 'new_message':
+      return ['You have a new message on Kingdom Alliance', wrap('New Message Received',
+        `<p>Hello,</p><p><strong>${senderName || 'A member'}</strong> has sent you a new message on Kingdom Alliance.</p>
+         <p style="font-size: 14px; color: #64748b;">For your privacy and security, we do not include message contents in emails. Please log in to your Kingdom Alliance messages to read and reply.</p>`)];
     case 'admin_deletion_otp':
       return ['Admin Deletion Verification Code — Kingdom Alliance',
         `<div style="font-family: Arial, Helvetica, sans-serif; color: #333333; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #dddddd; border-radius: 4px; overflow: hidden;">

@@ -20,7 +20,8 @@ function isUsableAccount(ctx) {
 
 function isApproved(ctx) {
   return isUsableAccount(ctx) && !!ctx.callerUserDoc &&
-    ctx.callerUserDoc.isApproved === true && g(ctx.callerUserDoc, 'deletionStatus', '') === '';
+    (ctx.callerUserDoc.isApproved === true || ctx.callerUserDoc.approvalStatus === 'approved') &&
+    g(ctx.callerUserDoc, 'deletionStatus', '') === '';
 }
 
 const isAdmin = (ctx) => !!ctx.auth && !!ctx.auth.admin;
@@ -148,13 +149,13 @@ function checkUsers(ctx) {
   if (op === 'get') {
     if (!ctx.auth) throw new PermissionDenied();
     if (isOwner(ctx, id) || isAdmin(ctx)) return {};
-    if (isApproved(ctx) && existing && existing.isApproved === true && g(existing, 'deletionStatus', '') === '') return {};
+    if (isApproved(ctx) && existing && (existing.isApproved === true || existing.approvalStatus === 'approved') && g(existing, 'deletionStatus', '') === '') return {};
     throw new PermissionDenied();
   }
   if (op === 'list') {
     if (!ctx.auth) throw new PermissionDenied();
     if (isAdmin(ctx)) return {};
-    if (isApproved(ctx)) return { filter: (d) => d.isApproved === true && g(d, 'deletionStatus', '') === '' };
+    if (isApproved(ctx)) return { filter: (d) => (d.isApproved === true || d.approvalStatus === 'approved') && g(d, 'deletionStatus', '') === '' };
     throw new PermissionDenied();
   }
   if (op === 'create') {
