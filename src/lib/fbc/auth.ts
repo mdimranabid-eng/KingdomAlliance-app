@@ -225,7 +225,7 @@ export async function signInWithPopup(_auth: any, _provider: any): Promise<{ use
     await loadGsiScript();
     const clientId =
       (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
-      '583391827233-99lkvfsgcbmlssorgj0eatjm1mse61fc.apps.googleusercontent.com';
+      '1079173496621-u581pjgrgssulr347vsrm36j4s8pl81s.apps.googleusercontent.com';
 
     const google = (window as any).google;
     if (!google?.accounts?.oauth2) {

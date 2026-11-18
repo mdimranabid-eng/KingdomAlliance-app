@@ -68,6 +68,7 @@ export default function RegisterPage() {
     if (profile.authProvider === 'email' && !profile.emailVerified && !user.emailVerified) {
       setEmail(user.email || '');
       setRegisteredUid(user.uid);
+      setOtpTimer(0);
       setShowOtpModal(true);
       return;
     }

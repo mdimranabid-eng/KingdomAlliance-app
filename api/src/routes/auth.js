@@ -79,9 +79,9 @@ router.post('/auth/register', async (req, res) => {
     const uid = store.uuid();
     await store.writeDoc('users', uid, {
       uid, email: cleanEmail, fullName: String(fullName || '').slice(0, 128),
-      ...INITIAL_PROFILE, createdAt: { __st: 1 }, lastActive: { __st: 1 },
+      ...INITIAL_PROFILE, emailVerified: true, createdAt: { __st: 1 }, lastActive: { __st: 1 },
     }, { merge: false, createOnly: true });
-    await pool.query('UPDATE users SET password_hash = ?, last_login_at = NOW() WHERE id = ?',
+    await pool.query('UPDATE users SET password_hash = ?, email_verified = 1, last_login_at = NOW() WHERE id = ?',
       [await bcrypt.hash(password, 10), uid]);
 
     const row = await findUserRow(cleanEmail);
@@ -335,6 +335,8 @@ router.post('/otp/verify', async (req, res) => {
         if (!isUnverifiedEmailDraft) {
           return res.status(409).json({ error: { code: 'already-exists', message: describeExistingAccount(row) } });
         }
+        await store.writeDoc('users', row.id, { emailVerified: true }, { merge: true }).catch(() => undefined);
+        await pool.query('UPDATE users SET email_verified = 1 WHERE id = ?', [row.id]).catch(() => undefined);
       }
     }
     res.json({ result: { success: true }, success: true });
