@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { cn } from '../../lib/utils';
 
 export interface TurnstileWidgetHandle {
@@ -14,26 +14,53 @@ interface TurnstileWidgetProps {
 
 const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
   ({ onVerify, onSuccess, onExpire, className }, ref) => {
-    const [checked, setChecked] = useState(false);
+    const [status, setStatus] = useState<'verifying' | 'verified' | 'idle'>('verifying');
+    const onVerifyRef = useRef(onVerify);
+    const onSuccessRef = useRef(onSuccess);
+    const onExpireRef = useRef(onExpire);
+
+    useEffect(() => {
+      onVerifyRef.current = onVerify;
+      onSuccessRef.current = onSuccess;
+      onExpireRef.current = onExpire;
+    }, [onVerify, onSuccess, onExpire]);
+
+    const completeVerification = () => {
+      const token = 'turnstile-verified-token';
+      setStatus('verified');
+      onVerifyRef.current?.(token);
+      onSuccessRef.current?.(token);
+    };
+
+    // Automatically verify on mount (just like Cloudflare Turnstile Managed mode)
+    useEffect(() => {
+      setStatus('verifying');
+      const timer = setTimeout(() => {
+        completeVerification();
+      }, 450);
+      return () => clearTimeout(timer);
+    }, []);
 
     useImperativeHandle(ref, () => ({
       reset: () => {
-        setChecked(false);
-        onExpire?.();
+        setStatus('verifying');
+        onExpireRef.current?.();
+        setTimeout(() => {
+          completeVerification();
+        }, 450);
       },
     }));
 
-    const handleToggle = (nextChecked: boolean) => {
-      setChecked(nextChecked);
-      if (nextChecked) {
-        const token = 'turnstile-verified-token';
-        onVerify?.(token);
-        onSuccess?.(token);
+    const handleToggle = () => {
+      if (status !== 'verified') {
+        completeVerification();
       } else {
-        onVerify?.('');
-        onExpire?.();
+        // Re-confirm token if tapped while already verified
+        completeVerification();
       }
     };
+
+    const checked = status === 'verified';
 
     return (
       <div className={cn("flex justify-center my-3 w-full relative z-30", className)}>
@@ -49,37 +76,47 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
           <input
             type="checkbox"
             checked={checked}
-            onChange={(e) => handleToggle(e.target.checked)}
+            onChange={handleToggle}
+            onClick={handleToggle}
             aria-label="Verify you are human"
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0"
           />
 
-          {/* Visual Checkbox */}
-          <span
-            aria-hidden="true"
-            className={cn(
-              "w-[24px] h-[24px] rounded-md flex-shrink-0 flex items-center justify-center transition-colors pointer-events-none",
-              checked
-                ? "bg-[#16a34a] border-2 border-[#16a34a]"
-                : "bg-white border-2 border-[#b4b4bb]"
-            )}
-          >
-            {checked && (
-              <svg
-                className="w-3.5 h-3.5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={3}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </span>
+          {/* Visual Checkbox / Auto-Verifying Spinner */}
+          {status === 'verifying' ? (
+            <span
+              aria-hidden="true"
+              className="w-[24px] h-[24px] flex-shrink-0 flex items-center justify-center pointer-events-none"
+            >
+              <span className="w-5 h-5 border-2 border-[#d4d4d8] border-t-[#16a34a] rounded-full animate-spin block" />
+            </span>
+          ) : (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "w-[24px] h-[24px] rounded-md flex-shrink-0 flex items-center justify-center transition-colors pointer-events-none",
+                checked
+                  ? "bg-[#16a34a] border-2 border-[#16a34a]"
+                  : "bg-white border-2 border-[#b4b4bb]"
+              )}
+            >
+              {checked && (
+                <svg
+                  className="w-3.5 h-3.5 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </span>
+          )}
 
           {/* Label */}
           <span className="text-[13.5px] font-medium text-[#27272a] font-['Inter',sans-serif] truncate pointer-events-none">
-            {checked ? "Verified" : "Verify you are human"}
+            {status === 'verifying' ? "Verifying..." : checked ? "Success!" : "Verify you are human"}
           </span>
 
           {/* Cloudflare Brand */}
