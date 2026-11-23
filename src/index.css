@@ -54,6 +54,10 @@
   body {
     @apply bg-surface text-on-surface;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    overflow-wrap: break-word;
+  }
+  img, video {
+    max-inline-size: 100%;
   }
 }
 
@@ -76,25 +80,26 @@
   /* Floating-label fields */
   .s-field { position: relative; }
   .s-field > input, .s-field > select, .s-field > textarea {
-    width: 100%; padding: 22px 16px 10px; font: 500 15px 'Montserrat', sans-serif;
+    width: 100%; min-width: 0; padding: 26px 16px 9px; font: 500 16px/1.35 'Montserrat', sans-serif;
     color: #4a3521; border: 1px solid #e2ddd2; border-radius: 14px;
     background: #fff; outline: none; transition: border-color .2s, box-shadow .2s;
   }
-  .s-field > textarea { min-height: 96px; resize: none; }
+  .s-field > textarea { min-height: 96px; resize: vertical; }
   .s-field > input:focus, .s-field > select:focus, .s-field > textarea:focus {
     border-color: var(--color-gold); box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
   }
   .s-field > label {
-    position: absolute; left: 16px; top: 16px; font-size: 14px; color: #9aa3af;
-    pointer-events: none; transition: all .18s ease;
+    position: absolute; left: 16px; right: 44px; top: 17px; font-size: 14px; line-height: 1.25; color: #9aa3af;
+    pointer-events: none; transition: all .18s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .s-field > input:focus ~ label,
   .s-field > input:not(:placeholder-shown) ~ label,
+  .s-field > input:-webkit-autofill ~ label,
   .s-field > select:focus ~ label,
   .s-field.has-value > label,
   .s-field > textarea:focus ~ label,
   .s-field > textarea:not(:placeholder-shown) ~ label {
-    top: 8px; font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    top: 6px; font-size: 10px; line-height: 1.2; letter-spacing: 1.1px; text-transform: uppercase;
     color: var(--color-gold-deep); font-weight: 700;
   }
 

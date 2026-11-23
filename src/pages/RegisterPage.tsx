@@ -342,8 +342,8 @@ export default function RegisterPage() {
       </div>
 
       {/* ===== Right panel — form ===== */}
-      <div className="flex-1 flex flex-col items-center justify-center px-5 py-10 sm:px-10 relative overflow-y-auto">
-        <div className="lg:hidden w-full sanctuary-grain sanctuary-panel text-white rounded-3xl p-6 mb-8 max-w-md">
+      <div className="flex-1 flex flex-col items-center justify-center px-3 sm:px-10 py-8 sm:py-10 relative overflow-y-auto">
+        <div className="lg:hidden w-full sanctuary-grain sanctuary-panel text-white rounded-3xl p-5 sm:p-6 mb-6 sm:mb-8 max-w-md">
           <div className="san-anim san-d1 flex items-center gap-3">
             <img src="/images/logo2.png" alt="Kingdom Alliance" className="w-11 h-11 object-contain" />
             <div>
@@ -361,11 +361,11 @@ export default function RegisterPage() {
           className="w-full max-w-md"
         >
           {/* Double-Bezel Card */}
-          <div className="p-2 md:p-3 bg-[#f5f0e6]/60 rounded-[2rem] border border-[#e8e1d3]/80 shadow-[0_8px_40px_-12px_rgba(74,53,33,0.12)]">
-            <div className="rounded-[calc(2rem-0.375rem)] bg-white/95 backdrop-blur-sm border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_1px_3px_rgba(74,53,33,0.06)] overflow-hidden">
+          <div className="p-1.5 sm:p-2 md:p-3 bg-[#f5f0e6]/60 rounded-[1.75rem] sm:rounded-[2rem] border border-[#e8e1d3]/80 shadow-[0_8px_40px_-12px_rgba(74,53,33,0.12)]">
+            <div className="rounded-[calc(1.75rem-0.25rem)] sm:rounded-[calc(2rem-0.375rem)] bg-white/95 backdrop-blur-sm border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_1px_3px_rgba(74,53,33,0.06)] overflow-hidden">
 
               {/* Header */}
-              <div className="px-8 pt-8 pb-6 border-b border-[#f0ead9]/60 bg-gradient-to-b from-[#fffdf8] to-white">
+              <div className="px-4 sm:px-8 pt-6 sm:pt-8 pb-5 sm:pb-6 border-b border-[#f0ead9]/60 bg-gradient-to-b from-[#fffdf8] to-white">
                 <div className="hidden lg:flex items-center gap-2.5 mb-5">
                   <div className="w-8 h-8 rounded-full bg-[#C9A84C]/10 flex items-center justify-center">
                     <span className="text-[#C9A84C] text-sm">✝</span>
@@ -377,7 +377,7 @@ export default function RegisterPage() {
               </div>
 
               {/* Form Content */}
-              <div className="px-8 py-6">
+              <div className="px-4 sm:px-8 py-5 sm:py-6">
                 {error && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -484,13 +484,13 @@ export default function RegisterPage() {
                     </p>
                   </div>
 
-                  <div className="flex justify-center py-1">
+                  <div className="flex justify-center py-1 w-full overflow-x-auto relative z-20">
                     <Turnstile
                       ref={recaptchaRef}
                       siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''}
                       onSuccess={(token) => setRecaptchaToken(token)}
                       onExpire={() => setRecaptchaToken(null)}
-                      options={{ theme: 'light', size: 'normal' }}
+                      options={{ theme: 'light', size: 'flexible' }}
                     />
                   </div>
 
@@ -555,19 +555,19 @@ export default function RegisterPage() {
                 <div className="rounded-[calc(2rem-0.375rem)] bg-white/95 backdrop-blur-sm border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] overflow-hidden">
 
                   {/* Header */}
-                  <div className="px-7 pt-7 pb-5 text-center border-b border-[#f0ead9]/60 bg-gradient-to-b from-[#fffdf8] to-white">
+                  <div className="px-4 sm:px-7 pt-6 sm:pt-7 pb-5 text-center border-b border-[#f0ead9]/60 bg-gradient-to-b from-[#fffdf8] to-white">
                     <div className="w-10 h-10 rounded-full bg-[#C9A84C]/10 flex items-center justify-center mx-auto mb-3">
                       <span className="text-[#C9A84C] text-lg">✝</span>
                     </div>
                     <h2 className="font-headline text-xl font-semibold text-[#4a3521]">Verify your email</h2>
-                    <p className="text-[12px] text-[#a89f8d] mt-1.5">
+                    <p className="text-[12px] text-[#a89f8d] mt-1.5 break-all">
                       We sent a 6-digit code to<br />
                       <span className="font-bold text-[#4a3521]">{email}</span>
                     </p>
                   </div>
 
                   {/* Content */}
-                  <div className="px-7 py-6 space-y-5">
+                  <div className="px-4 sm:px-7 py-5 sm:py-6 space-y-5">
                     {otpError && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -623,13 +623,13 @@ export default function RegisterPage() {
                     </button>
 
                     <div className="flex flex-col items-center gap-2.5 pt-0.5">
-                      <div className="flex justify-center overflow-x-auto">
+                      <div className="flex justify-center w-full overflow-x-auto relative z-20">
                         <Turnstile
                           ref={resendCaptchaRef}
                           siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''}
                           onSuccess={(token) => setResendCaptchaToken(token)}
                           onExpire={() => setResendCaptchaToken(null)}
-                      options={{ theme: 'light', size: 'normal' }}
+                          options={{ theme: 'light', size: 'flexible' }}
                         />
                       </div>
                       {otpTimer > 0 ? (

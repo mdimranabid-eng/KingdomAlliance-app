@@ -128,7 +128,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-8 md:p-10">
+        <div className="p-5 sm:p-8 md:p-10">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-primary">
               {successMessage ? (
@@ -181,13 +181,13 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                   className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all text-on-surface"
                 />
               </div>
-              <div className="flex justify-center py-2">
+              <div className="flex justify-center py-2 w-full overflow-x-auto relative z-20">
                 <Turnstile
                   ref={recaptchaRef}
                   siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ""}
                   onSuccess={(token) => setRecaptchaToken(token)}
                   onExpire={() => setRecaptchaToken(null)}
-                  options={{ theme: 'light', size: 'normal' }}
+                  options={{ theme: 'light', size: 'flexible' }}
                 />
               </div>
               <button

@@ -37,8 +37,8 @@ export function FieldInput({ hasError, className, ...props }: FieldInputProps) {
   return (
     <input
       className={cn(
-        "w-full px-4 py-3 bg-[#faf8f4] border-[1.5px] border-[#f0ead9] rounded-xl",
-        "font-['Montserrat',sans-serif] text-[14px] text-[#4a3521]",
+        "w-full min-w-0 max-w-full px-3.5 sm:px-4 py-3 min-h-[46px] bg-[#faf8f4] border-[1.5px] border-[#f0ead9] rounded-xl",
+        "font-['Montserrat',sans-serif] text-[16px] sm:text-[14px] leading-snug text-[#4a3521]",
         "outline-none transition-all duration-200",
         "focus:border-[#C9A84C] focus:shadow-[0_0_0_3px_rgba(201,168,76,0.12)] focus:bg-white",
         "placeholder:text-[#9aa3af] placeholder:font-normal",
@@ -61,13 +61,13 @@ export function FieldSelect({ hasError, options, placeholder, className, ...prop
   return (
     <select
       className={cn(
-        "w-full px-4 py-3 bg-[#faf8f4] border-[1.5px] border-[#f0ead9] rounded-xl",
-        "font-['Montserrat',sans-serif] text-[14px] text-[#4a3521]",
+        "w-full min-w-0 max-w-full px-3.5 sm:px-4 py-3 min-h-[46px] bg-[#faf8f4] border-[1.5px] border-[#f0ead9] rounded-xl",
+        "font-['Montserrat',sans-serif] text-[16px] sm:text-[14px] leading-snug text-[#4a3521] truncate",
         "outline-none transition-all duration-200 cursor-pointer",
         "focus:border-[#C9A84C] focus:shadow-[0_0_0_3px_rgba(201,168,76,0.12)] focus:bg-white",
         "appearance-none",
-        "bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a89f8d%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_12px_center]",
-        "pr-10",
+        "bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23a89f8d%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_10px_center]",
+        "pr-9",
         hasError && "border-[#dc2626] shadow-[0_0_0_3px_rgba(220,38,38,0.08)]",
         className
       )}
@@ -89,9 +89,9 @@ export function FieldTextarea({ hasError, className, ...props }: FieldTextareaPr
   return (
     <textarea
       className={cn(
-        "w-full px-4 py-3 bg-[#faf8f4] border-[1.5px] border-[#f0ead9] rounded-xl",
-        "font-['Montserrat',sans-serif] text-[14px] text-[#4a3521]",
-        "outline-none transition-all duration-200 resize-none min-h-[80px] leading-relaxed",
+        "w-full min-w-0 max-w-full px-3.5 sm:px-4 py-3 bg-[#faf8f4] border-[1.5px] border-[#f0ead9] rounded-xl",
+        "font-['Montserrat',sans-serif] text-[16px] sm:text-[14px] text-[#4a3521]",
+        "outline-none transition-all duration-200 resize-y min-h-[96px] leading-relaxed",
         "focus:border-[#C9A84C] focus:shadow-[0_0_0_3px_rgba(201,168,76,0.12)] focus:bg-white",
         "placeholder:text-[#9aa3af] placeholder:font-normal",
         hasError && "border-[#dc2626] shadow-[0_0_0_3px_rgba(220,38,38,0.08)]",

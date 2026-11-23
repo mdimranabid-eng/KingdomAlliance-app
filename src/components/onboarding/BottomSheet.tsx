@@ -154,24 +154,8 @@ interface MobileSelectTriggerProps {
   hasError?: boolean;
 }
 
-export function MobileSelectTrigger({ value, placeholder, onClick, hasError }: MobileSelectTriggerProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "md:hidden w-full px-4 py-3 bg-[#faf8f4] border-[1.5px] rounded-xl",
-        "font-['Montserrat',sans-serif] text-[14px] text-left",
-        "flex justify-between items-center transition-all",
-        "active:border-[#C9A84C]",
-        hasError ? "border-[#dc2626]" : "border-[#f0ead9]",
-        value ? "text-[#4a3521]" : "text-[#9aa3af]"
-      )}
-    >
-      <span className="truncate">{value || placeholder}</span>
-      <svg className="w-4 h-4 text-[#a89f8d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="m6 9 6 6 6-6" />
-      </svg>
-    </button>
-  );
+export function MobileSelectTrigger(_props: MobileSelectTriggerProps) {
+  // Native <FieldSelect> is rendered directly in every CardField and uses the OS
+  // native picker on mobile, avoiding duplicate stacked select inputs and oversized bottom sheets.
+  return null;
 }

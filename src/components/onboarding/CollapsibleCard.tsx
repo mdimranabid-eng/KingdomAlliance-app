@@ -42,21 +42,21 @@ export default function CollapsibleCard({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer select-none transition-colors hover:bg-[#fdfcfa]"
+        className="w-full flex items-center justify-between px-3.5 sm:px-5 py-3.5 sm:py-4 cursor-pointer select-none transition-colors hover:bg-[#fdfcfa]"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div className={cn(
-            "w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0",
+            "w-8 h-8 sm:w-9 sm:h-9 rounded-[10px] flex items-center justify-center flex-shrink-0",
             iconColors[iconColor]
           )}>
             {icon}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="font-['Playfair_Display',serif] text-[15px] font-semibold text-[#4a3521]">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-['Playfair_Display',serif] text-[14.5px] sm:text-[15px] font-semibold text-[#4a3521] truncate">
               {title}
             </span>
             {badge && (
-              <span className="text-[10px] font-semibold text-[#b8860b] bg-[rgba(201,168,76,0.1)] px-2 py-0.5 rounded-[10px]">
+              <span className="text-[10px] font-semibold text-[#b8860b] bg-[rgba(201,168,76,0.1)] px-2 py-0.5 rounded-[10px] flex-shrink-0">
                 {badge}
               </span>
             )}
@@ -64,7 +64,7 @@ export default function CollapsibleCard({
         </div>
         <ChevronDown
           className={cn(
-            "w-5 h-5 text-[#a89f8d] transition-transform duration-300",
+            "w-5 h-5 text-[#a89f8d] transition-transform duration-300 flex-shrink-0",
             isOpen && "rotate-180"
           )}
         />
@@ -80,7 +80,7 @@ export default function CollapsibleCard({
             transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5">
+            <div className="px-3.5 sm:px-5 pb-4 sm:pb-5">
               {children}
             </div>
           </motion.div>

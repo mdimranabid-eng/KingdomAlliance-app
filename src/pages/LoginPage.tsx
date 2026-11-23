@@ -390,13 +390,13 @@ export default function LoginPage() {
                     </button>
                   </div>
 
-                  <div className="flex justify-center mb-2">
+                  <div className="flex justify-center mb-2 w-full overflow-x-auto relative z-20">
                     <Turnstile
                       ref={recaptchaRef}
                       siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''}
                       onSuccess={(token) => setRecaptchaToken(token)}
                       onExpire={() => setRecaptchaToken(null)}
-                      options={{ theme: 'light', size: 'normal' }}
+                      options={{ theme: 'light', size: 'flexible' }}
                     />
                   </div>
 

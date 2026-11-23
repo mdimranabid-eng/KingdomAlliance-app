@@ -432,7 +432,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex bg-white border border-[#eee7d8] shadow-[0_20px_50px_-25px_rgba(143,99,55,0.18)] rounded-[2.5rem] overflow-hidden">
+    <div className="h-[calc(100dvh-6rem)] sm:h-[calc(100dvh-8rem)] flex bg-white border border-[#eee7d8] shadow-[0_20px_50px_-25px_rgba(143,99,55,0.18)] rounded-2xl sm:rounded-[2.5rem] overflow-hidden">
       {/* Sidebar - Chat List */}
       <aside className={cn(
         "w-full md:w-80 border-r border-[#e2ddd2] flex flex-col transition-all duration-300",
@@ -585,7 +585,7 @@ export default function MessagesPage() {
             </header>
 
             {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-4">
               <div className="flex justify-center mb-8">
                 <div className="px-4 py-1.5 bg-surface-container-high rounded-full border border-[#e2ddd2] text-[10px] font-label-lg uppercase tracking-widest text-[#8a7a63]">
                   Today
@@ -626,7 +626,7 @@ export default function MessagesPage() {
               <div ref={scrollRef} />
             </div>
             {/* Message Input */}
-            <div className="p-6 bg-white border-t border-[#e2ddd2]">
+            <div className="p-3 sm:p-6 bg-white border-t border-[#e2ddd2]">
               {connectionState === null ? (
                 <div className="p-4 text-center text-[#8a7a63] text-sm font-medium animate-pulse bg-[#f7f2e9] rounded-xl border border-[#e2ddd2]">
                   Verifying connection...

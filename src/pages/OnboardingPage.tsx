@@ -775,24 +775,24 @@ export default function RegisterPage() {
         </div>
       </header>
 
-      <main className="flex-1 w-full px-4 py-8 md:py-10 flex flex-col items-center relative z-0">
+      <main className="flex-1 w-full px-2.5 sm:px-4 py-6 md:py-10 flex flex-col items-center relative z-0">
         {/* Progress Stepper */}
         <StepIndicator steps={STEPS} currentStep={currentStep} />
 
         {/* Form Area */}
-        <div className="w-full max-w-[760px] p-2 md:p-3 bg-[#f5f0e6]/60 rounded-[2.5rem] border border-[#e8e1d3]/80 shadow-[0_8px_40px_-12px_rgba(74,53,33,0.12)]">
-          <div className="ob-shell rounded-[calc(2.5rem-0.375rem)] overflow-hidden flex flex-col bg-white/95 backdrop-blur-sm border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_1px_3px_rgba(74,53,33,0.06)]">
+        <div className="w-full max-w-[760px] p-1.5 sm:p-2 md:p-3 bg-[#f5f0e6]/60 rounded-[1.75rem] sm:rounded-[2.5rem] border border-[#e8e1d3]/80 shadow-[0_8px_40px_-12px_rgba(74,53,33,0.12)]">
+          <div className="ob-shell rounded-[calc(1.75rem-0.25rem)] sm:rounded-[calc(2.5rem-0.375rem)] overflow-hidden flex flex-col bg-white/95 backdrop-blur-sm border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_1px_3px_rgba(74,53,33,0.06)]">
 
             {/* Step Header */}
-            <div className="px-8 py-6 lg:px-10 lg:py-7 border-b border-[#f0ead9]/80 bg-gradient-to-b from-[#fffdf8] to-white">
+            <div className="px-4 py-5 sm:px-8 sm:py-6 lg:px-10 lg:py-7 border-b border-[#f0ead9]/80 bg-gradient-to-b from-[#fffdf8] to-white">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#C9A84C]/10 text-[#b8860b] text-[10px] font-bold">{currentStep}</span>
                     <p className="text-[10px] font-bold tracking-[2px] uppercase text-[#b8860b]">Step {currentStep} of {STEPS.length}</p>
                   </div>
-                  <h3 className="font-headline text-2xl lg:text-[28px] text-[#4a3521] leading-tight">{STEPS[currentStep - 1].title}</h3>
-                  <p className="text-[#a89f8d] text-[13px] mt-0.5">{STEPS[currentStep - 1].description}</p>
+                  <h3 className="font-headline text-xl sm:text-2xl lg:text-[28px] text-[#4a3521] leading-tight">{STEPS[currentStep - 1].title}</h3>
+                  <p className="text-[#a89f8d] text-[12.5px] sm:text-[13px] mt-0.5">{STEPS[currentStep - 1].description}</p>
                 </div>
                 <div className="hidden md:flex w-10 h-10 rounded-full bg-[#C9A84C]/8 items-center justify-center">
                   <span className="text-[#C9A84C] text-lg">✝</span>
@@ -800,7 +800,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="flex-1 px-8 py-6 lg:px-10 lg:py-8">
+            <div className="flex-1 px-3.5 py-5 sm:px-8 sm:py-6 lg:px-10 lg:py-8">
               {/* Error Message */}
               {errorMsg && (
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
@@ -885,36 +885,43 @@ export default function RegisterPage() {
                       <CollapsibleCard title="Contact Details" icon={<Mail className="w-[18px] h-[18px]" />} iconColor="apricot">
                         <div className="space-y-4">
                           <CardField label="Email Address" field="email">
-                            <div className="relative">
-                              <FieldInput type="email" value={formData.email} readOnly />
-                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <div className="space-y-1.5">
+                              <FieldInput
+                                type="email"
+                                value={formData.email}
+                                readOnly
+                                className="truncate"
+                              />
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-[10px] text-[#64748b] italic">
+                                  Email address cannot be changed once verification is completed.
+                                </p>
                                 {isGoogleUser ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1a2e4a] bg-[#1a2e4a]/5 px-2 py-1 rounded-md border border-[#1a2e4a]/10">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1a2e4a] bg-[#1a2e4a]/5 px-2 py-0.5 rounded-md border border-[#1a2e4a]/10 flex-shrink-0">
                                     <Lock className="w-3 h-3" /> GOOGLE AUTH
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#16a34a] bg-[#f0fdf4] px-2 py-1 rounded-md border border-[#16a34a]/15">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#16a34a] bg-[#f0fdf4] px-2 py-0.5 rounded-md border border-[#16a34a]/15 flex-shrink-0">
                                     <CheckCircle2 className="w-3 h-3" /> VERIFIED
                                   </span>
                                 )}
                               </div>
                             </div>
-                            <p className="text-[10px] text-[#64748b] italic mt-1">Email address cannot be changed once verification is completed.</p>
                           </CardField>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <CardField label="Mobile Number" field="mobileNumber">
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 items-stretch">
                                 <FieldSelect value={formData.countryCode} onChange={(e) => updateFormData('countryCode', e.target.value)}
                                   options={COUNTRY_CODES.map(c => ({ value: c.code, label: `${c.code} ${c.name}` }))}
-                                  className="max-w-[110px] flex-shrink-0" />
-                                <FieldInput type="tel" value={formData.mobileNumber} onChange={(e) => updateFormData('mobileNumber', e.target.value)}
-                                  placeholder="e.g. 55 123 4567" hasError={invalidFields.includes('mobileNumber')} className="flex-1" />
+                                  className="w-[104px] sm:w-[115px] !px-2.5 !pr-7 text-[13px] flex-shrink-0" />
+                                <FieldInput type="tel" inputMode="tel" value={formData.mobileNumber} onChange={(e) => updateFormData('mobileNumber', e.target.value)}
+                                  placeholder="e.g. 55 123 4567" hasError={invalidFields.includes('mobileNumber')} className="flex-1 min-w-0" />
                               </div>
                             </CardField>
                             <CardField label="Date of Birth" field="dob">
                               <FieldInput type="date" value={formData.dob} onChange={(e) => updateFormData('dob', e.target.value)}
-                                hasError={invalidFields.includes('dob')} />
+                                hasError={invalidFields.includes('dob')} className="appearance-none" />
                             </CardField>
                           </div>
                         </div>
@@ -1426,19 +1433,20 @@ export default function RegisterPage() {
 
               {/* Turnstile CAPTCHA */}
               <TurnstileWidget
+                key={currentStep}
                 onVerify={(token) => setTurnstileTokens(prev => ({ ...prev, [currentStep]: token }))}
               />
             </div>
 
             {/* Action Buttons */}
-            <div className="px-8 py-6 lg:px-10 lg:py-7 border-t border-[#f0ead9]/60 bg-gradient-to-t from-[#faf7f0] to-white flex justify-between items-center mt-auto">
-              <button onClick={handleBack} disabled={currentStep === 1}
-                className="group flex items-center gap-2.5 px-7 py-3 bg-white text-[#4a3521] rounded-full border border-[#e2ddd2] font-semibold text-[13px] shadow-[0_1px_3px_rgba(74,53,33,0.06)] hover:border-[#C9A84C]/50 hover:shadow-[0_2px_8px_rgba(201,168,76,0.12)] transition-all duration-300 active:scale-[0.97] disabled:opacity-0 disabled:pointer-events-none">
+            <div className="px-4 py-5 sm:px-8 sm:py-6 lg:px-10 lg:py-7 border-t border-[#f0ead9]/60 bg-gradient-to-t from-[#faf7f0] to-white flex justify-between items-center gap-3 mt-auto">
+              <button type="button" onClick={handleBack} disabled={currentStep === 1}
+                className="group flex items-center gap-2 px-5 sm:px-7 py-3 bg-white text-[#4a3521] rounded-full border border-[#e2ddd2] font-semibold text-[13px] shadow-[0_1px_3px_rgba(74,53,33,0.06)] hover:border-[#C9A84C]/50 hover:shadow-[0_2px_8px_rgba(201,168,76,0.12)] transition-all duration-300 active:scale-[0.97] disabled:opacity-0 disabled:pointer-events-none">
                 <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
                 Back
               </button>
-              <button onClick={handleNext} disabled={loading}
-                className="group relative flex items-center gap-2.5 px-10 py-3 bg-[#4a3521] text-white rounded-full font-semibold text-[13px] shadow-[0_2px_12px_rgba(74,53,33,0.25)] hover:bg-[#3a2a1a] hover:shadow-[0_4px_20px_rgba(74,53,33,0.35)] transition-all duration-300 active:scale-[0.97] disabled:opacity-60">
+              <button type="button" onClick={handleNext} disabled={loading}
+                className="group relative flex items-center gap-2.5 px-7 sm:px-10 py-3 bg-[#4a3521] text-white rounded-full font-semibold text-[13px] shadow-[0_2px_12px_rgba(74,53,33,0.25)] hover:bg-[#3a2a1a] hover:shadow-[0_4px_20px_rgba(74,53,33,0.35)] transition-all duration-300 active:scale-[0.97] disabled:opacity-60">
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : currentStep === STEPS.length ? "Submit Profile" : "Continue"}

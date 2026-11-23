@@ -1363,10 +1363,10 @@ const [showEditModal, setShowEditModal] = useState(false);
           {/* Cover banner — Sanctuary "pf2-cover" with overlaid nav */}
           <div className="sanctuary-grain sanctuary-panel rounded-[2rem] h-44 md:h-[190px] relative overflow-hidden">
             <div className="absolute right-10 top-1/2 -translate-y-1/2 font-headline text-[110px] md:text-[150px] opacity-10 text-white leading-none select-none">✝</div>
-            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 md:px-8 py-4">
-              <Link to={isAdmin ? '/admin' : `/profile/${id}`} className="flex items-center gap-3 font-headline font-bold text-white hover:opacity-90 transition-opacity">
-                <img src="/images/logo2.png" alt="Kingdom Alliance" className="w-16 h-16 object-contain drop-shadow-lg" />
-                <span className="text-[17px] md:text-[28px] whitespace-nowrap font-extralight" style={{ fontFamily: "'Outfit', sans-serif" }}>The Kingdom Alliances</span>
+            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between pl-14 pr-4 sm:pl-16 md:px-8 py-3.5 md:py-4 gap-2">
+              <Link to={isAdmin ? '/admin' : `/profile/${id}`} className="flex items-center gap-2 sm:gap-3 font-headline font-bold text-white hover:opacity-90 transition-opacity min-w-0">
+                <img src="/images/logo2.png" alt="Kingdom Alliance" className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 object-contain drop-shadow-lg flex-shrink-0" />
+                <span className="text-[14px] sm:text-[18px] md:text-[28px] truncate font-extralight" style={{ fontFamily: "'Outfit', sans-serif" }}>The Kingdom Alliances</span>
               </Link>
               <nav className="hidden md:flex items-center gap-6 text-[12.5px] font-semibold text-white/75">
                 {isAdmin ? (
@@ -1667,7 +1667,7 @@ const [showEditModal, setShowEditModal] = useState(false);
       {/* Quick Stats — clickable Sanctuary pill-bar (own profile only) */}
       {isOwnProfile && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="grid grid-cols-4 border border-[#eee5d2] bg-white rounded-[16px] overflow-hidden shadow-[0_12px_36px_-22px_rgba(143,99,55,0.28)] sm:rounded-[20px] sm:grid-cols-4 xl:grid-cols-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 border border-[#eee5d2] bg-white rounded-[16px] overflow-hidden shadow-[0_12px_36px_-22px_rgba(143,99,55,0.28)] sm:rounded-[20px]">
           {(() => {
             const completionFields = [
               profile.photoUrl, profile.aboutMe, profile.dob, profile.height,
@@ -1689,7 +1689,6 @@ const [showEditModal, setShowEditModal] = useState(false);
               { v: memberSince, k: 'Member Since' }
             ];
             return tiles.map((s, i) => {
-              const isRowStart = i % 4 === 0;
               const isUnreadTile = s.k === 'Unread Messages';
               const hasUnread = isUnreadTile && Number(s.v) > 0;
               const isInterestsTile = s.k === 'Interests';
@@ -1710,9 +1709,13 @@ const [showEditModal, setShowEditModal] = useState(false);
                     if (s.to) navigate(s.to);
                   }}
                   className={
-                    'text-center px-1.5 py-3 border-[#eee5d2] transition-all duration-300 sm:px-3 sm:py-[18px] ' +
-                    (isRowStart ? (i > 0 ? 'xl:border-l' : '') : 'border-l') +
-                    (i >= 4 ? ' border-t xl:border-t-0' : '') + ' ' +
+                    'text-center px-2 py-3 border-[#eee5d2] transition-all duration-300 sm:px-3 sm:py-[18px] ' +
+                    (i % 2 !== 0 ? 'border-l ' : '') +
+                    (i % 4 !== 0 && i % 2 === 0 ? 'sm:border-l ' : '') +
+                    (i === 4 ? 'xl:border-l ' : '') +
+                    (i >= 2 ? 'border-t ' : '') +
+                    (i >= 2 && i < 4 ? 'sm:border-t-0 ' : '') +
+                    (i >= 4 ? 'xl:border-t-0 ' : '') +
                     (isUnreadTile && (newMessageAlert.show || hasUnread)
                       ? 'bg-gradient-to-br from-[#fff7ea] to-[#feecd2] ring-1 ring-[#C9A84C]/60 shadow-xs '
                       : '') +
@@ -1722,7 +1725,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                     (s.to ? 'cursor-pointer hover:bg-[#faf4ea] group' : 'cursor-default')
                   }
                 >
-                  <div className="font-headline text-[18px] font-semibold text-[#8f6337] transition-colors group-hover:text-[#b8860b] sm:text-[24px] flex items-center justify-center gap-1.5">
+                  <div className="font-headline text-[19px] font-semibold text-[#8f6337] transition-colors group-hover:text-[#b8860b] sm:text-[24px] flex items-center justify-center gap-1.5">
                     <span className={hasUnackInterest ? 'text-amber-800 font-bold' : ''}>{s.v}</span>
                     {hasUnread && (
                       <span className="relative flex h-2 w-2">
@@ -1737,7 +1740,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 text-[7.5px] font-bold uppercase tracking-[0.6px] text-[#a89f8d] whitespace-nowrap sm:text-[9.5px] sm:tracking-[1.4px] flex items-center justify-center gap-1">
+                  <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.8px] text-[#a89f8d] leading-tight sm:text-[9.5px] sm:tracking-[1.3px] flex flex-wrap items-center justify-center gap-1">
                     <span>{s.k}</span>
                     {hasUnread && (
                       <span className="px-1 py-0.2 rounded-full text-[7px] font-extrabold bg-[#C9A84C] text-white tracking-wider">
@@ -1896,7 +1899,7 @@ const [showEditModal, setShowEditModal] = useState(false);
 
                   {/* ─── Personal Essentials ─── */}
                   <ProfileSection icon={UserRound} title="Personal Essentials" compact>
-                    <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xl:grid-cols-3">
                       {essentialsRows.map((row) => <Detail key={row.label} dense {...row} />)}
                     </div>
                   </ProfileSection>
@@ -1904,7 +1907,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                   {/* ─── Education & Career ─── */}
                   {educationRows.length > 0 && (
                     <ProfileSection icon={BookOpenCheck} title="Education & Career" compact>
-                      <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xl:grid-cols-3">
                         {educationRows.map((row) => <Detail key={row.label} dense {...row} />)}
                       </div>
                     </ProfileSection>
@@ -1913,7 +1916,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                   {/* ─── Family & Home ─── */}
                   {familyRows.length > 0 && (
                     <ProfileSection icon={House} title="Family & Home" compact>
-                      <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xl:grid-cols-3">
                         {familyRows.map((row) => <Detail key={row.label} dense {...row} />)}
                       </div>
                     </ProfileSection>
@@ -1923,7 +1926,7 @@ const [showEditModal, setShowEditModal] = useState(false);
                   {hasLifestyle && (
                     <ProfileSection icon={Feather} title="Lifestyle & Interests" compact>
                       {lifestyleRows.length > 0 && (
-                        <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xl:grid-cols-3">
                           {lifestyleRows.map((row) => <Detail key={row.label} dense {...row} />)}
                         </div>
                       )}

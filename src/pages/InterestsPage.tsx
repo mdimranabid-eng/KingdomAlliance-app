@@ -563,9 +563,9 @@ function InterestCard({ interest, isReceived, isDeclinedView, isProcessing, onAc
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="glass-card p-6 rounded-[2rem] flex items-center gap-6"
+      className="glass-card p-4 sm:p-6 rounded-[1.75rem] sm:rounded-[2rem] flex items-center gap-3.5 sm:gap-6"
     >
-      <Link to={`/profile/${user.id}`} className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-outline-variant">
+      <Link to={`/profile/${user.id}`} className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-outline-variant">
         <BlurablePhoto
           targetUid={user.id}
           src={user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}

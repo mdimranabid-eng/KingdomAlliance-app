@@ -326,7 +326,7 @@ export default function MatchesPage() {
             <p className="text-white/70 mt-2 text-sm max-w-md leading-relaxed">Christian singles sharing your faith and values — thoughtfully matched, prayerfully considered.</p>
           </div>
           
-          <div className="flex items-center gap-3 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
             <input 
@@ -340,7 +340,7 @@ export default function MatchesPage() {
           <button 
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
-              "flex items-center gap-2 px-6 py-3 rounded-2xl border border-[#e2ddd2] transition-all font-label-lg whitespace-nowrap",
+              "flex items-center justify-center gap-2 px-6 py-3 rounded-2xl border border-[#e2ddd2] transition-all font-label-lg whitespace-nowrap",
               showFilters ? "bg-white text-[#8f6337] border-white shadow-lg" : "text-white border-white/25 hover:bg-white/10"
             )}
           >
@@ -359,7 +359,7 @@ export default function MatchesPage() {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-white rounded-[2rem] p-8 border border-[#e2ddd2] shadow-lg space-y-8">
+            <div className="bg-white rounded-[2rem] p-5 sm:p-8 border border-[#e2ddd2] shadow-lg space-y-6 sm:space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Age Range */}
                 <div className="space-y-3">
@@ -484,7 +484,7 @@ export default function MatchesPage() {
                   </select>
                 </div>
 
-                <div className="lg:col-span-2 flex items-center gap-8 self-center">
+                <div className="lg:col-span-2 flex flex-wrap items-center gap-4 sm:gap-8 self-center">
                   <label className="flex items-center gap-3 cursor-pointer group">
                     <div 
                       onClick={() => setFilters({...filters, verifiedOnly: !filters.verifiedOnly})}

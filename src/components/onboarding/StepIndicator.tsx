@@ -12,10 +12,18 @@ interface StepIndicatorProps {
   currentStep: number;
 }
 
+const SHORT_TITLES: Record<number, string> = {
+  1: 'Basic',
+  2: 'Personal',
+  3: 'Family',
+  4: 'Partner',
+  5: 'Photos',
+};
+
 export default function StepIndicator({ steps, currentStep }: StepIndicatorProps) {
   return (
-    <div className="w-full max-w-[700px] px-2 mb-8">
-      <div className="flex items-center gap-0">
+    <nav aria-label="Onboarding Progress" className="w-full max-w-[700px] px-2 sm:px-4 mb-6 sm:mb-8">
+      <div className="flex items-start justify-between gap-1">
         {steps.map((step, idx) => {
           const isActive = currentStep === step.id;
           const isCompleted = currentStep > step.id;
@@ -23,7 +31,10 @@ export default function StepIndicator({ steps, currentStep }: StepIndicatorProps
 
           return (
             <React.Fragment key={step.id}>
-              <div className="flex flex-col items-center gap-2 flex-shrink-0 relative">
+              <div
+                aria-current={isActive ? 'step' : undefined}
+                className="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[44px] sm:min-w-[64px]"
+              >
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-500",
                   isCompleted
@@ -39,14 +50,15 @@ export default function StepIndicator({ steps, currentStep }: StepIndicatorProps
                   ) : step.id}
                 </div>
                 <span className={cn(
-                  "text-[9px] md:text-[10px] font-semibold tracking-[1px] uppercase whitespace-nowrap absolute -bottom-5 left-1/2 -translate-x-1/2",
-                  isCompleted ? "text-[#b8860b]" : isActive ? "text-[#4a3521]" : "text-[#c4bba8]"
+                  "text-[9px] sm:text-[10px] font-semibold tracking-[0.5px] sm:tracking-[0.8px] uppercase text-center leading-tight",
+                  isCompleted ? "text-[#b8860b]" : isActive ? "text-[#4a3521] font-bold" : "text-[#c4bba8]"
                 )}>
-                  {step.title}
+                  <span className="md:hidden">{SHORT_TITLES[step.id] || step.title}</span>
+                  <span className="hidden md:inline whitespace-nowrap">{step.title}</span>
                 </span>
               </div>
               {!isLast && (
-                <div className="flex-1 h-[2px] mx-1 mt-[-20px]">
+                <div className="flex-1 h-[2px] mx-0.5 sm:mx-1.5 mt-4">
                   <div className={cn(
                     "h-full rounded-full transition-all duration-700",
                     isCompleted
@@ -60,10 +72,10 @@ export default function StepIndicator({ steps, currentStep }: StepIndicatorProps
             </React.Fragment>
           );
         })}
-        <div className="flex flex-col items-center gap-2 flex-shrink-0 ml-2">
+        <div className="hidden sm:flex flex-col items-center gap-2 flex-shrink-0 ml-2 mt-1.5">
           <div className="text-[#C9A84C] text-base leading-none opacity-60">✝</div>
         </div>
       </div>
-    </div>
+    </nav>
   );
 }
