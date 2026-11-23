@@ -143,6 +143,17 @@ function checkSuccessStories(ctx) {
 }
 
 
+function getRole(d) {
+  if (!d) return null;
+  const pt = String(d.profileType || '').trim().toLowerCase();
+  if (pt === 'groom') return 'groom';
+  if (pt === 'bride') return 'bride';
+  const g = String(d.gender || '').trim().toLowerCase();
+  if (g === 'male' || g === 'groom') return 'groom';
+  if (g === 'female' || g === 'bride') return 'bride';
+  return null;
+}
+
 // ── users ─────────────────────────────────────────────────────────────────────
 function checkUsers(ctx) {
   const { op, id, incoming, existing } = ctx;
@@ -155,7 +166,17 @@ function checkUsers(ctx) {
   if (op === 'list') {
     if (!ctx.auth) throw new PermissionDenied();
     if (isAdmin(ctx)) return {};
-    if (isApproved(ctx)) return { filter: (d) => (d.isApproved === true || d.approvalStatus === 'approved') && g(d, 'deletionStatus', '') === '' };
+    if (isApproved(ctx)) {
+      const callerRole = getRole(ctx.callerUserDoc);
+      const oppositeRole = callerRole === 'groom' ? 'bride' : callerRole === 'bride' ? 'groom' : null;
+      return {
+        filter: (d) =>
+          (d.isApproved === true || d.approvalStatus === 'approved') &&
+          g(d, 'deletionStatus', '') === '' &&
+          d.role !== 'admin' &&
+          (!oppositeRole || d.uid === ctx.auth.uid || getRole(d) === oppositeRole),
+      };
+    }
     throw new PermissionDenied();
   }
   if (op === 'create') {
