@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { db, auth } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc, Timestamp, arrayUnion } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut, updateProfile } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ArrowLeft, CheckCircle2, User, Mail, MapPin, Church, GraduationCap, ShieldCheck, Camera, UserPlus, Users, Heart, Globe, Lock, Briefcase, Home, FileText, Scale, Ruler, Eye, EyeOff, Hourglass } from 'lucide-react';
 import { cn, formatAuthError, generateUniqueProfileId, calculateAge, parseHeightToInches } from '../lib/utils';
@@ -185,22 +185,26 @@ export default function RegisterPage() {
 
   useEffect(() => {
     const saved = sessionStorage.getItem('saved_credentials');
+    let expectedEmail = user?.email || '';
     if (saved) {
-      const creds = JSON.parse(saved);
-      setEmailVerifiedLocal(creds.emailVerified || false);
-      setFormData(prev => ({
-        ...prev,
-        email: creds.email || prev.email,
-        name: creds.fullName?.split(' ')[0] || prev.name,
-        lastName: creds.fullName?.split(' ').slice(1).join(' ') || prev.lastName,
-      }));
+      try {
+        const creds = JSON.parse(saved);
+        if (creds.email) expectedEmail = creds.email;
+        setEmailVerifiedLocal(creds.emailVerified || false);
+        setFormData(prev => ({
+          ...prev,
+          email: creds.email || prev.email,
+          name: creds.fullName?.split(' ')[0] || prev.name,
+          lastName: creds.fullName?.split(' ').slice(1).join(' ') || prev.lastName,
+        }));
+      } catch {}
     }
-    if (user && !formData.email) {
+    if (user && (!formData.email || (expectedEmail && formData.email.toLowerCase() !== expectedEmail.toLowerCase()))) {
       setFormData(prev => ({
         ...prev,
-        email: user.email || '',
-        name: user.displayName?.split(' ')[0] || '',
-        lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
+        email: expectedEmail || user.email || '',
+        name: prev.name || user.displayName?.split(' ')[0] || '',
+        lastName: prev.lastName || user.displayName?.split(' ').slice(1).join(' ') || '',
         pendingPhotoUrl: prev.pendingPhotoUrl || user.photoURL || ''
       }));
     }
@@ -214,12 +218,23 @@ export default function RegisterPage() {
     }
   }, [user, profile, navigate, formData.email, isGoogleUser]);
 
-  // Load draft from localStorage
+  // Load draft from localStorage (only if it belongs to the same email/user)
   useEffect(() => {
     const draft = localStorage.getItem('onboarding_draft');
     if (draft) {
       try {
         const parsed = JSON.parse(draft);
+        const saved = sessionStorage.getItem('saved_credentials');
+        const credsEmail = saved ? (JSON.parse(saved)?.email || '') : '';
+        const activeEmail = (credsEmail || auth.currentUser?.email || user?.email || '').trim().toLowerCase();
+        const draftEmail = (parsed?.email || '').trim().toLowerCase();
+
+        // If the draft belongs to a different email address, discard it so it never causes permission-denied
+        if (activeEmail && draftEmail && activeEmail !== draftEmail) {
+          localStorage.removeItem('onboarding_draft');
+          return;
+        }
+
         if (typeof parsed.pendingPhotoUrl === 'string' && parsed.pendingPhotoUrl.startsWith('blob:')) {
           parsed.pendingPhotoUrl = '';
           parsed.photoStatus = 'idle';
@@ -227,10 +242,14 @@ export default function RegisterPage() {
         if (Array.isArray(parsed.gallery)) {
           parsed.gallery = parsed.gallery.filter((p: any) => p?.url && !String(p.url).startsWith('blob:'));
         }
-        setFormData(prev => ({ ...prev, ...parsed }));
+        setFormData(prev => ({
+          ...prev,
+          ...parsed,
+          email: activeEmail || parsed.email || prev.email,
+        }));
       } catch (e) {}
     }
-  }, []);
+  }, [user?.email]);
 
   // Save draft to localStorage
   useEffect(() => {
@@ -600,21 +619,35 @@ export default function RegisterPage() {
       let activeUser = auth.currentUser;
       const savedCredsStr = sessionStorage.getItem('saved_credentials');
 
-      if (!activeUser && savedCredsStr) {
+      if (savedCredsStr) {
         const creds = JSON.parse(savedCredsStr);
-        if (creds.authProvider === 'email') {
-          const userCredential = await createUserWithEmailAndPassword(auth, creds.email, creds.password);
-          activeUser = userCredential.user;
-          if (creds.fullName) await updateProfile(activeUser, { displayName: creds.fullName });
+        // If an older session with a different email was still active in localStorage, sign it out first
+        if (activeUser && creds.email && activeUser.email?.toLowerCase() !== String(creds.email).trim().toLowerCase()) {
+          await firebaseSignOut(auth);
+          activeUser = null;
+        }
+        if (!activeUser && creds.authProvider === 'email') {
+          try {
+            const userCredential = await createUserWithEmailAndPassword(auth, creds.email, creds.password);
+            activeUser = userCredential.user;
+          } catch (regErr: any) {
+            if (regErr?.code === 'auth/email-already-in-use') {
+              const signInCred = await signInWithEmailAndPassword(auth, creds.email, creds.password);
+              activeUser = signInCred.user;
+            } else {
+              throw regErr;
+            }
+          }
+          if (creds.fullName && activeUser) await updateProfile(activeUser, { displayName: creds.fullName });
         }
       }
 
       if (!activeUser) throw new Error("No active user session or registration credentials found. Please sign up again.");
 
-      let finalProfilePhotoUrl = formData.photoUrl || '';
+      let finalProfilePhotoUrl = '';
       let finalPendingPhotoUrl = formData.pendingPhotoUrl;
       let finalPendingThumbUrl = formData.pendingPhotoThumbUrl || '';
-      let finalPhotoStatus = formData.photoStatus;
+      let finalPhotoStatus = 'pending';
       const userName = formData.name ? `${formData.name} ${formData.lastName}` : (activeUser.displayName || 'User');
 
       if (profilePhotoFile) {
@@ -653,12 +686,16 @@ export default function RegisterPage() {
       }
 
       const authProvider = savedCredsStr ? JSON.parse(savedCredsStr).authProvider : (activeUser.providerData[0]?.providerId === 'google.com' ? 'google' : 'email');
+      const normalizedProfileType = (formData.profileType || 'bride').trim().toLowerCase() === 'groom' ? 'groom' : 'bride';
+      const normalizedGender = normalizedProfileType === 'groom' ? 'male' : 'female';
+      const resolvedEmail = (activeUser.email || formData.email || '').trim().toLowerCase();
+      const computedAge = formData.dob ? calculateAge(formData.dob, 18) : (Number(formData.age) || 18);
 
       const profileData = {
         name: formData.name, middleName: formData.middleName, lastName: formData.lastName,
-        mobileNumber: `${formData.countryCode} ${formData.mobileNumber}`,
-        profileType: formData.profileType, profileFor: formData.profileFor, gender: formData.gender,
-        dob: formData.dob, age: formData.dob ? calculateAge(formData.dob, 0) : Number(formData.age) || 0,
+        mobileNumber: `${formData.countryCode} ${formData.mobileNumber}`.trim(),
+        profileType: normalizedProfileType, profileFor: formData.profileFor, gender: normalizedGender,
+        dob: formData.dob, age: computedAge >= 18 ? computedAge : 18,
         citizenship: formData.citizenship, countryLiving: formData.countryLiving, cityLiving: formData.cityLiving,
         maritalStatus: formData.maritalStatus, height: formData.height, weight: formData.weight,
         bodyType: formData.bodyType, complexion: formData.complexion, physicalStatus: formData.physicalStatus,
@@ -674,7 +711,7 @@ export default function RegisterPage() {
         profession: formData.profession, employmentType: formData.employmentType, annualIncome: formData.annualIncome,
         dietaryHabits: formData.dietaryHabits, drinkingHabits: formData.drinkingHabits,
         smokingHabits: formData.smokingHabits, hobbies: formData.hobbies, aboutMe: formData.aboutMe,
-        photoUrl: finalProfilePhotoUrl, photoPrivacy: formData.photoPrivacy,
+        photoUrl: finalProfilePhotoUrl, photoPrivacy: formData.photoPrivacy || 'public',
         pendingPhotoUrl: finalPendingPhotoUrl, pendingPhotoThumbUrl: finalPendingThumbUrl,
         photoStatus: finalPhotoStatus, gallery: finalGallery,
         partnerPreferences: {
@@ -692,14 +729,14 @@ export default function RegisterPage() {
           relocationPreference: formData.partnerPreferences.relocationPreference,
           otherPreferences: formData.partnerPreferences.otherPreferences || ''
         },
-        uid: activeUser.uid, email: formData.email || activeUser.email || '',
-        emailVerified: emailVerifiedLocal, authProvider, role: 'user', isBanned: false, isSuspended: false,
+        uid: activeUser.uid, email: resolvedEmail,
+        emailVerified: true, authProvider,
         onboardingComplete: true, approvalStatus: 'pending',
         agreedTerms: true,
         agreedTermsAt: serverTimestamp(),
         digitalSignature: {
-          signedByName: formData.fullName || formData.name || activeUser.displayName || 'Member',
-          signedByEmail: formData.email || activeUser.email || '',
+          signedByName: formData.name ? `${formData.name} ${formData.lastName}`.trim() : (activeUser.displayName || 'Member'),
+          signedByEmail: resolvedEmail,
           signedAt: serverTimestamp(),
           agreementVersion: 'v2.0'
         },

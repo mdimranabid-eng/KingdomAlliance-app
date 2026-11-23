@@ -196,6 +196,11 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
+      // Clear any stale session or onboarding draft from a previous user on this browser
+      if (user && user.email?.toLowerCase() !== email.trim().toLowerCase()) {
+        await signOut();
+      }
+      localStorage.removeItem('onboarding_draft');
       await sendEmailOtp(email);
 
       // Save credentials locally and in sessionStorage only after email is confirmed available
