@@ -29,7 +29,7 @@ async function getFileHash(file: File | Blob): Promise<string> {
     .join('');
 }
 
-/** Center-crop an image source to a target WxH and return a JPEG blob. */
+/** Center-crop an image source to a target WxH and return a high-quality JPEG blob. */
 async function centerCropToBlob(
   src: CanvasImageSource,
   srcW: number,
@@ -42,6 +42,9 @@ async function centerCropToBlob(
   canvas.height = targetH;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas not supported in this browser.');
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // Cover-crop: scale so the image fills the box, centered
   const scale = Math.max(targetW / srcW, targetH / srcH);
@@ -56,7 +59,7 @@ async function centerCropToBlob(
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error('Failed to encode thumbnail.'))),
       'image/jpeg',
-      0.8
+      0.92
     );
   });
 }
@@ -109,23 +112,28 @@ export async function uploadUserPhotos(
     console.warn('[storage] Hash/duplicate check failed, continuing with upload:', hashErr);
   }
 
-  // 2. Full variant — compressed, max 1200px
+  // 2. Full variant — high-definition (max 2048px, quality 0.92; preserve original if already compact JPEG)
   let fullBlob: Blob;
   try {
-    fullBlob = await imageCompression(file, {
-      maxSizeMB: 0.45,
-      maxWidthOrHeight: 1200,
-      useWebWorker: true,
-      fileType: 'image/jpeg'
-    });
+    if (file.type === 'image/jpeg' && file.size <= 1.5 * 1024 * 1024) {
+      fullBlob = file;
+    } else {
+      fullBlob = await imageCompression(file, {
+        maxSizeMB: 2.5,
+        maxWidthOrHeight: 2048,
+        initialQuality: 0.92,
+        useWebWorker: true,
+        fileType: 'image/jpeg'
+      });
+    }
   } catch (err) {
     console.warn('[storage] Compression failed, uploading original:', err);
     fullBlob = file;
   }
 
-  // 3. Thumb variant — 600x800 center-crop
-  const { el: imgEl, w, h } = await loadImageElement(fullBlob);
-  const thumbBlob = await centerCropToBlob(imgEl, w, h, 600, 800);
+  // 3. Thumb variant — 900x1200 Retina 3:4 center-crop generated directly from the original file (no double compression)
+  const { el: imgEl, w, h } = await loadImageElement(file);
+  const thumbBlob = await centerCropToBlob(imgEl, w, h, 900, 1200);
 
   // 4. Upload both under users/{uid}/photos/ with an unguessable random token
   const stamp = Date.now();

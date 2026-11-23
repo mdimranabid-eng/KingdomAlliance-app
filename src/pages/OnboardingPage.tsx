@@ -205,7 +205,7 @@ export default function RegisterPage() {
         email: expectedEmail || user.email || '',
         name: prev.name || user.displayName?.split(' ')[0] || '',
         lastName: prev.lastName || user.displayName?.split(' ').slice(1).join(' ') || '',
-        pendingPhotoUrl: prev.pendingPhotoUrl || user.photoURL || ''
+        pendingPhotoUrl: (prev.pendingPhotoUrl && !prev.pendingPhotoUrl.includes('googleusercontent.com')) ? prev.pendingPhotoUrl : ''
       }));
     }
     if (isGoogleUser) {
@@ -235,7 +235,7 @@ export default function RegisterPage() {
           return;
         }
 
-        if (typeof parsed.pendingPhotoUrl === 'string' && parsed.pendingPhotoUrl.startsWith('blob:')) {
+        if (typeof parsed.pendingPhotoUrl === 'string' && (parsed.pendingPhotoUrl.startsWith('blob:') || parsed.pendingPhotoUrl.includes('googleusercontent.com'))) {
           parsed.pendingPhotoUrl = '';
           parsed.photoStatus = 'idle';
         }
@@ -655,6 +655,7 @@ export default function RegisterPage() {
         finalPendingPhotoUrl = pair.url;
         finalPendingThumbUrl = pair.thumbUrl;
         finalPhotoStatus = 'pending';
+        setFormData(prev => ({ ...prev, pendingPhotoUrl: pair.url, pendingPhotoThumbUrl: pair.thumbUrl, photoStatus: 'pending' }));
         await addDoc(collection(db, 'photoModeration'), {
           uid: activeUser.uid, userId: activeUser.uid, userName, photoURL: pair.url,
           thumbUrl: pair.thumbUrl, photoType: 'profilePhoto', galleryPosition: null,

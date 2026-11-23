@@ -649,7 +649,7 @@ function MatchProfileCard({ user, isShortlisted, onShortlist }: { user: any, isS
       <Link to={`/profile/${user.id}`} className="block relative aspect-[3/4] overflow-hidden">
         <BlurablePhoto
           targetUid={user.id}
-          src={user.thumbUrl || getOptimizedImageUrl(user.photoUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+          src={getOptimizedImageUrl(user.photoUrl) || user.thumbUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
           fallbackSrc={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
           alt={user.name}
           profile={user}

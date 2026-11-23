@@ -810,7 +810,7 @@ function StatCard({ label, value, icon: Icon, trend, color, to, onClick }: any) 
 function MatchCard({ match }: { match: any }) {
   const { id, name, age, location, denomination, matchScore, lastActive } = match;
   const fallback = `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`;
-  const imageUrl = match.thumbUrl || getOptimizedImageUrl(match.photoUrl) || fallback;
+  const imageUrl = getOptimizedImageUrl(match.photoUrl) || match.thumbUrl || fallback;
   return (
     <div className="glass-card rounded-3xl overflow-hidden hover:-translate-y-1 transition-all duration-300 group">
       <div className="aspect-[4/3] overflow-hidden relative">

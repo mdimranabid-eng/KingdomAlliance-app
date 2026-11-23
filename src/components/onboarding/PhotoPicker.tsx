@@ -87,7 +87,7 @@ export default function PhotoPicker({
             {hasError && (
               <p className="text-[#dc2626] text-[12px] mt-1">Profile photo is required.</p>
             )}
-            <p className="text-[10px] text-[#64748b] mt-1">Please upload .Jpg files only and not more than 500 KB file size.</p>
+            <p className="text-[10px] text-[#64748b] mt-1">Upload a clear, high-resolution JPEG, PNG, or WEBP photo (up to 10 MB).</p>
           </div>
         </div>
 
@@ -189,7 +189,7 @@ export default function PhotoPicker({
             </label>
           )}
         </div>
-        <p className="text-[10px] text-[#64748b] mt-3 text-center">Please upload .Jpg files only and not more than 500 KB file size.</p>
+        <p className="text-[10px] text-[#64748b] mt-3 text-center">Upload high-resolution JPEG, PNG, or WEBP photos (up to 10 MB each).</p>
       </div>
     </div>
   );

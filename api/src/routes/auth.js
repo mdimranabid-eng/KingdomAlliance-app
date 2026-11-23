@@ -233,7 +233,7 @@ router.post('/auth/google', async (req, res) => {
         uid,
         email: email.toLowerCase(),
         fullName,
-        photoUrl: picture,
+        photoUrl: '',
         authProvider: 'google',
         emailVerified: true,
         createdAt: { __st: 1 },

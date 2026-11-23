@@ -268,6 +268,70 @@ async function reconcileUploads(pool) {
     for (const r of userRows) {
       let d = {};
       try { d = typeof r.data === 'object' ? r.data : JSON.parse(r.data || '{}'); } catch {}
+
+      // Check if user has uploaded profile photos on disk under users/{id}/photos/
+      const userPhotosPrefix = `users/${r.id}/photos/`;
+      const userFullPhotos = filesOnDisk
+        .filter((f) => f.replace(/\\/g, '/').startsWith(userPhotosPrefix) && f.endsWith('_profile_full.jpg'))
+        .sort();
+      const latestFullRel = userFullPhotos.length > 0 ? userFullPhotos[userFullPhotos.length - 1].replace(/\\/g, '/') : '';
+      const latestThumbRel = latestFullRel ? latestFullRel.replace('_profile_full.jpg', '_profile_thumb.jpg') : '';
+      const latestFullUrl = latestFullRel ? `/uploads/${latestFullRel}` : '';
+      const latestThumbUrl = (latestThumbRel && fileExistsInRoot(latestThumbRel)) ? `/uploads/${latestThumbRel}` : latestFullUrl;
+
+      const currentPhoto = d.photoUrl || '';
+      const currentPending = d.pendingPhotoUrl || '';
+      const isGoogleAvatar = (u) => typeof u === 'string' && u.includes('googleusercontent.com');
+
+      // If the user has a real uploaded profile photo on disk, but their DB record has a low-res Google avatar or missing file, restore their uploaded photo!
+      if (latestFullUrl && (isGoogleAvatar(currentPhoto) || isGoogleAvatar(currentPending) || (!urlToRelPath(currentPhoto) && !urlToRelPath(currentPending)))) {
+        const store = require('../store');
+        const isAlreadyApproved = d.isApproved === true || d.approvalStatus === 'approved' || d.photoStatus === 'approved';
+        if (isAlreadyApproved) {
+          await store.writeDoc('users', r.id, {
+            photoUrl: latestFullUrl,
+            photoURL: latestFullUrl,
+            thumbUrl: latestThumbUrl,
+            pendingPhotoUrl: '',
+            pendingPhotoThumbUrl: '',
+            photoStatus: 'approved',
+          }, { merge: true });
+          console.log(`[uploads] restored uploaded high-res profile photo as approved for user ${r.id}: ${latestFullUrl}`);
+        } else {
+          await store.writeDoc('users', r.id, {
+            photoUrl: '',
+            pendingPhotoUrl: latestFullUrl,
+            pendingPhotoThumbUrl: latestThumbUrl,
+            photoStatus: 'pending',
+          }, { merge: true });
+          // Ensure a pending photoModeration record exists for this uploaded photo
+          const hasMod = modRows.some((mr) => {
+            let md = {};
+            try { md = typeof mr.data === 'object' ? mr.data : JSON.parse(mr.data || '{}'); } catch {}
+            return (md.uid === r.id || md.userId === r.id) && md.photoType === 'profilePhoto' && urlToRelPath(md.photoURL || md.photoUrl || '') === latestFullRel;
+          });
+          if (!hasMod) {
+            const userName = [d.name, d.lastName].filter(Boolean).join(' ') || d.fullName || 'Member';
+            await store.addDoc('photoModeration', {
+              uid: r.id,
+              userId: r.id,
+              userName,
+              photoURL: latestFullUrl,
+              thumbUrl: latestThumbUrl,
+              photoType: 'profilePhoto',
+              galleryPosition: null,
+              photoStatus: 'pending',
+              uploadedAt: { __st: 1 },
+              reviewedAt: null,
+              reviewedBy: null,
+              rejectedReason: null,
+            });
+          }
+          console.log(`[uploads] restored uploaded high-res profile photo as pending for user ${r.id}: ${latestFullUrl}`);
+        }
+        continue;
+      }
+
       const pending = d.pendingPhotoUrl || '';
       const relPending = urlToRelPath(pending);
       if (d.photoStatus === 'pending' && (!relPending || !fileExistsInRoot(relPending))) {
@@ -275,7 +339,8 @@ async function reconcileUploads(pool) {
         await store.writeDoc('users', r.id, {
           pendingPhotoUrl: '',
           pendingPhotoThumbUrl: '',
-          photoStatus: d.photoUrl ? 'approved' : 'idle',
+          photoStatus: (d.photoUrl && !isGoogleAvatar(d.photoUrl)) ? 'approved' : 'idle',
+          ...(isGoogleAvatar(d.photoUrl) ? { photoUrl: '', photoURL: '' } : {}),
         }, { merge: true });
         console.log(`[uploads] cleared orphaned pendingPhotoUrl for user ${r.id}`);
       }
