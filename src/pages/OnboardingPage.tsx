@@ -544,17 +544,17 @@ export default function RegisterPage() {
         return;
       }
 
-      if (Number(pref.ageMin) > Number(pref.ageMax)) {
+      if (Number(pref.ageMin) >= Number(pref.ageMax)) {
         setInvalidFields(['ageMin', 'ageMax']);
-        setErrorMsg("Min Age cannot be greater than Max Age.");
-        scrollToFirstError(['ageMin']);
+        setErrorMsg("Max Age must be greater than Min Age.");
+        scrollToFirstError(['ageMax']);
         return;
       }
 
-      if (parseHeightToInches(pref.heightMin) > parseHeightToInches(pref.heightMax)) {
+      if (parseHeightToInches(pref.heightMin) >= parseHeightToInches(pref.heightMax)) {
         setInvalidFields(['heightMin', 'heightMax']);
-        setErrorMsg("Min Height cannot be greater than Max Height.");
-        scrollToFirstError(['heightMin']);
+        setErrorMsg("Max Height must be greater than Min Height.");
+        scrollToFirstError(['heightMax']);
         return;
       }
     }
@@ -1231,17 +1231,17 @@ export default function RegisterPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <CardField label="Min Age" field="ageMin">
                               <MobileSelectTrigger value={formData.partnerPreferences.ageMin} placeholder="Select Min Age"
-                                onClick={() => openSheet('partnerPreferences.ageMin', 'Min Age', AGE_OPTIONS.map(a => ({ value: a, label: a })))}
+                                onClick={() => openSheet('partnerPreferences.ageMin', 'Min Age', AGE_OPTIONS.slice(0, -1).map(a => ({ value: a, label: a })))}
                                 hasError={invalidFields.includes('ageMin')} />
                               <FieldSelect value={formData.partnerPreferences.ageMin}
                                 onChange={(e) => {
                                   const nextMin = e.target.value;
                                   const curMax = formData.partnerPreferences.ageMax;
-                                  const nextMax = curMax && Number(nextMin) > Number(curMax) ? '' : curMax;
+                                  const nextMax = curMax && Number(nextMin) >= Number(curMax) ? '' : curMax;
                                   updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMin: nextMin, ageMax: nextMax });
                                 }}
                                 hasError={invalidFields.includes('ageMin')} placeholder="Select Min Age"
-                                options={AGE_OPTIONS.map(a => ({ value: a, label: a }))} />
+                                options={AGE_OPTIONS.slice(0, -1).map(a => ({ value: a, label: a }))} />
                             </CardField>
                             <CardField label="Max Age" field="ageMax">
                               <MobileSelectTrigger value={formData.partnerPreferences.ageMax} placeholder="Select Max Age"
@@ -1249,7 +1249,7 @@ export default function RegisterPage() {
                                   'partnerPreferences.ageMax',
                                   'Max Age',
                                   AGE_OPTIONS
-                                    .filter(a => !formData.partnerPreferences.ageMin || Number(a) >= Number(formData.partnerPreferences.ageMin))
+                                    .filter(a => !formData.partnerPreferences.ageMin ? Number(a) > Number(AGE_OPTIONS[0]) : Number(a) > Number(formData.partnerPreferences.ageMin))
                                     .map(a => ({ value: a, label: a }))
                                 )}
                                 hasError={invalidFields.includes('ageMax')} />
@@ -1257,29 +1257,29 @@ export default function RegisterPage() {
                                 onChange={(e) => {
                                   const nextMax = e.target.value;
                                   const curMin = formData.partnerPreferences.ageMin;
-                                  const nextMin = curMin && Number(nextMax) < Number(curMin) ? nextMax : curMin;
+                                  const nextMin = curMin && Number(nextMax) <= Number(curMin) ? '' : curMin;
                                   updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMin: nextMin, ageMax: nextMax });
                                 }}
                                 hasError={invalidFields.includes('ageMax')} placeholder="Select Max Age"
                                 options={AGE_OPTIONS
-                                  .filter(a => !formData.partnerPreferences.ageMin || Number(a) >= Number(formData.partnerPreferences.ageMin))
+                                  .filter(a => !formData.partnerPreferences.ageMin ? Number(a) > Number(AGE_OPTIONS[0]) : Number(a) > Number(formData.partnerPreferences.ageMin))
                                   .map(a => ({ value: a, label: a }))} />
                             </CardField>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <CardField label="Min Height (ft)" field="heightMin">
                               <MobileSelectTrigger value={formData.partnerPreferences.heightMin} placeholder="Select Min Height"
-                                onClick={() => openSheet('partnerPreferences.heightMin', 'Min Height', HEIGHT_FT.map(h => ({ value: h, label: `${h} ft` })))}
+                                onClick={() => openSheet('partnerPreferences.heightMin', 'Min Height', HEIGHT_FT.slice(0, -1).map(h => ({ value: h, label: `${h} ft` })))}
                                 hasError={invalidFields.includes('heightMin')} />
                               <FieldSelect value={formData.partnerPreferences.heightMin}
                                 onChange={(e) => {
                                   const nextMin = e.target.value;
                                   const curMax = formData.partnerPreferences.heightMax;
-                                  const nextMax = curMax && parseHeightToInches(nextMin) > parseHeightToInches(curMax) ? '' : curMax;
+                                  const nextMax = curMax && parseHeightToInches(nextMin) >= parseHeightToInches(curMax) ? '' : curMax;
                                   updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMin: nextMin, heightMax: nextMax });
                                 }}
                                 hasError={invalidFields.includes('heightMin')} placeholder="Select Min Height"
-                                options={HEIGHT_FT.map(h => ({ value: h, label: `${h} ft` }))} />
+                                options={HEIGHT_FT.slice(0, -1).map(h => ({ value: h, label: `${h} ft` }))} />
                             </CardField>
                             <CardField label="Max Height (ft)" field="heightMax">
                               <MobileSelectTrigger value={formData.partnerPreferences.heightMax} placeholder="Select Max Height"
@@ -1287,7 +1287,7 @@ export default function RegisterPage() {
                                   'partnerPreferences.heightMax',
                                   'Max Height',
                                   HEIGHT_FT
-                                    .filter(h => !formData.partnerPreferences.heightMin || parseHeightToInches(h) >= parseHeightToInches(formData.partnerPreferences.heightMin))
+                                    .filter(h => !formData.partnerPreferences.heightMin ? parseHeightToInches(h) > parseHeightToInches(HEIGHT_FT[0]) : parseHeightToInches(h) > parseHeightToInches(formData.partnerPreferences.heightMin))
                                     .map(h => ({ value: h, label: `${h} ft` }))
                                 )}
                                 hasError={invalidFields.includes('heightMax')} />
@@ -1295,12 +1295,12 @@ export default function RegisterPage() {
                                 onChange={(e) => {
                                   const nextMax = e.target.value;
                                   const curMin = formData.partnerPreferences.heightMin;
-                                  const nextMin = curMin && parseHeightToInches(nextMax) < parseHeightToInches(curMin) ? nextMax : curMin;
+                                  const nextMin = curMin && parseHeightToInches(nextMax) <= parseHeightToInches(curMin) ? '' : curMin;
                                   updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMin: nextMin, heightMax: nextMax });
                                 }}
                                 hasError={invalidFields.includes('heightMax')} placeholder="Select Max Height"
                                 options={HEIGHT_FT
-                                  .filter(h => !formData.partnerPreferences.heightMin || parseHeightToInches(h) >= parseHeightToInches(formData.partnerPreferences.heightMin))
+                                  .filter(h => !formData.partnerPreferences.heightMin ? parseHeightToInches(h) > parseHeightToInches(HEIGHT_FT[0]) : parseHeightToInches(h) > parseHeightToInches(formData.partnerPreferences.heightMin))
                                   .map(h => ({ value: h, label: `${h} ft` }))} />
                             </CardField>
                           </div>
