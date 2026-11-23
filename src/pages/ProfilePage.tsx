@@ -83,7 +83,7 @@ import {
   PlayCircle,
   Settings
 } from 'lucide-react';
-import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge, shouldBlurPhoto } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, calculateAge, shouldBlurPhoto, getProfileRole } from '../lib/utils';
 import { useLogout } from '../hooks/useLogout';
 import BlockedUsersList from '../components/BlockedUsersList';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
@@ -315,6 +315,14 @@ const [showEditModal, setShowEditModal] = useState(false);
             navigate(isAdmin ? '/admin' : '/matches', { replace: true });
             return;
           }
+          if (!isAdmin && currentUser?.uid && currentUser.uid !== id && currentProfile) {
+            const myRole = getProfileRole(currentProfile);
+            const targetRole = getProfileRole(data);
+            if (myRole && targetRole && myRole === targetRole) {
+              navigate('/matches', { replace: true });
+              return;
+            }
+          }
           const age = calculateAge(data.dob, data.age);
           setProfile({ id: docSnap.id, ...data, age });
           setLoading(false);
@@ -344,6 +352,14 @@ const [showEditModal, setShowEditModal] = useState(false);
           if (data?.role === 'admin') {
             navigate(isAdmin ? '/admin' : '/matches', { replace: true });
             return;
+          }
+          if (!isAdmin && currentUser?.uid && currentUser.uid !== id && currentProfile) {
+            const myRole = getProfileRole(currentProfile);
+            const targetRole = getProfileRole(data);
+            if (myRole && targetRole && myRole === targetRole) {
+              navigate('/matches', { replace: true });
+              return;
+            }
           }
           const age = calculateAge(data.dob, data.age);
           setProfile({ id: docSnap.id, ...data, age });
@@ -857,8 +873,10 @@ const [showEditModal, setShowEditModal] = useState(false);
     }
 
     if (currentProfile && profile) {
-      if (currentProfile.gender === profile.gender) {
-        toast.error(`As a ${currentProfile.gender}, you can only express interest to ${currentProfile.gender === 'Bride' ? 'Grooms' : 'Brides'}.`);
+      const myRole = getProfileRole(currentProfile);
+      const targetRole = getProfileRole(profile);
+      if ((myRole && targetRole && myRole === targetRole) || currentProfile.gender === profile.gender) {
+        toast.error(`As a ${myRole === 'bride' ? 'Bride' : 'Groom'}, you can only express interest to ${myRole === 'bride' ? 'Grooms' : 'Brides'}.`);
         return;
       }
     }

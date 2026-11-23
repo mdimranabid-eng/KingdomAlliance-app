@@ -116,6 +116,31 @@ export function formatAuthError(err: any): string {
   return "An unexpected error occurred. Please try again.";
 }
 
+export function parseHeightToInches(h?: string | number | null): number {
+  if (typeof h === 'number') return h;
+  if (!h) return 0;
+  const str = String(h).trim();
+  const match = str.match(/(\d+)\s*'\s*(\d+)?/);
+  if (match) {
+    const feet = parseInt(match[1], 10) || 0;
+    const inches = parseInt(match[2] || '0', 10) || 0;
+    return feet * 12 + inches;
+  }
+  const num = Number(str);
+  return isNaN(num) ? 0 : num;
+}
+
+export function getProfileRole(u: any): 'bride' | 'groom' | null {
+  if (!u) return null;
+  const pt = String(u.profileType || '').trim().toLowerCase();
+  if (pt === 'groom') return 'groom';
+  if (pt === 'bride') return 'bride';
+  const g = String(u.gender || '').trim().toLowerCase();
+  if (g === 'male' || g === 'groom') return 'groom';
+  if (g === 'female' || g === 'bride') return 'bride';
+  return null;
+}
+
 export function calculateMatchScore(me: any, other: any) {
   if (!me || !other) return 0;
   let score = 0;
@@ -135,8 +160,8 @@ export function calculateMatchScore(me: any, other: any) {
   }
 
   // 3. Age within preferred range: 20 points
-  const ageMin = me.partnerPreferences?.ageMin || 18;
-  const ageMax = me.partnerPreferences?.ageMax || 100;
+  const ageMin = Number(me.partnerPreferences?.ageMin) || 18;
+  const ageMax = Number(me.partnerPreferences?.ageMax) || 100;
   if (other.age >= ageMin && other.age <= ageMax) {
     score += 20;
   }
@@ -154,10 +179,11 @@ export function calculateMatchScore(me: any, other: any) {
   }
   score += lifestyleScore;
 
-  // 6. Height within preferred range: 10 points
-  const heightMin = me.partnerPreferences?.heightMin || 0;
-  const heightMax = me.partnerPreferences?.heightMax || 300;
-  if (other.height >= heightMin && other.height <= heightMax) {
+  // 6. Height within preferred range: 10 points (compared in total inches)
+  const otherInches = parseHeightToInches(other.height);
+  const minInches = parseHeightToInches(me.partnerPreferences?.heightMin) || 0;
+  const maxInches = parseHeightToInches(me.partnerPreferences?.heightMax) || 300;
+  if (otherInches > 0 && otherInches >= minInches && otherInches <= maxInches) {
     score += 10;
   }
 

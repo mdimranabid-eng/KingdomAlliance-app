@@ -26,7 +26,7 @@ import {
   PauseCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge, generateUniqueProfileId, isUserOnline } from '../lib/utils';
+import { cn, calculateMatchScore, resolveApprovalStatus, calculateAge, generateUniqueProfileId, isUserOnline, getProfileRole } from '../lib/utils';
 import { BlurablePhoto } from '../components/BlurablePhoto';
 
 const getOptimizedImageUrl = (url: string) => {
@@ -232,8 +232,13 @@ export default function DashboardPage() {
         }
         setMatchLoading(true);
 
-        // Task 1: The 24-Hour Cache Check (localStorage)
-        const cachedStr = localStorage.getItem('kingdomAlliance_dailyMatches');
+        const currentUserUid = authUser.uid;
+        const myRole = getProfileRole(profile);
+        const oppositeRole: 'bride' | 'groom' = myRole === 'groom' ? 'bride' : 'groom';
+        const cacheKey = `kingdomAlliance_dailyMatches_${currentUserUid}`;
+
+        // Task 1: The 24-Hour Cache Check (localStorage, scoped per user and opposite role)
+        const cachedStr = localStorage.getItem(cacheKey);
         if (cachedStr) {
           try {
             const cached = JSON.parse(cachedStr);
@@ -241,20 +246,20 @@ export default function DashboardPage() {
             const ageHours = (now - cached.generatedAt) / (1000 * 60 * 60);
 
             if (ageHours < 24 && Array.isArray(cached.profiles) && cached.profiles.length > 0) {
-              setSuggestedMatches(cached.profiles);
-              return; // Return early, do not run the engine
+              const validCached = cached.profiles.filter((u: any) => getProfileRole(u) === oppositeRole);
+              if (validCached.length > 0) {
+                setSuggestedMatches(validCached);
+                return;
+              }
             }
           } catch (e) {
             console.error("Failed to parse cached matches", e);
           }
         }
 
-        // TODO: Migrate this cache to the user's Firestore document (or a Cloud Function) once the platform scales, to ensure the daily batch remains consistent across multiple devices.
-
         // Force Cache Invalidation to purge legacy/unfiltered matches
         localStorage.removeItem('kingdomAlliance_dailyMatches');
-
-        const currentUserUid = authUser.uid;
+        localStorage.removeItem(cacheKey);
 
         // Task 2: The Ultimate Privacy Shield (Exclusion Set)
         const excludedUids = new Set<string>();
@@ -268,19 +273,10 @@ export default function DashboardPage() {
         snapSent.docs.forEach(doc => excludedUids.add(doc.data().toId));
         snapReceived.docs.forEach(doc => excludedUids.add(doc.data().fromId));
 
-        // If there are blocked/reports collections, we would query them here:
-        // const snapBlocks = await getDocs(query(collection(db, 'blocked'), where('blockerId', '==', currentUserUid)));
-        // snapBlocks.docs.forEach(doc => excludedUids.add(doc.data().blockedId));
-
-        // Task 3: The Mutual Hard Gates (Base Fetch)
-        const myGender = profile.gender?.toLowerCase() || '';
-        const myPreference = profile.partnerPreferences?.gender?.toLowerCase() ||
-          (profile.profileType === 'bride' ? 'male' : 'female');
-
+        // Task 3: The Mutual Hard Gates (Base Fetch — Groom sees Brides, Bride sees Grooms)
         const qCandidates = query(
           collection(db, 'users'),
-          where('gender', '==', myPreference),
-          where('isApproved', '==', true),
+          where('profileType', '==', oppositeRole),
           limit(200)
         );
         const snapCandidates = await getDocs(qCandidates);
@@ -291,19 +287,19 @@ export default function DashboardPage() {
         });
 
         candidates = candidates.filter(u => {
-          // 1. Mutual Gender Preference
-          const uPreference = u.partnerPreferences?.gender?.toLowerCase() ||
-            (u.profileType === 'bride' ? 'male' : 'female');
-          if (uPreference !== myGender) return false;
+          // 1. Strict opposite role & approval check
+          if (getProfileRole(u) !== oppositeRole || u.role === 'admin') return false;
+          const uStatus = resolveApprovalStatus(u);
+          const isApprovedUser = u.isApproved === true || uStatus === 'approved';
+          if (!isApprovedUser) return false;
 
           // 2. Age Range
           const uAge = u.age;
-          const myMinAge = profile.partnerPreferences?.ageMin || 18;
-          const myMaxAge = profile.partnerPreferences?.ageMax || 100;
-          if (uAge < myMinAge || uAge > myMaxAge) return false;
+          const myMinAge = Number(profile.partnerPreferences?.ageMin) || 18;
+          const myMaxAge = Number(profile.partnerPreferences?.ageMax) || 100;
+          if (uAge && (uAge < myMinAge || uAge > myMaxAge)) return false;
 
           // Sanity check for account validity & paused status (Courtship mode)
-          const uStatus = resolveApprovalStatus(u);
           if (uStatus === 'banned' || uStatus === 'pending' || uStatus === 'suspended' || u.isBanned || u.isSuspended || u.isPaused === true) return false;
 
           return true;
@@ -365,7 +361,7 @@ export default function DashboardPage() {
         // Task 5: State Save & UI Rendering
         const topCandidates = candidates.slice(0, 10);
 
-        localStorage.setItem('kingdomAlliance_dailyMatches', JSON.stringify({
+        localStorage.setItem(cacheKey, JSON.stringify({
           profiles: topCandidates,
           generatedAt: Date.now()
         }));

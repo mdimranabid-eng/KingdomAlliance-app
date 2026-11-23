@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Loader2, Check, AlertTriangle } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, parseHeightToInches } from '../lib/utils';
 import toast from 'react-hot-toast';
 
 const BIO_LIMIT = 1200;
@@ -154,6 +154,20 @@ export default function EditProfileModal({ isOpen, onClose, profile: initialProf
         setError(validationError);
         return;
       }
+    }
+
+    const ageMinVal = Number(formData['partnerPreferences.ageMin']);
+    const ageMaxVal = Number(formData['partnerPreferences.ageMax']);
+    if (ageMinVal && ageMaxVal && ageMinVal > ageMaxVal) {
+      setError('Preferred Minimum Age cannot be greater than Maximum Age.');
+      return;
+    }
+
+    const heightMinVal = parseHeightToInches(formData['partnerPreferences.heightMin']);
+    const heightMaxVal = parseHeightToInches(formData['partnerPreferences.heightMax']);
+    if (heightMinVal > 0 && heightMaxVal > 0 && heightMinVal > heightMaxVal) {
+      setError('Preferred Minimum Height cannot be greater than Maximum Height.');
+      return;
     }
 
     setSaving(true);

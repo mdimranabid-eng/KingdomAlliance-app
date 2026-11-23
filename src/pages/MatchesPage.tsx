@@ -27,7 +27,7 @@ import {
   Ruler
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus, calculateAge, isUserOnline } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, calculateMatchScore, resolveApprovalStatus, calculateAge, isUserOnline, getProfileRole, parseHeightToInches } from '../lib/utils';
 import { BlurablePhoto } from '../components/BlurablePhoto';
 import toast from 'react-hot-toast';
 
@@ -119,6 +119,9 @@ export default function MatchesPage() {
           .map(i => i.fromId === currentUserUid ? i.toId : i.fromId)
       );
 
+      const myRole = getProfileRole(profile);
+      const oppositeRole: 'bride' | 'groom' = myRole === 'groom' ? 'bride' : 'groom';
+
       if (isDirectSearch && profileIdSearch) {
         if (profileIdSearch.trim().length < 6) {
           setSearchToast({ message: "Profile ID must be at least 6 characters", type: 'error' });
@@ -132,6 +135,19 @@ export default function MatchesPage() {
         if (!snap.empty) {
           const docData = snap.docs[0].data();
           const searchedUser = { id: snap.docs[0].id, ...docData, age: calculateAge(docData.dob, docData.age) } as any;
+          const searchedRole = getProfileRole(searchedUser);
+          const searchedStatus = resolveApprovalStatus(searchedUser);
+          const isApprovedTarget = searchedUser.isApproved === true || searchedStatus === 'approved';
+          const isNotBannedOrPending = searchedStatus !== 'banned' && searchedStatus !== 'pending' && searchedStatus !== 'suspended' && !searchedUser.isBanned && !searchedUser.isSuspended;
+
+          // Strictly enforce opposite role (Groom can only see Brides; Bride can only see Grooms)
+          if (searchedRole !== oppositeRole || searchedUser.role === 'admin' || !isApprovedTarget || !isNotBannedOrPending) {
+            toast.error('No Profile Found');
+            setMatches([]);
+            setLoading(false);
+            return;
+          }
+
           searchedUser.matchScore = calculateMatchScore(profile, searchedUser);
           
           // 1. STRICT PRIVACY SHIELD: Do not allow bypassed searches for blocked/excluded/paused users
@@ -164,20 +180,9 @@ export default function MatchesPage() {
         }
       }
 
-      const userRole = (profile?.profileType || '').toLowerCase();
-      let oppositeRole = 'bride';
-      if (userRole === 'groom') {
-        oppositeRole = 'bride';
-      } else if (userRole === 'bride') {
-        oppositeRole = 'groom';
-      } else {
-        oppositeRole = profile?.gender === 'male' ? 'bride' : 'groom';
-      }
-
       let q = query(
         collection(db, 'users'), 
         where('profileType', '==', oppositeRole),
-        where('isApproved', '==', true),
         limit(100)
       );
       
@@ -200,7 +205,8 @@ export default function MatchesPage() {
           const isNotSelf = u.uid !== currentUserUid && u.id !== currentUserUid;
           const isNotBannedOrPending = uStatus !== 'banned' && uStatus !== 'pending' && uStatus !== 'suspended' && !u.isBanned && !u.isSuspended;
           const isNotPaused = u.isPaused !== true;
-          return isApprovedUser && isNotSelf && isNotBannedOrPending && isNotPaused;
+          const isOppositeRole = getProfileRole(u) === oppositeRole && u.role !== 'admin';
+          return isApprovedUser && isNotSelf && isNotBannedOrPending && isNotPaused && isOppositeRole;
         });
 
       // Apply Filters Locally for complex ones

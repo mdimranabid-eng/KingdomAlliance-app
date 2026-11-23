@@ -6,7 +6,7 @@ import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ArrowLeft, CheckCircle2, User, Mail, MapPin, Church, GraduationCap, ShieldCheck, Camera, UserPlus, Users, Heart, Globe, Lock, Briefcase, Home, FileText, Scale, Ruler, Eye, EyeOff, Hourglass } from 'lucide-react';
-import { cn, formatAuthError, generateUniqueProfileId, calculateAge } from '../lib/utils';
+import { cn, formatAuthError, generateUniqueProfileId, calculateAge, parseHeightToInches } from '../lib/utils';
 import { useSettings } from '../lib/SettingsContext';
 import { KingdomCrossIcon } from '../components/KingdomCrossIcon';
 import { uploadUserPhotos } from '../lib/storage';
@@ -541,6 +541,20 @@ export default function RegisterPage() {
         setInvalidFields(errors);
         setErrorMsg("Please fill in all mandatory Partner Preferences.");
         scrollToFirstError(errors);
+        return;
+      }
+
+      if (Number(pref.ageMin) > Number(pref.ageMax)) {
+        setInvalidFields(['ageMin', 'ageMax']);
+        setErrorMsg("Min Age cannot be greater than Max Age.");
+        scrollToFirstError(['ageMin']);
+        return;
+      }
+
+      if (parseHeightToInches(pref.heightMin) > parseHeightToInches(pref.heightMax)) {
+        setInvalidFields(['heightMin', 'heightMax']);
+        setErrorMsg("Min Height cannot be greater than Max Height.");
+        scrollToFirstError(['heightMin']);
         return;
       }
     }
@@ -1220,18 +1234,36 @@ export default function RegisterPage() {
                                 onClick={() => openSheet('partnerPreferences.ageMin', 'Min Age', AGE_OPTIONS.map(a => ({ value: a, label: a })))}
                                 hasError={invalidFields.includes('ageMin')} />
                               <FieldSelect value={formData.partnerPreferences.ageMin}
-                                onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMin: e.target.value })}
+                                onChange={(e) => {
+                                  const nextMin = e.target.value;
+                                  const curMax = formData.partnerPreferences.ageMax;
+                                  const nextMax = curMax && Number(nextMin) > Number(curMax) ? '' : curMax;
+                                  updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMin: nextMin, ageMax: nextMax });
+                                }}
                                 hasError={invalidFields.includes('ageMin')} placeholder="Select Min Age"
                                 options={AGE_OPTIONS.map(a => ({ value: a, label: a }))} />
                             </CardField>
                             <CardField label="Max Age" field="ageMax">
                               <MobileSelectTrigger value={formData.partnerPreferences.ageMax} placeholder="Select Max Age"
-                                onClick={() => openSheet('partnerPreferences.ageMax', 'Max Age', AGE_OPTIONS.map(a => ({ value: a, label: a })))}
+                                onClick={() => openSheet(
+                                  'partnerPreferences.ageMax',
+                                  'Max Age',
+                                  AGE_OPTIONS
+                                    .filter(a => !formData.partnerPreferences.ageMin || Number(a) >= Number(formData.partnerPreferences.ageMin))
+                                    .map(a => ({ value: a, label: a }))
+                                )}
                                 hasError={invalidFields.includes('ageMax')} />
                               <FieldSelect value={formData.partnerPreferences.ageMax}
-                                onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMax: e.target.value })}
+                                onChange={(e) => {
+                                  const nextMax = e.target.value;
+                                  const curMin = formData.partnerPreferences.ageMin;
+                                  const nextMin = curMin && Number(nextMax) < Number(curMin) ? nextMax : curMin;
+                                  updateFormData('partnerPreferences', { ...formData.partnerPreferences, ageMin: nextMin, ageMax: nextMax });
+                                }}
                                 hasError={invalidFields.includes('ageMax')} placeholder="Select Max Age"
-                                options={AGE_OPTIONS.map(a => ({ value: a, label: a }))} />
+                                options={AGE_OPTIONS
+                                  .filter(a => !formData.partnerPreferences.ageMin || Number(a) >= Number(formData.partnerPreferences.ageMin))
+                                  .map(a => ({ value: a, label: a }))} />
                             </CardField>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1240,18 +1272,36 @@ export default function RegisterPage() {
                                 onClick={() => openSheet('partnerPreferences.heightMin', 'Min Height', HEIGHT_FT.map(h => ({ value: h, label: `${h} ft` })))}
                                 hasError={invalidFields.includes('heightMin')} />
                               <FieldSelect value={formData.partnerPreferences.heightMin}
-                                onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMin: e.target.value })}
+                                onChange={(e) => {
+                                  const nextMin = e.target.value;
+                                  const curMax = formData.partnerPreferences.heightMax;
+                                  const nextMax = curMax && parseHeightToInches(nextMin) > parseHeightToInches(curMax) ? '' : curMax;
+                                  updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMin: nextMin, heightMax: nextMax });
+                                }}
                                 hasError={invalidFields.includes('heightMin')} placeholder="Select Min Height"
                                 options={HEIGHT_FT.map(h => ({ value: h, label: `${h} ft` }))} />
                             </CardField>
                             <CardField label="Max Height (ft)" field="heightMax">
                               <MobileSelectTrigger value={formData.partnerPreferences.heightMax} placeholder="Select Max Height"
-                                onClick={() => openSheet('partnerPreferences.heightMax', 'Max Height', HEIGHT_FT.map(h => ({ value: h, label: `${h} ft` })))}
+                                onClick={() => openSheet(
+                                  'partnerPreferences.heightMax',
+                                  'Max Height',
+                                  HEIGHT_FT
+                                    .filter(h => !formData.partnerPreferences.heightMin || parseHeightToInches(h) >= parseHeightToInches(formData.partnerPreferences.heightMin))
+                                    .map(h => ({ value: h, label: `${h} ft` }))
+                                )}
                                 hasError={invalidFields.includes('heightMax')} />
                               <FieldSelect value={formData.partnerPreferences.heightMax}
-                                onChange={(e) => updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMax: e.target.value })}
+                                onChange={(e) => {
+                                  const nextMax = e.target.value;
+                                  const curMin = formData.partnerPreferences.heightMin;
+                                  const nextMin = curMin && parseHeightToInches(nextMax) < parseHeightToInches(curMin) ? nextMax : curMin;
+                                  updateFormData('partnerPreferences', { ...formData.partnerPreferences, heightMin: nextMin, heightMax: nextMax });
+                                }}
                                 hasError={invalidFields.includes('heightMax')} placeholder="Select Max Height"
-                                options={HEIGHT_FT.map(h => ({ value: h, label: `${h} ft` }))} />
+                                options={HEIGHT_FT
+                                  .filter(h => !formData.partnerPreferences.heightMin || parseHeightToInches(h) >= parseHeightToInches(formData.partnerPreferences.heightMin))
+                                  .map(h => ({ value: h, label: `${h} ft` }))} />
                             </CardField>
                           </div>
                         </div>
