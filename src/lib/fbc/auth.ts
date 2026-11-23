@@ -274,8 +274,12 @@ export function multiFactor(user: any): any {
     async getSession() { return { __session: true }; },
     async enroll(assertion: any, _displayName?: string) {
       if (assertion?.kind === 'enroll') {
-        await request('POST', '/auth/mfa/enroll/confirm', { code: assertion.code });
-        await user?.reload?.();
+        const data = await request<any>('POST', '/auth/mfa/enroll/confirm', { code: assertion.code });
+        if (data?.accessToken && data?.user) {
+          setCurrentUser(data.user, { accessToken: data.accessToken, refreshToken: data.refreshToken });
+        } else {
+          await user?.reload?.();
+        }
       }
     },
     async unenroll() {

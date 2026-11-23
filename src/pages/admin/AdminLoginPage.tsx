@@ -66,7 +66,7 @@ export default function AdminLoginPage() {
           await initializeMfaEnrollment(user);
         } else {
           setIsRedirecting(true);
-          navigate('/admin');
+          navigate('/admin', { replace: true });
         }
       }
     };
@@ -95,6 +95,10 @@ export default function AdminLoginPage() {
                   await signOut(auth);
                   setStep('LOGIN');
                   setError('Sign in again and complete your authenticator verification.');
+                } else {
+                  await refreshProfile();
+                  setIsRedirecting(true);
+                  navigate('/admin', { replace: true });
                 }
               }
             }
@@ -246,10 +250,10 @@ export default function AdminLoginPage() {
       }
       const assertion = TotpMultiFactorGenerator.assertionForEnrollment(totpSecret, verificationCode);
       await multiFactor(auth.currentUser!).enroll(assertion, "Admin Authenticator");
-      await signOut(auth);
-      setStep('LOGIN');
-      setError('Authenticator setup complete. Sign in again to verify your two-factor session.');
+      await refreshProfile();
+      setIsRedirecting(true);
       setLoading(false);
+      navigate('/admin', { replace: true });
     } catch (err: any) {
       console.error("MFA enrollment failed:", err);
       setMfaEnrollError(err.message || "Invalid verification code.");
@@ -271,7 +275,7 @@ export default function AdminLoginPage() {
 
       const adminDoc = await getDoc(doc(db, 'admins', userCredential.user.uid));
       if (!adminDoc.exists()) {
-        await auth.signOut();
+        await signOut(auth);
         setError("Access Denied: Administrator privileges required.");
         setMfaResolver(null);
         setLoading(false);
@@ -280,7 +284,9 @@ export default function AdminLoginPage() {
       }
 
       await refreshProfile();
-      navigate('/admin');
+      setMfaResolver(null);
+      setLoading(false);
+      navigate('/admin', { replace: true });
     } catch (err: any) {
       console.error("MFA Error:", err);
       setError(err.message || "Invalid 2FA Code.");

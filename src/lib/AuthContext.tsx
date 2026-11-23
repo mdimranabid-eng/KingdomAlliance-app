@@ -125,10 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
+        setLoading(true);
+        setUser(currentUser);
         await fetchProfile(currentUser.uid, currentUser.email || "");
       } else {
+        setUser(null);
         setProfile(null);
         setIsAdmin(false);
       }
@@ -176,8 +178,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, isAdmin]);
 
   const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.uid, user.email || "");
+    const activeUser = auth.currentUser || user;
+    if (activeUser) {
+      setUser(activeUser);
+      await fetchProfile(activeUser.uid, activeUser.email || "");
     }
   };
 

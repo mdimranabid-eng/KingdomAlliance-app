@@ -127,6 +127,12 @@ const toMs = (d) => (d instanceof Date ? d.getTime() : d ? new Date(d).getTime()
 
 function rowToDoc(row) {
   const docData = pj(row.data, {});
+  if (row.email_verified !== undefined && (row.email_verified === 1 || row.email_verified === true)) {
+    docData.emailVerified = true;
+  }
+  if (row.email && !docData.email) {
+    docData.email = row.email;
+  }
   if (docData.createdAt === undefined) docData.createdAt = tsWrap(toMs(row.created_at));
   if (docData.updatedAt === undefined) docData.updatedAt = tsWrap(toMs(row.updated_at));
   return { id: row.id, data: docData, createdMs: toMs(row.created_at), updatedMs: toMs(row.updated_at) };
@@ -140,7 +146,7 @@ async function getDoc(collPath, id) {
     return rows.length ? rowToDoc(rows[0]) : null;
   }
   if (collPath === 'admins') {
-    const [rows] = await pool.query('SELECT id, data, created_at, updated_at FROM admins WHERE id = ? LIMIT 1', [id]);
+    const [rows] = await pool.query('SELECT id, email, email_verified, data, created_at, updated_at FROM admins WHERE id = ? LIMIT 1', [id]);
     return rows.length ? rowToDoc(rows[0]) : null;
   }
   const [rows] = await pool.query('SELECT id, data, created_at, updated_at FROM coll_store WHERE coll = ? AND id = ? LIMIT 1', [collPath, id]);
@@ -154,7 +160,7 @@ async function listDocs(collPath, { collectionGroup = false } = {}) {
     return rows.map(rowToDoc);
   }
   if (collPath === 'admins') {
-    const [rows] = await pool.query('SELECT id, data, created_at, updated_at FROM admins');
+    const [rows] = await pool.query('SELECT id, email, email_verified, data, created_at, updated_at FROM admins');
     return rows.map(rowToDoc);
   }
   if (collectionGroup) {
@@ -246,7 +252,7 @@ async function writeDoc(collPath, id, patch, { merge = false, createOnly = false
   } else if (collPath === 'admins') {
     await pool.query(
       `INSERT INTO admins (id, email, email_verified, data) VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE data = VALUES(data)`,
+       ON DUPLICATE KEY UPDATE email = VALUES(email), email_verified = VALUES(email_verified), data = VALUES(data)`,
       [id, str(nextData.email).toLowerCase() || null, nextData.emailVerified === true ? 1 : 0, JSON.stringify(nextData)]
     );
   } else {

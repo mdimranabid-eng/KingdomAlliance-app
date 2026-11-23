@@ -145,6 +145,17 @@ router.post('/auth/mfa/challenge', async (req, res) => {
       return res.status(401).json({ error: { code: 'auth/invalid-verification-code', message: 'Invalid verification code.' } });
     }
     await pool.query('UPDATE verification_tokens SET used = 1 WHERE id = ?', [rows[0].id]);
+    if (row.role === 'admin') {
+      await store.writeDoc('admins', row.id, {
+        uid: row.id,
+        email: String(row.email || '').toLowerCase(),
+        role: 'admin',
+        isAdmin: true,
+        emailVerified: true,
+      }, { merge: true });
+      await pool.query('UPDATE users SET email_verified = 1 WHERE id = ?', [row.id]);
+      row.email_verified = 1;
+    }
     res.json(await sendTokens(res, row, 'totp'));
   } catch (e) { console.error('[auth/mfa/challenge]', e); res.status(500).json({ error: { code: 'internal', message: 'Challenge failed.' } }); }
 });
@@ -277,7 +288,7 @@ router.post('/auth/mfa/enroll/start', authRequired, async (req, res) => {
 
 router.post('/auth/mfa/enroll/confirm', authRequired, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT totp_secret FROM users WHERE id = ? LIMIT 1', [req.uid]);
+    const [rows] = await pool.query('SELECT id, email, password_hash, role, auth_provider, totp_secret, totp_enabled, email_verified, data FROM users WHERE id = ? LIMIT 1', [req.uid]);
     if (!rows.length || !rows[0].totp_secret) {
       return res.status(400).json({ error: { code: 'auth/invalid-verification-code', message: 'Start enrollment first.' } });
     }
@@ -285,7 +296,20 @@ router.post('/auth/mfa/enroll/confirm', authRequired, async (req, res) => {
       return res.status(401).json({ error: { code: 'auth/invalid-verification-code', message: 'Invalid verification code.' } });
     }
     await pool.query('UPDATE users SET totp_enabled = 1 WHERE id = ?', [req.uid]);
-    res.json({ ok: true });
+    rows[0].totp_enabled = 1;
+    if (rows[0].role === 'admin') {
+      await store.writeDoc('admins', req.uid, {
+        uid: req.uid,
+        email: String(rows[0].email || '').toLowerCase(),
+        role: 'admin',
+        isAdmin: true,
+        emailVerified: true,
+      }, { merge: true });
+      await pool.query('UPDATE users SET email_verified = 1 WHERE id = ?', [req.uid]);
+      rows[0].email_verified = 1;
+    }
+    const tokens = await sendTokens(res, rows[0], 'totp');
+    res.json({ ok: true, ...tokens });
   } catch (e) { res.status(500).json({ error: { code: 'internal' } }); }
 });
 
@@ -377,12 +401,15 @@ router.post('/verify-admin-email', authRequired, async (req, res) => {
     }
     const result = await require('../otp').consumeOtp(rows[0].email || '', String((req.body || {}).otp || ''), 'admin_login');
     if (!result.ok) return res.status(400).json({ error: result.message });
-    await pool.query(
-      `INSERT INTO admins (id, email, email_verified, data) VALUES (?, ?, 1, ?)
-       ON DUPLICATE KEY UPDATE email_verified = 1`,
-      [req.uid, String(rows[0].email).toLowerCase(), JSON.stringify({ email: rows[0].email, emailVerified: true })]
-    );
+    await store.writeDoc('admins', req.uid, {
+      uid: req.uid,
+      email: String(rows[0].email).toLowerCase(),
+      role: 'admin',
+      isAdmin: true,
+      emailVerified: true,
+    }, { merge: true });
     await store.writeDoc('users', req.uid, { emailVerified: true }, { merge: true });
+    await pool.query('UPDATE users SET email_verified = 1 WHERE id = ?', [req.uid]);
     res.json({ success: true });
   } catch (e) {
     console.error('[verify-admin-email]', e);
