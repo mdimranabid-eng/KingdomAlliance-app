@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { requestOtp, verifyOtp } from '../services/otpService';
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+import TurnstileWidget, { type TurnstileWidgetHandle } from '../components/onboarding/TurnstileWidget';
 import toast from 'react-hot-toast';
 import { cn, resolveApprovalStatus } from '../lib/utils';
 
@@ -35,7 +35,7 @@ export default function RegisterPage() {
   const [otpSending, setOtpSending] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [resendCaptchaToken, setResendCaptchaToken] = useState<string | null>(null);
-  const resendCaptchaRef = useRef<TurnstileInstance>(null);
+  const resendCaptchaRef = useRef<TurnstileWidgetHandle>(null);
   const [registeredUid, setRegisteredUid] = useState<string>('');
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -150,7 +150,7 @@ export default function RegisterPage() {
     }
   };
 
-  const recaptchaRef = useRef<TurnstileInstance>(null);
+  const recaptchaRef = useRef<TurnstileWidgetHandle>(null);
 
   // reCAPTCHA v2 tokens are SINGLE-USE. Consume the token and reset the
   // widget so every attempt (initial or resend) carries a fresh token.
@@ -484,15 +484,12 @@ export default function RegisterPage() {
                     </p>
                   </div>
 
-                  <div className="flex justify-center py-1 w-full overflow-x-auto relative z-20">
-                    <Turnstile
-                      ref={recaptchaRef}
-                      siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''}
-                      onSuccess={(token) => setRecaptchaToken(token)}
-                      onExpire={() => setRecaptchaToken(null)}
-                      options={{ theme: 'light', size: 'flexible' }}
-                    />
-                  </div>
+                  <TurnstileWidget
+                    ref={recaptchaRef}
+                    onSuccess={(token) => setRecaptchaToken(token)}
+                    onExpire={() => setRecaptchaToken(null)}
+                    className="my-1"
+                  />
 
                   <button
                     type="submit"
@@ -623,15 +620,12 @@ export default function RegisterPage() {
                     </button>
 
                     <div className="flex flex-col items-center gap-2.5 pt-0.5">
-                      <div className="flex justify-center w-full overflow-x-auto relative z-20">
-                        <Turnstile
-                          ref={resendCaptchaRef}
-                          siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''}
-                          onSuccess={(token) => setResendCaptchaToken(token)}
-                          onExpire={() => setResendCaptchaToken(null)}
-                          options={{ theme: 'light', size: 'flexible' }}
-                        />
-                      </div>
+                      <TurnstileWidget
+                        ref={resendCaptchaRef}
+                        onSuccess={(token) => setResendCaptchaToken(token)}
+                        onExpire={() => setResendCaptchaToken(null)}
+                        className="my-0.5"
+                      />
                       {otpTimer > 0 ? (
                         <span className="text-[14px] font-semibold text-[#8a7a65]">
                           Resend code in <span className="font-bold text-[#b8860b] text-[16px]">{otpTimer}s</span>

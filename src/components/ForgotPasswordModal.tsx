@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, Key, X, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import { requestOtp } from '../services/otpService';
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+import TurnstileWidget, { type TurnstileWidgetHandle } from './onboarding/TurnstileWidget';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -20,7 +20,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-  const recaptchaRef = useRef<TurnstileInstance>(null);
+  const recaptchaRef = useRef<TurnstileWidgetHandle>(null);
 
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,15 +181,12 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                   className="w-full pl-12 pr-4 py-4 bg-surface-container-high border border-outline-variant rounded-2xl outline-none focus:ring-2 focus:ring-primary transition-all text-on-surface"
                 />
               </div>
-              <div className="flex justify-center py-2 w-full overflow-x-auto relative z-20">
-                <Turnstile
-                  ref={recaptchaRef}
-                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ""}
-                  onSuccess={(token) => setRecaptchaToken(token)}
-                  onExpire={() => setRecaptchaToken(null)}
-                  options={{ theme: 'light', size: 'flexible' }}
-                />
-              </div>
+              <TurnstileWidget
+                ref={recaptchaRef}
+                onSuccess={(token) => setRecaptchaToken(token)}
+                onExpire={() => setRecaptchaToken(null)}
+                className="my-2"
+              />
               <button
                 type="submit"
                 disabled={loading}

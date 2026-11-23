@@ -43,8 +43,13 @@ app.get('/uploads/*', filesRouter.serveUpload);
 
 const DIST = path.resolve(process.cwd(), process.env.DIST_DIR || '../dist');
 if (fs.existsSync(path.join(DIST, 'index.html'))) {
-  app.use(express.static(DIST, { index: false, maxAge: '1y', setHeaders: (res, p) => { if (p.endsWith('index.html')) res.setHeader('Cache-Control', 'no-store'); } }));
-  app.get(/^(?!\/api|\/uploads).*/, (req, res) => res.sendFile(path.join(DIST, 'index.html')));
+  app.use(express.static(DIST, { index: false, maxAge: '1y', setHeaders: (res, p) => { if (p.endsWith('index.html')) res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); } }));
+  app.get(/^(?!\/api|\/uploads).*/, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.sendFile(path.join(DIST, 'index.html'));
+  });
   console.log(`[spa] serving built frontend from ${DIST}`);
 } else {
   console.log(`[spa] no dist/ found at ${DIST} — API-only mode`);

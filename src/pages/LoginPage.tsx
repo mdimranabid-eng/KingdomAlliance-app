@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signInWithGoogle, signInWithEmail } from '../services/authService';
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+import TurnstileWidget, { type TurnstileWidgetHandle } from '../components/onboarding/TurnstileWidget';
 import { Loader2, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from '../lib/firebase';
@@ -20,7 +20,7 @@ export default function LoginPage() {
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const navigate = useNavigate();
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-  const recaptchaRef = useRef<TurnstileInstance>(null);
+  const recaptchaRef = useRef<TurnstileWidgetHandle>(null);
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
   const [mfaResolver, setMfaResolver] = useState<any>(null);
@@ -390,15 +390,12 @@ export default function LoginPage() {
                     </button>
                   </div>
 
-                  <div className="flex justify-center mb-2 w-full overflow-x-auto relative z-20">
-                    <Turnstile
-                      ref={recaptchaRef}
-                      siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''}
-                      onSuccess={(token) => setRecaptchaToken(token)}
-                      onExpire={() => setRecaptchaToken(null)}
-                      options={{ theme: 'light', size: 'flexible' }}
-                    />
-                  </div>
+                  <TurnstileWidget
+                    ref={recaptchaRef}
+                    onSuccess={(token) => setRecaptchaToken(token)}
+                    onExpire={() => setRecaptchaToken(null)}
+                    className="mb-2 mt-1"
+                  />
 
                   <button
                     type="submit" disabled={loading || googleLoading}

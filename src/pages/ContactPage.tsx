@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Turnstile } from '@marsidev/react-turnstile';
+import TurnstileWidget from '../components/onboarding/TurnstileWidget';
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useSettings } from '../lib/SettingsContext';
@@ -230,14 +230,11 @@ export default function ContactPage() {
               />
 
               {/* Turnstile Verification */}
-              <div className="flex justify-center py-2">
-                <Turnstile
-                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ""}
-                  onSuccess={(token) => setRecaptchaToken(token)}
-                  onExpire={() => setRecaptchaToken(null)}
-                  options={{ theme: 'light', size: 'normal' }}
-                />
-              </div>
+              <TurnstileWidget
+                onSuccess={(token) => setRecaptchaToken(token)}
+                onExpire={() => setRecaptchaToken(null)}
+                className="my-2"
+              />
 
               <button
                 type="submit"
