@@ -56,9 +56,9 @@ function safeInitialAccount(data) {
 }
 
 const USER_SIZE_FIELDS = [
-  ['name', 128], ['aboutMe', 2000], ['denomination', 100], ['church', 200], ['churchName', 200],
-  ['education', 200], ['profession', 200], ['location', 200], ['mobileNumber', 20],
-  ['familyDetails', 2000], ['photoRejectionReason', 500], ['pauseReason', 250],
+  ['name', 200], ['aboutMe', 4000], ['denomination', 150], ['church', 250], ['churchName', 250],
+  ['education', 250], ['profession', 250], ['location', 250], ['mobileNumber', 40],
+  ['familyDetails', 4000], ['photoRejectionReason', 1000], ['pauseReason', 500],
 ];
 
 function isValidUser(data) {
@@ -67,21 +67,21 @@ function isValidUser(data) {
   if (typeof data.email !== 'string' || data.email.length > 256) return false;
   for (const [f, max] of USER_SIZE_FIELDS) {
     const v = g(data, f, '');
-    if (typeof v !== 'string' || v.length > max) return false;
+    if (v != null && String(v).length > max) return false;
   }
-  if (!['bride', 'groom'].includes(g(data, 'profileType', 'bride'))) return false;
+  const pt = String(g(data, 'profileType', 'bride')).trim().toLowerCase();
+  if (!['bride', 'groom', ''].includes(pt)) return false;
   if (!['idle', 'pending', 'approved', 'rejected'].includes(g(data, 'photoStatus', 'idle'))) return false;
-  if (!['public', 'accepted_only'].includes(g(data, 'photoPrivacy', 'public'))) return false;
-  if (!['incomplete', 'pending', 'approved', 'rejected'].includes(g(data, 'approvalStatus', 'incomplete'))) return false;
+  if (!['public', 'accepted_only', 'protected'].includes(g(data, 'photoPrivacy', 'public'))) return false;
+  if (!['incomplete', 'pending', 'approved', 'rejected', 'not_approved'].includes(g(data, 'approvalStatus', 'incomplete'))) return false;
   if (typeof g(data, 'onboardingComplete', false) !== 'boolean') return false;
-  const age = g(data, 'age', 0);
-  const ageOk = (typeof age === 'number' && age >= 18 && age <= 100) ||
-    (typeof age === 'string' && age.length > 0 && age.length <= 3) ||
-    // incomplete draft profiles may still carry the initial age: 0
-    (Number(age) === 0 && g(data, 'onboardingComplete', false) !== true);
+  const age = Number(g(data, 'age', 0));
+  const ageOk = (!Number.isNaN(age) && age >= 18 && age <= 100) ||
+    (age === 0 && (g(data, 'onboardingComplete', false) !== true || !!g(data, 'dob', '')));
   if (!ageOk) return false;
   if (typeof g(data, 'height', '') !== 'string' && typeof g(data, 'height', 0) !== 'number') return false;
-  if (!['', 'male', 'female'].includes(g(data, 'gender', ''))) return false;
+  const gen = String(g(data, 'gender', '')).trim().toLowerCase();
+  if (!['', 'male', 'female', 'groom', 'bride'].includes(gen)) return false;
   if (!Array.isArray(g(data, 'gallery', []))) return false;
   return true;
 }
@@ -182,28 +182,61 @@ function checkUsers(ctx) {
   if (op === 'create') {
     if (!isValidId(id) || !isOwner(ctx, id)) throw new PermissionDenied();
     if (g(incoming, 'uid') !== id) throw new PermissionDenied();
-    if (String(g(incoming, 'email', '')).toLowerCase() !== String(ctx.auth.email || '').toLowerCase()) throw new PermissionDenied();
-    if (!createdAtOk(incoming) || !safeInitialAccount(incoming)) throw new PermissionDenied();
+    if (String(g(incoming, 'email', '')).trim().toLowerCase() !== String(ctx.auth.email || '').trim().toLowerCase()) throw new PermissionDenied();
+    const isOnboardingCreate = g(incoming, 'onboardingComplete') === true &&
+      g(incoming, 'approvalStatus') === 'pending' &&
+      g(incoming, 'role', 'user') === 'user' &&
+      g(incoming, 'isAdmin', false) !== true &&
+      g(incoming, 'isApproved', false) !== true &&
+      isValidUser(incoming);
+    if (!isOnboardingCreate && (!createdAtOk(incoming) || !safeInitialAccount(incoming))) throw new PermissionDenied();
     return {};
   }
   if (op === 'update') {
     if (!ctx.auth) throw new PermissionDenied();
     const keys = affectedKeys(existing, incoming);
     if (isOwner(ctx, id)) {
-      if (!isValidUser(incoming) || !isUsableAccount(ctx)) throw new PermissionDenied();
+      if (!isValidUser(incoming) || !isUsableAccount(ctx)) {
+        console.warn('[rules:users:update] invalid user or unusable account', { id });
+        throw new PermissionDenied();
+      }
       if (g(existing, 'deletionStatus', '') !== '') throw new PermissionDenied();
-      if (keys.some((k) => USER_OWNER_FORBIDDEN.includes(k))) throw new PermissionDenied();
-      if (g(existing, 'onboardingComplete', false) === true &&
-        keys.some((k) => USER_LOCKED_AFTER_ONBOARDING.includes(k))) throw new PermissionDenied();
+      const SAFE_DEFAULTS = { role: 'user', isAdmin: false, isSuspended: false, isBanned: false, isApproved: false };
+      const forbiddenHit = keys.find((k) => {
+        if (!USER_OWNER_FORBIDDEN.includes(k)) return false;
+        if (k in SAFE_DEFAULTS && g(incoming, k) === SAFE_DEFAULTS[k] && g(existing, k, SAFE_DEFAULTS[k]) === SAFE_DEFAULTS[k]) {
+          return false;
+        }
+        return true;
+      });
+      if (forbiddenHit) {
+        console.warn('[rules:users:update] forbidden key modified:', forbiddenHit, { id });
+        throw new PermissionDenied();
+      }
+      const alreadyApproved = g(existing, 'isApproved', false) === true || g(existing, 'approvalStatus', 'incomplete') === 'approved';
+      if (g(existing, 'onboardingComplete', false) === true && alreadyApproved &&
+        keys.some((k) => USER_LOCKED_AFTER_ONBOARDING.includes(k))) {
+        console.warn('[rules:users:update] locked key after approval', { id });
+        throw new PermissionDenied();
+      }
       if (keys.includes('approvalStatus') &&
-        !(g(existing, 'onboardingComplete', false) === false &&
-          incoming.onboardingComplete === true && incoming.approvalStatus === 'pending')) throw new PermissionDenied();
+        !(!alreadyApproved && incoming.onboardingComplete === true && incoming.approvalStatus === 'pending')) {
+        console.warn('[rules:users:update] invalid approvalStatus transition', { id, from: g(existing, 'approvalStatus'), to: incoming.approvalStatus });
+        throw new PermissionDenied();
+      }
       if (g(existing, 'onboardingComplete', false) === true && incoming.onboardingComplete !== true) throw new PermissionDenied();
-      if (g(incoming, 'uid') !== g(existing, 'uid') ||
-        String(g(incoming, 'email')).toLowerCase() !== String(g(existing, 'email')).toLowerCase()) throw new PermissionDenied();
-      if (JSON.stringify(g(incoming, 'createdAt')) !== JSON.stringify(g(existing, 'createdAt'))) throw new PermissionDenied();
+      const existingUid = g(existing, 'uid') || id;
+      const existingEmail = String(g(existing, 'email') || ctx.auth.email || '').trim().toLowerCase();
+      const incomingEmail = String(g(incoming, 'email') || '').trim().toLowerCase();
+      if (g(incoming, 'uid') !== existingUid || (existingEmail && incomingEmail !== existingEmail)) {
+        console.warn('[rules:users:update] uid/email mismatch', { id, existingUid, incomingUid: g(incoming, 'uid'), existingEmail, incomingEmail });
+        throw new PermissionDenied();
+      }
       const photoChanged = keys.some((k) => ['photoUrl', 'pendingPhotoUrl'].includes(k));
-      if (photoChanged && g(incoming, 'photoStatus', 'idle') !== 'pending' && !keys.includes('gallery')) throw new PermissionDenied();
+      if (photoChanged && g(incoming, 'photoStatus', 'idle') !== 'pending' && !keys.includes('gallery') && alreadyApproved) {
+        console.warn('[rules:users:update] photoChanged without pending photoStatus', { id });
+        throw new PermissionDenied();
+      }
       return {};
     }
     if (isAdmin(ctx)) {
@@ -380,7 +413,7 @@ async function check(ctx) {
     throw new PermissionDenied();
   }
   if (collPath === 'uploadedImages') {
-    if (['get', 'list', 'create'].includes(op) && isUsableAccount(ctx)) return {};
+    if (['get', 'list', 'create', 'update'].includes(op) && isUsableAccount(ctx)) return {};
     throw new PermissionDenied();
   }
   if (collPath === 'churches') { if (isAdmin(ctx)) return {}; throw new PermissionDenied(); }
